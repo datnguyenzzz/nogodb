@@ -6,9 +6,13 @@ import "context"
 type Key []byte
 
 // WalkFn is used when walking the tree. Takes a key and value, returning if iteration should be terminated.
-type WalkFn[V any] func(k Key, v V) bool
+type WalkFn[V any] func(ctx context.Context, k Key, v V) error
 
-type INode[V any] interface {
+type ITree[V any] interface {
+	// Insert is used to add or update a given key. The return provides the previous value and a bool indicating if any was set.
+	Insert(ctx context.Context, key Key, value V) (V, error)
+	// Delete is used to delete a given key. Returns the old value if any, and a bool indicating if the key was set.
+	Delete(ctx context.Context, key Key) (V, error)
 	// Get is used to lookup a specific key, returning the value and if it was found
 	Get(ctx context.Context, key Key) (V, error)
 	// LongestPrefix is like Get, but instead of an exact match, it will return the longest prefix match.
@@ -23,13 +27,5 @@ type INode[V any] interface {
 	WalkBackwards(ctx context.Context, fn WalkFn[V])
 	// WalkPrefix is used to walk the tree under a prefix
 	WalkPrefix(ctx context.Context, prefix Key, fn WalkFn[V])
-}
-
-type ITree[V any] interface {
-	// Insert is used to add or update a given key. The return provides the previous value and a bool indicating if any was set.
-	Insert(ctx context.Context, key Key, value V) (V, error)
-	// Delete is used to delete a given key. Returns the old value if any, and a bool indicating if the key was set.
-	Delete(ctx context.Context, key Key) (V, error)
-	// Root returns the root node of the tree which can be used for richer query operations.
-	Root(ctx context.Context) (*Node[V], error)
+	// ...
 }

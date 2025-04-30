@@ -7,12 +7,16 @@ import (
 )
 
 type Tree[V any] struct {
-	root internal.INode[V]
+	root internal.INode[V] // pointer to the root node
+}
+
+func NewTree[V any](ctx context.Context) *Tree[V] {
+	return new(Tree[V])
 }
 
 func (t *Tree[V]) Insert(ctx context.Context, key Key, value V) (V, error) {
-	//TODO implement me
-	panic("implement me")
+	ptr := &t.root
+	return internal.InsertNode[V](ctx, ptr, key, value, 0)
 }
 
 func (t *Tree[V]) Delete(ctx context.Context, key Key) (V, error) {

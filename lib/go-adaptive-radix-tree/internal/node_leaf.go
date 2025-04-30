@@ -14,6 +14,10 @@ func (n *NodeLeaf[V]) getValue(ctx context.Context) V {
 	return n.value
 }
 
+func (n *NodeLeaf[V]) setValue(ctx context.Context, v V) {
+	n.value = v
+}
+
 func (n *NodeLeaf[V]) getKind(ctx context.Context) Kind {
 	return KindNodeLeaf
 }

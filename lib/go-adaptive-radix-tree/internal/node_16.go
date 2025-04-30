@@ -19,6 +19,10 @@ func (n *Node16[V]) getValue(ctx context.Context) V {
 	panic("node 16 doesn't hold any value")
 }
 
+func (n *Node16[V]) setValue(ctx context.Context, v V) {
+	panic("node 16 doesn't hold any value")
+}
+
 func (n *Node16[V]) getKind(ctx context.Context) Kind {
 	return KindNode16
 }

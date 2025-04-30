@@ -5,7 +5,7 @@ import (
 )
 
 const (
-	MaxPrefixLen = 8
+	MaxPrefixLen = 10
 )
 
 type Kind int8
@@ -19,13 +19,9 @@ const (
 	KindNode256
 )
 
-type nodeHeader struct {
-	// prefix used in the node to store the key compressed prefix.
-	prefix [MaxPrefixLen]byte
-	// the number of children
-	childrenLen uint64
-	// node kind, eg. node 4, node 16, node 48, node 256, node leaf
-	kind Kind
+type iNodeHeader interface {
+	setPrefix(ctx context.Context, prefix []byte)
+	setChildrenLen(ctx context.Context, childrenLen uint16)
 }
 
 // iNodeSizeManager to control the size of the node itself
@@ -43,8 +39,11 @@ type iNodeChildrenManager[V any] interface {
 }
 
 type INode[V any] interface {
+	iNodeHeader
 	iNodeSizeManager[V]
 	iNodeChildrenManager[V]
+
 	getKind(ctx context.Context) Kind
 	getValue(ctx context.Context) V
+	setValue(ctx context.Context, v V)
 }

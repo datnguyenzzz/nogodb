@@ -5,9 +5,5 @@ I truly enjoy exploring storage engines and database management systems (DBMS), 
 # What on earth is NoGoDB? 🤔
 
 If I had to take a wild guess, the name totally spills the beans on what it’s all about. Every DBMS we've put together in this series is crafted in Golang, but seriously, don’t even think about using it for hardcore production stuff. It's a total no-go if you're hunting for crazy performance and scalability. They're just for learning purposes (and fun  )
-
-# Category
-
-## NoGoDB-kv: Yet another key-value DBMS
-
-… I really hope I get to stick around long enough to see that series through!   
+ 
+... 

@@ -17,8 +17,8 @@ const (
 // parallel comparisons using SIMD instructions.
 type Node16[V any] struct {
 	nodeHeader
-	keys     [Node16KeysLen]byte         // an array of length 16 for 1-byte key
-	children [Node16PointersLen]INode[V] // pointers to children node
+	keys     [Node16KeysLen]byte          // an array of length 16 for 1-byte key
+	children [Node16PointersLen]*INode[V] // pointers to children node
 }
 
 func (n *Node16[V]) getValue(ctx context.Context) V {
@@ -33,17 +33,17 @@ func (n *Node16[V]) getKind(ctx context.Context) Kind {
 	return KindNode16
 }
 
-func (n *Node16[V]) addChild(ctx context.Context, key []byte, child INode[V]) error {
+func (n *Node16[V]) addChild(ctx context.Context, key byte, child *INode[V]) error {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (n *Node16[V]) removeChild(ctx context.Context, key []byte) error {
+func (n *Node16[V]) removeChild(ctx context.Context, key byte) error {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (n *Node16[V]) getChild(ctx context.Context, key []byte) (INode[V], error) {
+func (n *Node16[V]) getChild(ctx context.Context, key byte) (INode[V], error) {
 	//TODO implement me
 	panic("implement me")
 }

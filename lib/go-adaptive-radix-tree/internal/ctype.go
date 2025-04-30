@@ -2,10 +2,12 @@ package internal
 
 import (
 	"context"
+	"fmt"
 )
 
-const (
-	MaxPrefixLen = 10
+// errors
+var (
+	failedToAddChild error = fmt.Errorf("failed to add child")
 )
 
 type Kind int8
@@ -20,6 +22,7 @@ const (
 )
 
 type iNodeHeader interface {
+	getPrefix(ctx context.Context) []byte
 	setPrefix(ctx context.Context, prefix []byte)
 	setChildrenLen(ctx context.Context, childrenLen uint16)
 }
@@ -33,9 +36,9 @@ type iNodeSizeManager[V any] interface {
 
 // iNodeChildrenManager control the node's children
 type iNodeChildrenManager[V any] interface {
-	addChild(ctx context.Context, key []byte, child INode[V]) error
-	removeChild(ctx context.Context, key []byte) error
-	getChild(ctx context.Context, key []byte) (INode[V], error)
+	addChild(ctx context.Context, key byte, child *INode[V]) error
+	removeChild(ctx context.Context, key byte) error
+	getChild(ctx context.Context, key byte) (INode[V], error)
 }
 
 type INode[V any] interface {

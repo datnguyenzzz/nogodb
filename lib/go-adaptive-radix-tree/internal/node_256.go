@@ -17,7 +17,7 @@ const (
 // only pointers need to be stored.
 type Node256[V any] struct {
 	nodeHeader
-	children [Node256PointersLen]INode[V] // pointers to children node
+	children [Node256PointersLen]*INode[V] // pointers to children node
 }
 
 func (n *Node256[V]) getValue(ctx context.Context) V {
@@ -32,17 +32,17 @@ func (n *Node256[V]) getKind(ctx context.Context) Kind {
 	return KindNode256
 }
 
-func (n *Node256[V]) addChild(ctx context.Context, key []byte, child INode[V]) error {
+func (n *Node256[V]) addChild(ctx context.Context, key byte, child *INode[V]) error {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (n *Node256[V]) removeChild(ctx context.Context, key []byte) error {
+func (n *Node256[V]) removeChild(ctx context.Context, key byte) error {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (n *Node256[V]) getChild(ctx context.Context, key []byte) (INode[V], error) {
+func (n *Node256[V]) getChild(ctx context.Context, key byte) (INode[V], error) {
 	//TODO implement me
 	panic("implement me")
 }

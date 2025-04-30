@@ -18,8 +18,8 @@ const (
 // contains up to 48 pointers.
 type Node48[V any] struct {
 	nodeHeader
-	keys     [Node48KeysLen]byte         // an array of length 16 for 1-byte key
-	children [Node48PointersLen]INode[V] // pointers to children node
+	keys     [Node48KeysLen]byte          // an array of length 16 for 1-byte key
+	children [Node48PointersLen]*INode[V] // pointers to children node
 }
 
 func (n *Node48[V]) getValue(ctx context.Context) V {
@@ -34,17 +34,17 @@ func (n *Node48[V]) getKind(ctx context.Context) Kind {
 	return KindNode48
 }
 
-func (n *Node48[V]) addChild(ctx context.Context, key []byte, child INode[V]) error {
+func (n *Node48[V]) addChild(ctx context.Context, key byte, child *INode[V]) error {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (n *Node48[V]) removeChild(ctx context.Context, key []byte) error {
+func (n *Node48[V]) removeChild(ctx context.Context, key byte) error {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (n *Node48[V]) getChild(ctx context.Context, key []byte) (INode[V], error) {
+func (n *Node48[V]) getChild(ctx context.Context, key byte) (INode[V], error) {
 	//TODO implement me
 	panic("implement me")
 }

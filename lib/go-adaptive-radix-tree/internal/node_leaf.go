@@ -5,7 +5,8 @@ import (
 )
 
 // NodeLeaf aka Single-value leaf: The values are stored
-// using an additional leaf node type which stores one value
+// in an additional leaf node type, instead of in the inner node.
+// It's also an implication that the prefix on the leaf node is equal to the key itself.
 type NodeLeaf[V any] struct {
 	nodeHeader
 	value V
@@ -23,15 +24,15 @@ func (n *NodeLeaf[V]) getKind(ctx context.Context) Kind {
 	return KindNodeLeaf
 }
 
-func (n *NodeLeaf[V]) addChild(ctx context.Context, key []byte, child INode[V]) error {
+func (n *NodeLeaf[V]) addChild(ctx context.Context, key byte, child INode[V]) error {
 	panic("node leaf doesn't support this function")
 }
 
-func (n *NodeLeaf[V]) removeChild(ctx context.Context, key []byte) error {
+func (n *NodeLeaf[V]) removeChild(ctx context.Context, key byte) error {
 	panic("node leaf doesn't support this function")
 }
 
-func (n *NodeLeaf[V]) getChild(ctx context.Context, key []byte) (INode[V], error) {
+func (n *NodeLeaf[V]) getChild(ctx context.Context, key byte) (INode[V], error) {
 	panic("node leaf doesn't support this function")
 }
 

@@ -13,7 +13,7 @@ func InsertNode[V any](ctx context.Context, nodePtr *INode[V], prefix []byte, v 
 		return v, nil
 	}
 
-	var node INode[V] = *nodePtr
+	node := *nodePtr
 	if node.getKind(ctx) == KindNodeLeaf {
 		// TODO grow the current leaf node to node 4 and append new children to it
 		return *new(V), nil

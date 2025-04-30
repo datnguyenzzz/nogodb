@@ -9,6 +9,10 @@ const (
 	Node4PointersLen = 4
 )
 
+// Node4 The smallest node type can store up to 4 child
+// pointers and uses an array of length 4 for keys and another
+// array of the same length for pointers. The keys and pointers
+// are stored at corresponding positions and the keys are sorted.
 type Node4[V any] struct {
 	nodeHeader
 	keys     [Node4KeysLen]byte         // an array of length 4 for 1-byte key

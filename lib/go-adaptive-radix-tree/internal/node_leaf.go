@@ -4,7 +4,8 @@ import (
 	"context"
 )
 
-// NodeLeaf aka Single-value leaf: The values are stored using an additional leaf node type which stores one value
+// NodeLeaf aka Single-value leaf: The values are stored
+// using an additional leaf node type which stores one value
 type NodeLeaf[V any] struct {
 	nodeHeader
 	value V

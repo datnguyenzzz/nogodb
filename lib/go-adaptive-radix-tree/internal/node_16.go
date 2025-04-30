@@ -9,6 +9,12 @@ const (
 	Node16PointersLen = 16
 )
 
+// Node16 This node type is used for storing between 5 and
+// 16 child pointers. Like the Node4, the keys and pointers
+// are stored in separate arrays at corresponding positions, but
+// both arrays have space for 16 entries. A key can be found
+// efficiently with binary search or, on modern hardware, with
+// parallel comparisons using SIMD instructions.
 type Node16[V any] struct {
 	nodeHeader
 	keys     [Node16KeysLen]byte         // an array of length 16 for 1-byte key

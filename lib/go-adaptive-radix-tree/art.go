@@ -6,6 +6,9 @@ import (
 	"github.com/datnguyenzzz/nogodb/lib/go-adaptive-radix-tree/internal"
 )
 
+// Tree is an implementation of a radix tree with adaptive nodes.
+// It is also compatible with the interfaces of the popular radix tree library.
+// https://github.com/hashicorp/go-immutable-radix
 type Tree[V any] struct {
 	root internal.INode[V] // pointer to the root node
 	lock *internal.CtxLock
@@ -20,7 +23,7 @@ func (t *Tree[V]) Insert(ctx context.Context, key Key, value V) (V, error) {
 		return *new(V), err
 	}
 	defer t.lock.ReleaseCtx(ctx)
-	
+
 	ptr := &t.root
 	return internal.InsertNode[V](ctx, ptr, key, value, 0)
 }

@@ -3,7 +3,10 @@ package internal
 import "context"
 
 type nodeHeader struct {
-	// prefix used in the node to store the key compressed prefix.
+	// prefix used in the node to store the compressed portion of the key.
+	// Note: To optimize memory usage, the prefix is not intended to store the entire key
+	// starting from the first byte. Instead, it only stores the compressed portion that
+	// has not been preserved in the upper nodes.
 	prefix    []byte
 	prefixLen uint8
 	// the number of children
@@ -13,7 +16,7 @@ type nodeHeader struct {
 func (n *nodeHeader) setPrefix(ctx context.Context, prefix []byte) {
 	n.prefixLen = uint8(len(prefix))
 	n.prefix = make([]byte, len(prefix))
-	copy(prefix, n.prefix)
+	copy(n.prefix, prefix)
 }
 
 func (n *nodeHeader) setChildrenLen(ctx context.Context, childrenLen uint16) {

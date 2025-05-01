@@ -1,4 +1,3 @@
-// Package go_adaptive_radix_tree is compatible with the famous radix tree library - https://github.com/hashicorp/go-immutable-radix
 package go_adaptive_radix_tree
 
 import "context"

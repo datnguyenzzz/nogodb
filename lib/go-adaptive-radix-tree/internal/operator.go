@@ -11,8 +11,6 @@ import (
 //	key, v: The target key and value
 //	offset: The number of bytes of the "key" that have been processed
 func InsertNode[V any](ctx context.Context, nodePtr *INode[V], key []byte, v V, offset uint8) (V, error) {
-	//Lazy expansion technique: inner nodes are only created if they are required
-	//to distinguish at least 2 leaf nodes
 	if nodePtr == nil {
 		// Encounter an empty node.
 		// Create a new leaf then replace the node pointer to the newly created leaf
@@ -37,25 +35,39 @@ func InsertNode[V any](ctx context.Context, nodePtr *INode[V], key []byte, v V, 
 		nn.setPrefix(ctx, key[offset:offset+lcp])
 		offset += lcp
 		// add current leaf node to the new inner node
-		err := nn.addChild(ctx, currLeafKey[offset], nodePtr)
-		if err != nil {
+		if err := nn.addChild(ctx, currLeafKey[offset], nodePtr); err != nil {
 			return *new(V), failedToAddChild
 		}
 		// create new leaf node for the targeting key, and add it to the inner node
 		newLeaf := newLeafWithKV[V](ctx, key, v)
-		err = nn.addChild(ctx, key[offset], &newLeaf)
-		if err != nil {
+		if err := nn.addChild(ctx, key[offset], &newLeaf); err != nil {
 			return *new(V), failedToAddChild
 		}
 		// replace the current node with the newly created inner node
 		*nodePtr = nn
-
 		return *new(V), nil
 	}
 
 	matchedPrefixLen := node.checkPrefix(ctx, key, offset)
 	if matchedPrefixLen != node.getPrefixLen(ctx) {
-		//   A new inner node is created above the current node and the compressed paths are adjusted accordingly
+		currNodePrefix := node.getPrefix(ctx)
+		nn := newNode[V](KindNode4)
+		nn.setPrefix(ctx, currNodePrefix[:matchedPrefixLen])
+
+		newLeaf := newLeafWithKV[V](ctx, key, v)
+		if err := nn.addChild(ctx, key[offset+matchedPrefixLen], &newLeaf); err != nil {
+			return *new(V), failedToAddChild
+		}
+
+		// adjust the current node compressed prefix accordingly
+		node.setPrefix(ctx, currNodePrefix[matchedPrefixLen:])
+		if err := nn.addChild(ctx, currNodePrefix[matchedPrefixLen], nodePtr); err != nil {
+			return *new(V), failedToAddChild
+		}
+
+		// replace the current node with the newly created inner node
+		*nodePtr = nn
+		return *new(V), nil
 	}
 
 	// TODO Else continue the insertion

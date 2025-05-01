@@ -53,18 +53,19 @@ func (t *Tree[V]) Maximum(ctx context.Context) (Key, V, bool) {
 }
 
 func (t *Tree[V]) Walk(ctx context.Context, fn WalkFn[V]) {
-	//TODO implement me
-	panic("implement me")
+	cb := func(ctx context.Context, k []byte, v V) {
+		// Ignore error for now
+		_ = fn(ctx, k, v)
+	}
+	internal.Walk[V](ctx, t.root, cb, internal.AscOrder)
 }
 
 func (t *Tree[V]) WalkBackwards(ctx context.Context, fn WalkFn[V]) {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (t *Tree[V]) WalkPrefix(ctx context.Context, prefix Key, fn WalkFn[V]) {
-	//TODO implement me
-	panic("implement me")
+	cb := func(ctx context.Context, k []byte, v V) {
+		// Ignore error for now
+		_ = fn(ctx, k, v)
+	}
+	internal.Walk[V](ctx, t.root, cb, internal.DescOrder)
 }
 
 var _ ITree[any] = (*Tree[any])(nil)

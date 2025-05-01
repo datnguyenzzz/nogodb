@@ -47,6 +47,10 @@ func (n *Node256[V]) getChild(ctx context.Context, key byte) (INode[V], error) {
 	panic("implement me")
 }
 
+func (n *Node256[V]) getAllChildren(ctx context.Context, order Order) []INode[V] {
+	panic("implement me")
+}
+
 func (n *Node256[V]) grow(ctx context.Context) INode[V] {
 	//TODO implement me
 	panic("implement me")

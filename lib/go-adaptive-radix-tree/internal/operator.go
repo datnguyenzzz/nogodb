@@ -122,6 +122,22 @@ func Get[V any](ctx context.Context, node INode[V], key []byte, offset uint8) (V
 	return Get[V](ctx, child, key, offset+1)
 }
 
+// Walk iterates over all keys in the tree and trigger the callback function.
+func Walk[V any](ctx context.Context, node INode[V], cb Callback[V], order Order) {
+	if node == nil {
+		return
+	}
+
+	if node.getKind(ctx) == KindNodeLeaf {
+		cb(ctx, node.getPrefix(ctx), node.getValue(ctx))
+	}
+
+	children := node.getAllChildren(ctx, order)
+	for _, child := range children {
+		Walk[V](ctx, child, cb, order)
+	}
+}
+
 func newLeafWithKV[V any](ctx context.Context, key []byte, v V) INode[V] {
 	newLeaf := newNode[V](KindNodeLeaf)
 	newLeaf.setPrefix(ctx, key)

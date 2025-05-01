@@ -24,7 +24,5 @@ type ITree[V any] interface {
 	Walk(ctx context.Context, fn WalkFn[V])
 	// WalkBackwards is used to walk the tree in reverse order
 	WalkBackwards(ctx context.Context, fn WalkFn[V])
-	// WalkPrefix is used to walk the tree under a prefix
-	WalkPrefix(ctx context.Context, prefix Key, fn WalkFn[V])
 	// ...
 }

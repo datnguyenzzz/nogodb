@@ -13,6 +13,8 @@ var (
 	noSuchKey         error = fmt.Errorf("not such key")
 )
 
+type Callback[V any] func(ctx context.Context, k []byte, v V)
+
 type Kind int8
 
 const (
@@ -22,6 +24,13 @@ const (
 	KindNode16
 	KindNode48
 	KindNode256
+)
+
+type Order int8
+
+const (
+	AscOrder Order = iota
+	DescOrder
 )
 
 type iNodeHeader interface {
@@ -45,6 +54,7 @@ type iNodeChildrenManager[V any] interface {
 	addChild(ctx context.Context, key byte, child *INode[V]) error
 	removeChild(ctx context.Context, key byte) error
 	getChild(ctx context.Context, key byte) (INode[V], error)
+	getAllChildren(ctx context.Context, order Order) []INode[V]
 }
 
 type INode[V any] interface {

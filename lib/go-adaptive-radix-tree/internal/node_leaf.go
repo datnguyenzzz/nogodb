@@ -24,7 +24,7 @@ func (n *NodeLeaf[V]) getKind(ctx context.Context) Kind {
 	return KindNodeLeaf
 }
 
-func (n *NodeLeaf[V]) addChild(ctx context.Context, key byte, child INode[V]) error {
+func (n *NodeLeaf[V]) addChild(ctx context.Context, key byte, child *INode[V]) error {
 	panic("node leaf doesn't support this function")
 }
 

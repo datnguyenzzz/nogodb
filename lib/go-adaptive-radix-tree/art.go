@@ -34,8 +34,7 @@ func (t *Tree[V]) Delete(ctx context.Context, key Key) (V, error) {
 }
 
 func (t *Tree[V]) Get(ctx context.Context, key Key) (V, error) {
-	//TODO implement me
-	panic("implement me")
+	return internal.Get[V](ctx, t.root, key, 0)
 }
 
 func (t *Tree[V]) LongestPrefix(ctx context.Context, k Key) (Key, V, error) {

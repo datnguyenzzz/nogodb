@@ -3,6 +3,7 @@ package internal
 import (
 	"bytes"
 	"context"
+	"errors"
 )
 
 // InsertNode returns the previous value and an error indicating if any was set.
@@ -70,12 +71,17 @@ func InsertNode[V any](ctx context.Context, nodePtr *INode[V], key []byte, v V, 
 		return *new(V), nil
 	}
 
-	// TODO Else continue the insertion
-	//    1. Find a child of node with offset = offset + node.prefixLen
-	//    2. If child exists --> continue InsertNode(child, key, value, offset + 1)
-	//    3. If child doesn't exists --> add new leaf to the currNode (grow(currNode) if necessary)
+	offset += node.getPrefixLen(ctx)
+	child, err := node.getChild(ctx, key[offset])
+	if errors.Is(err, childNotFound) {
+		newLeaf := newLeafWithKV[V](ctx, key, v)
+		if err := node.addChild(ctx, key[offset], &newLeaf); err != nil {
+			return *new(V), failedToAddChild
+		}
+		return *new(V), nil
+	}
 
-	return *new(V), nil
+	return InsertNode[V](ctx, &child, key, v, offset+1)
 }
 
 func newLeafWithKV[V any](ctx context.Context, key []byte, v V) INode[V] {

@@ -9,6 +9,7 @@ import (
 var (
 	failedToAddChild error = fmt.Errorf("failed to add child")
 	failedToInitLock error = fmt.Errorf("failed to init lock")
+	childNotFound    error = fmt.Errorf("child not found")
 )
 
 type Kind int8

@@ -87,7 +87,55 @@ func InsertNode[V any](ctx context.Context, nodePtr *INode[V], key []byte, v V, 
 	return InsertNode[V](ctx, &child, key, v, offset+1)
 }
 
-// Get is used to lookup a specific key, returning the value and if it was found
+// RemoveNode is used to delete a given key. Returns the old value if any
+//
+//	nodePtr: Pointer to the current node
+//	key: The target key
+//	offset: The number of bytes of the "key" that have been processed
+func RemoveNode[V any](ctx context.Context, nodePtr *INode[V], key []byte, offset uint8) (V, error) {
+	if nodePtr == nil || len(key) == 0 {
+		return *new(V), noSuchKey
+	}
+
+	node := *nodePtr
+	if node.getKind(ctx) == KindNodeLeaf {
+		currLeafKey, currLeafV := node.getPrefix(ctx), node.getValue(ctx)
+		if isExactMatch(key, currLeafKey) {
+			node = nil
+			return currLeafV, nil
+		}
+
+		return *new(V), noSuchKey
+	}
+
+	matchedPrefixLen := node.checkPrefix(ctx, key, offset)
+	if matchedPrefixLen != node.getPrefixLen(ctx) {
+		return *new(V), noSuchKey
+	}
+
+	offset += node.getPrefixLen(ctx)
+	child, err := node.getChild(ctx, key[offset])
+	if err != nil {
+		return *new(V), noSuchKey
+	}
+
+	if child.getKind(ctx) == KindNodeLeaf {
+		leafKey, leafV := node.getPrefix(ctx), node.getValue(ctx)
+		if !isExactMatch(key, leafKey) {
+			return *new(V), noSuchKey
+		}
+
+		if err := node.removeChild(ctx, key[offset]); err != nil {
+			return *new(V), failedToRemoveChild
+		}
+
+		return leafV, nil
+	}
+
+	return RemoveNode[V](ctx, &child, key, offset+1)
+}
+
+// Get is used to look up a specific key, returning the value and if it was found
 //
 //	node: The current node
 //	key: The target key

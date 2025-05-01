@@ -29,8 +29,13 @@ func (t *Tree[V]) Insert(ctx context.Context, key Key, value V) (V, error) {
 }
 
 func (t *Tree[V]) Delete(ctx context.Context, key Key) (V, error) {
-	//TODO implement me
-	panic("implement me")
+	if err := t.lock.AcquireCtx(ctx); err != nil {
+		return *new(V), err
+	}
+	defer t.lock.ReleaseCtx(ctx)
+
+	ptr := &t.root
+	return internal.RemoveNode[V](ctx, ptr, key, 0)
 }
 
 func (t *Tree[V]) Get(ctx context.Context, key Key) (V, error) {

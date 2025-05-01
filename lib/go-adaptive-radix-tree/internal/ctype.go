@@ -7,10 +7,11 @@ import (
 
 // errors
 var (
-	failedToAddChild  error = fmt.Errorf("failed to add child")
-	failedToInitLock  error = fmt.Errorf("failed to init lock")
-	childNodeNotFound error = fmt.Errorf("child node not found")
-	noSuchKey         error = fmt.Errorf("not such key")
+	failedToAddChild    error = fmt.Errorf("failed to add child")
+	failedToRemoveChild error = fmt.Errorf("failed to remove child")
+	failedToInitLock    error = fmt.Errorf("failed to init lock")
+	childNodeNotFound   error = fmt.Errorf("child node not found")
+	noSuchKey           error = fmt.Errorf("not such key")
 )
 
 type Callback[V any] func(ctx context.Context, k []byte, v V)

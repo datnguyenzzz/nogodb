@@ -8,6 +8,7 @@ import (
 // errors
 var (
 	failedToAddChild error = fmt.Errorf("failed to add child")
+	failedToInitLock error = fmt.Errorf("failed to init lock")
 )
 
 type Kind int8
@@ -22,7 +23,10 @@ const (
 )
 
 type iNodeHeader interface {
+	// checkPrefix compares the compressed path of a node with the key and returns the number of equal bytes
+	checkPrefix(ctx context.Context, key []byte, offset uint8) uint8
 	getPrefix(ctx context.Context) []byte
+	getPrefixLen(ctx context.Context) uint8
 	setPrefix(ctx context.Context, prefix []byte)
 	setChildrenLen(ctx context.Context, childrenLen uint16)
 }

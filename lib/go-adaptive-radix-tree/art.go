@@ -8,13 +8,19 @@ import (
 
 type Tree[V any] struct {
 	root internal.INode[V] // pointer to the root node
+	lock *internal.CtxLock
 }
 
 func NewTree[V any](ctx context.Context) *Tree[V] {
-	return new(Tree[V])
+	return &Tree[V]{lock: internal.NewLock()}
 }
 
 func (t *Tree[V]) Insert(ctx context.Context, key Key, value V) (V, error) {
+	if err := t.lock.AcquireCtx(ctx); err != nil {
+		return *new(V), err
+	}
+	defer t.lock.ReleaseCtx(ctx)
+	
 	ptr := &t.root
 	return internal.InsertNode[V](ctx, ptr, key, value, 0)
 }

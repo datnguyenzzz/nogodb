@@ -37,11 +37,6 @@ func (t *Tree[V]) Get(ctx context.Context, key Key) (V, error) {
 	return internal.Get[V](ctx, t.root, key, 0)
 }
 
-func (t *Tree[V]) LongestPrefix(ctx context.Context, k Key) (Key, V, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
 func (t *Tree[V]) Minimum(ctx context.Context) (Key, V, bool) {
 	//TODO implement me
 	panic("implement me")

@@ -14,8 +14,6 @@ type ITree[V any] interface {
 	Delete(ctx context.Context, key Key) (V, error)
 	// Get is used to lookup a specific key, returning the value and if it was found
 	Get(ctx context.Context, key Key) (V, error)
-	// LongestPrefix is like Get, but instead of an exact match, it will return the longest prefix match.
-	LongestPrefix(ctx context.Context, k Key) (Key, V, error)
 	// Minimum is used to return the minimum value in the tree
 	Minimum(ctx context.Context) (Key, V, bool)
 	// Maximum is used to return the maximum value in the tree

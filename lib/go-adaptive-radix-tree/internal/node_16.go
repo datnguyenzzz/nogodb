@@ -19,10 +19,12 @@ const (
 // parallel comparisons using SIMD instructions.
 type Node16[V any] struct {
 	nodeHeader
-	// keys is an array of length 16 for a 1-byte key. The array is sorted in ascending order.
+	// At position i-th, keys[i] = key value, pointers[i] = pointer to child for the keys[i]
+	// keys is an array of length 16 for a 1-byte key.
+	// The keys array is sorted in ascending order.
 	keys [Node16KeysMax]byte
-	// pointers to children node. pointers[i] is a pointer to a child node for a key = keys[i]
-	children [Node16PointersLen]*INode[V] // pointers to children node
+	// pointers to children node.
+	children [Node16PointersLen]*INode[V]
 }
 
 func (n *Node16[V]) getValue(ctx context.Context) V {
@@ -41,6 +43,11 @@ func (n *Node16[V]) addChild(ctx context.Context, key byte, child *INode[V]) err
 	currChildrenLen := n.getChildrenLen(ctx)
 	if currChildrenLen >= Node16KeysMax {
 		return fmt.Errorf("node_16 is maxed out and don't have enough room for a new key")
+	}
+
+	_, err := n.getChild(ctx, key)
+	if err == nil {
+		return fmt.Errorf("key: %v already exists", key)
 	}
 
 	pos := Node16KeysMax
@@ -109,7 +116,8 @@ func (n *Node16[V]) getChild(ctx context.Context, key byte) (*INode[V], error) {
 func (n *Node16[V]) getAllChildren(ctx context.Context, order Order) []*INode[V] {
 	switch order {
 	case AscOrder:
-		return n.children[:]
+		currLen := n.getChildrenLen(ctx)
+		return n.children[Node16KeysMax-currLen:]
 	case DescOrder:
 		res := make([]*INode[V], n.getChildrenLen(ctx))
 		for i := uint8(0); i < Node16KeysMax; i++ {

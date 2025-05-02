@@ -2,11 +2,13 @@ package internal
 
 import (
 	"context"
+	"fmt"
 )
 
 const (
-	Node16KeysLen     = 16
-	Node16PointersLen = 16
+	Node16KeysMin     uint8 = 5 // node_16 needs at least 5 children, else it should be shrunk to the node4
+	Node16KeysMax     uint8 = 16
+	Node16PointersLen uint8 = 16
 )
 
 // Node16 This node type is used for storing between 5 and
@@ -18,7 +20,7 @@ const (
 type Node16[V any] struct {
 	nodeHeader
 	// keys is an array of length 16 for a 1-byte key. The array is sorted in ascending order.
-	keys [Node16KeysLen]byte
+	keys [Node16KeysMax]byte
 	// pointers to children node. pointers[i] is a pointer to a child node for a key = keys[i]
 	children [Node16PointersLen]*INode[V] // pointers to children node
 }
@@ -36,41 +38,138 @@ func (n *Node16[V]) getKind(ctx context.Context) Kind {
 }
 
 func (n *Node16[V]) addChild(ctx context.Context, key byte, child *INode[V]) error {
-	//TODO implement me
-	panic("implement me")
+	currChildrenLen := n.getChildrenLen(ctx)
+	if currChildrenLen >= Node16KeysMax {
+		return fmt.Errorf("node_16 is maxed out and don't have enough room for a new key")
+	}
+
+	pos := Node16KeysMax
+	for i := uint8(0); i < Node16KeysMax; i++ {
+		if n.keys[i] > key {
+			pos = i
+			break
+		}
+	}
+	// shift all keys[:pos] 1 step to the left to make room
+	for i := 0; uint8(i+1) < pos; i++ {
+		n.keys[i] = n.keys[i+1]
+		n.children[i] = n.children[i+1]
+	}
+	// add a new key to pos-1
+	n.keys[pos-1] = key
+	n.children[pos-1] = child
+	n.setChildrenLen(ctx, currChildrenLen+1)
+
+	return nil
 }
 
 func (n *Node16[V]) removeChild(ctx context.Context, key byte) error {
-	//TODO implement me
-	panic("implement me")
+	currChildrenLen := n.getChildrenLen(ctx)
+	if currChildrenLen == 0 {
+		return fmt.Errorf("node is empty")
+	}
+	pos := -1
+	for i := 0; i < int(Node16KeysMax); i++ {
+		if n.keys[i] == key {
+			pos = i
+			break
+		}
+	}
+	if pos == -1 {
+		return childNodeNotFound
+	}
+
+	// shift all keys[:pos] 1 step to the right
+	for i := pos; i > 1; i-- {
+		n.keys[i] = n.keys[i-1]
+		n.children[i] = n.children[i-1]
+	}
+	// remove the keys[0]
+	n.keys[0] = 0
+	n.children[0] = nil
+	n.setChildrenLen(ctx, currChildrenLen-1)
+	return nil
 }
 
 func (n *Node16[V]) getChild(ctx context.Context, key byte) (*INode[V], error) {
-	//TODO implement me
-	panic("implement me")
+	pos := -1
+	for i := 0; i < int(Node16KeysMax); i++ {
+		if n.keys[i] == key {
+			pos = i
+			break
+		}
+	}
+	if pos == -1 {
+		return nil, childNodeNotFound
+	}
+
+	return n.children[pos], nil
 }
 
 func (n *Node16[V]) getAllChildren(ctx context.Context, order Order) []*INode[V] {
-	panic("implement me")
+	switch order {
+	case AscOrder:
+		return n.children[:]
+	case DescOrder:
+		res := make([]*INode[V], n.getChildrenLen(ctx))
+		for i := uint8(0); i < Node16KeysMax; i++ {
+			res[Node16KeysMax-1-i] = n.children[i]
+		}
+		return res
+	default:
+		// shouldn't go into that block
+		return make([]*INode[V], n.getChildrenLen(ctx))
+	}
 }
 
-func (n *Node16[V]) grow(ctx context.Context) *INode[V] {
-	//TODO implement me
-	panic("implement me")
+// grow to node48
+func (n *Node16[V]) grow(ctx context.Context) (*INode[V], error) {
+	if n.getChildrenLen(ctx) != Node16KeysMax {
+		return nil, fmt.Errorf("node16 is not maxed out yet, so don't have to grow to a bigger node")
+	}
+	n48 := newNode[V](KindNode48)
+	n48.setPrefix(ctx, n.getPrefix(ctx))
+	n48.setChildrenLen(ctx, n.getChildrenLen(ctx))
+
+	for i := uint8(0); i < Node16KeysMax; i++ {
+		if err := n48.addChild(ctx, n.keys[i], n.children[i]); err != nil {
+			return nil, err
+		}
+	}
+
+	return &n48, nil
 }
 
-func (n *Node16[V]) shrink(ctx context.Context) *INode[V] {
-	//TODO implement me
-	panic("implement me")
+// shrink to node4
+func (n *Node16[V]) shrink(ctx context.Context) (*INode[V], error) {
+	if !n.isShrinkable(ctx) {
+		return nil, fmt.Errorf("node16 is still too big for shrinking")
+	}
+
+	currChildrenLen := n.getChildrenLen(ctx)
+	if currChildrenLen == 0 {
+		return nil, fmt.Errorf("node16 has 0 children, which is unexpected")
+	}
+
+	n4 := newNode[V](KindNode4)
+	n4.setPrefix(ctx, n.getPrefix(ctx))
+	n4.setChildrenLen(ctx, currChildrenLen)
+
+	for i := uint8(0); i < currChildrenLen; i++ {
+		if err := n4.addChild(ctx, n.keys[i], n.children[i]); err != nil {
+			return nil, err
+		}
+	}
+
+	return &n4, nil
 }
 
 func (n *Node16[V]) hasEnoughSpace(ctx context.Context) bool {
-	//TODO implement me
-	panic("implement me")
+	return n.getChildrenLen(ctx) < Node16KeysMax
 }
 
 func (n *Node16[V]) isShrinkable(ctx context.Context) bool {
-	panic("implement me")
+	return n.getChildrenLen(ctx) < Node16KeysMin
 }
 
 var _ INode[any] = (*Node16[any])(nil)

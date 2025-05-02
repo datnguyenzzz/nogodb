@@ -74,7 +74,7 @@ func (n *Node4[V]) removeChild(ctx context.Context, key byte) error {
 		}
 	}
 	if pos == -1 {
-		return fmt.Errorf("key: %v is not found in the node_4", key)
+		return childNodeNotFound
 	}
 
 	// shift all keys[:pos] 1 step to the right

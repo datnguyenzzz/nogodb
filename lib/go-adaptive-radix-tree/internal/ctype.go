@@ -7,8 +7,11 @@ import (
 
 // errors
 var (
+	// tree level errors
 	failedToAddChild    error = fmt.Errorf("failed to add child")
 	failedToRemoveChild error = fmt.Errorf("failed to remove child")
+	failedToGrowNode    error = fmt.Errorf("failed to grow node")
+	failedToShrinkNode  error = fmt.Errorf("failed to shrink node")
 	failedToInitLock    error = fmt.Errorf("failed to init lock")
 	childNodeNotFound   error = fmt.Errorf("child node not found")
 	noSuchKey           error = fmt.Errorf("not such key")
@@ -40,22 +43,24 @@ type iNodeHeader interface {
 	getPrefix(ctx context.Context) []byte
 	getPrefixLen(ctx context.Context) uint8
 	setPrefix(ctx context.Context, prefix []byte)
-	setChildrenLen(ctx context.Context, childrenLen uint16)
+	getChildrenLen(ctx context.Context) uint8
+	setChildrenLen(ctx context.Context, childrenLen uint8)
 }
 
 // iNodeSizeManager to control the size of the node itself
 type iNodeSizeManager[V any] interface {
-	grow(ctx context.Context) INode[V]
+	grow(ctx context.Context) (*INode[V], error)
 	hasEnoughSpace(ctx context.Context) bool
-	shrink(ctx context.Context) INode[V]
+	shrink(ctx context.Context) (*INode[V], error)
+	isShrinkable(ctx context.Context) bool
 }
 
 // iNodeChildrenManager control the node's children
 type iNodeChildrenManager[V any] interface {
 	addChild(ctx context.Context, key byte, child *INode[V]) error
 	removeChild(ctx context.Context, key byte) error
-	getChild(ctx context.Context, key byte) (INode[V], error)
-	getAllChildren(ctx context.Context, order Order) []INode[V]
+	getChild(ctx context.Context, key byte) (*INode[V], error)
+	getAllChildren(ctx context.Context, order Order) []*INode[V]
 }
 
 type INode[V any] interface {

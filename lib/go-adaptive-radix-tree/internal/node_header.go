@@ -10,7 +10,7 @@ type nodeHeader struct {
 	prefix    []byte
 	prefixLen uint8
 	// the number of children
-	childrenLen uint16
+	childrenLen uint8
 }
 
 func (n *nodeHeader) setPrefix(ctx context.Context, prefix []byte) {
@@ -19,7 +19,11 @@ func (n *nodeHeader) setPrefix(ctx context.Context, prefix []byte) {
 	copy(n.prefix, prefix)
 }
 
-func (n *nodeHeader) setChildrenLen(ctx context.Context, childrenLen uint16) {
+func (n *nodeHeader) getChildrenLen(ctx context.Context) uint8 {
+	return n.childrenLen
+}
+
+func (n *nodeHeader) setChildrenLen(ctx context.Context, childrenLen uint8) {
 	n.childrenLen = childrenLen
 }
 

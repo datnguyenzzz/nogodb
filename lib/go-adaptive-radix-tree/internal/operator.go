@@ -72,11 +72,16 @@ func InsertNode[V any](ctx context.Context, nodePtr *INode[V], key []byte, v V, 
 	}
 
 	offset += node.getPrefixLen(ctx)
-	child, err := node.getChild(ctx, key[offset])
+	childPtr, err := node.getChild(ctx, key[offset])
 	if errors.Is(err, childNodeNotFound) {
 		newLeaf := newLeafWithKV[V](ctx, key, v)
+		// grow to a bigger node if don't have enough space
 		if !node.hasEnoughSpace(ctx) {
-			node = node.grow(ctx)
+			biggerNodePtr, err := node.grow(ctx)
+			if err != nil {
+				return *new(V), fmt.Errorf("%w: %v", failedToGrowNode, err)
+			}
+			node = *biggerNodePtr
 		}
 		if err := node.addChild(ctx, key[offset], &newLeaf); err != nil {
 			return *new(V), fmt.Errorf("%w: %v", failedToAddChild, err)
@@ -84,55 +89,83 @@ func InsertNode[V any](ctx context.Context, nodePtr *INode[V], key []byte, v V, 
 		return *new(V), nil
 	}
 
-	return InsertNode[V](ctx, &child, key, v, offset+1)
+	return InsertNode[V](ctx, childPtr, key, v, offset+1)
 }
 
 // RemoveNode is used to delete a given key. Returns the old value if any
 //
-//	nodePtr: Pointer to the current node
-//	key: The target key
-//	offset: The number of bytes of the "key" that have been processed
-func RemoveNode[V any](ctx context.Context, nodePtr *INode[V], key []byte, offset uint8) (V, error) {
+// Parameters:
+// nodePtr: Pointer to the current node
+// key: The target key
+// offset: The number of bytes of the "key" that have been processed
+//
+// Output:
+// 1. old value before removal
+// 2. is the "child" node removable ?
+// 3.removal error ?
+func RemoveNode[V any](ctx context.Context, nodePtr *INode[V], key []byte, offset uint8) (V, bool, error) {
 	if nodePtr == nil || len(key) == 0 {
-		return *new(V), noSuchKey
+		return *new(V), false, noSuchKey
 	}
 
 	node := *nodePtr
 	if node.getKind(ctx) == KindNodeLeaf {
-		currLeafKey, currLeafV := node.getPrefix(ctx), node.getValue(ctx)
-		if isExactMatch(key, currLeafKey) {
-			node = nil
-			return currLeafV, nil
+		leafKey, leafV := node.getPrefix(ctx), node.getValue(ctx)
+		if !isExactMatch(key, leafKey) {
+			return *new(V), false, noSuchKey
 		}
 
-		return *new(V), noSuchKey
+		return leafV, true, nil
 	}
-
 	matchedPrefixLen := node.checkPrefix(ctx, key, offset)
 	if matchedPrefixLen != node.getPrefixLen(ctx) {
-		return *new(V), noSuchKey
+		return *new(V), false, noSuchKey
 	}
 
 	offset += node.getPrefixLen(ctx)
-	child, err := node.getChild(ctx, key[offset])
+	childPtr, err := node.getChild(ctx, key[offset])
 	if err != nil {
-		return *new(V), noSuchKey
+		return *new(V), false, noSuchKey
 	}
 
-	if child.getKind(ctx) == KindNodeLeaf {
-		leafKey, leafV := node.getPrefix(ctx), node.getValue(ctx)
-		if !isExactMatch(key, leafKey) {
-			return *new(V), noSuchKey
-		}
+	child := *childPtr
+	removedV, isChildRemovable, removeErr := RemoveNode[V](ctx, &child, key, offset+1)
 
-		if err := node.removeChild(ctx, key[offset]); err != nil {
-			return *new(V), failedToRemoveChild
-		}
-
-		return leafV, nil
+	if removeErr != nil || !isChildRemovable {
+		return *new(V), isChildRemovable, removeErr
 	}
 
-	return RemoveNode[V](ctx, &child, key, offset+1)
+	if err := node.removeChild(ctx, key[offset]); err != nil {
+		return *new(V), false, fmt.Errorf("%w: %v", failedToRemoveChild, err)
+	}
+
+	switch node.getChildrenLen(ctx) {
+	case 0:
+		// mark the current node to be removable
+		return removedV, true, nil
+	case 1:
+		// replace the node with its only child and adjust the compressed prefix path
+		// and NOT propagate the deletion action to the upper nodes.
+		// we also don't need to shrink it because the child should already
+		// go through the shrink process
+		currNodePrefix := node.getPrefix(ctx)
+		newPrefix := append(currNodePrefix, child.getPrefix(ctx)...)
+		node = child
+		node.setPrefix(ctx, newPrefix)
+
+		return removedV, false, nil
+	}
+
+	// shrink to a smaller node to save resources
+	if node.isShrinkable(ctx) {
+		smallerNodePtr, err := node.shrink(ctx)
+		if err != nil {
+			return *new(V), false, fmt.Errorf("%w: %v", failedToShrinkNode, err)
+		}
+		node = *smallerNodePtr
+	}
+
+	return removedV, false, nil
 }
 
 // Get is used to look up a specific key, returning the value and if it was found
@@ -162,12 +195,12 @@ func Get[V any](ctx context.Context, node INode[V], key []byte, offset uint8) (V
 	}
 
 	offset += node.getPrefixLen(ctx)
-	child, err := node.getChild(ctx, key[offset])
+	childPtr, err := node.getChild(ctx, key[offset])
 	if err != nil {
 		return *new(V), noSuchKey
 	}
 
-	return Get[V](ctx, child, key, offset+1)
+	return Get[V](ctx, *childPtr, key, offset+1)
 }
 
 // Walk iterates over all keys in the tree and trigger the callback function.
@@ -181,8 +214,8 @@ func Walk[V any](ctx context.Context, node INode[V], cb Callback[V], order Order
 	}
 
 	children := node.getAllChildren(ctx, order)
-	for _, child := range children {
-		Walk[V](ctx, child, cb, order)
+	for _, childPtr := range children {
+		Walk[V](ctx, *childPtr, cb, order)
 	}
 }
 

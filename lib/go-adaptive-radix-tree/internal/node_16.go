@@ -17,7 +17,9 @@ const (
 // parallel comparisons using SIMD instructions.
 type Node16[V any] struct {
 	nodeHeader
-	keys     [Node16KeysLen]byte          // an array of length 16 for 1-byte key
+	// keys is an array of length 16 for a 1-byte key. The array is sorted in ascending order.
+	keys [Node16KeysLen]byte
+	// pointers to children node. pointers[i] is a pointer to a child node for a key = keys[i]
 	children [Node16PointersLen]*INode[V] // pointers to children node
 }
 
@@ -43,27 +45,31 @@ func (n *Node16[V]) removeChild(ctx context.Context, key byte) error {
 	panic("implement me")
 }
 
-func (n *Node16[V]) getChild(ctx context.Context, key byte) (INode[V], error) {
+func (n *Node16[V]) getChild(ctx context.Context, key byte) (*INode[V], error) {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (n *Node16[V]) getAllChildren(ctx context.Context, order Order) []INode[V] {
+func (n *Node16[V]) getAllChildren(ctx context.Context, order Order) []*INode[V] {
 	panic("implement me")
 }
 
-func (n *Node16[V]) grow(ctx context.Context) INode[V] {
+func (n *Node16[V]) grow(ctx context.Context) *INode[V] {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (n *Node16[V]) shrink(ctx context.Context) INode[V] {
+func (n *Node16[V]) shrink(ctx context.Context) *INode[V] {
 	//TODO implement me
 	panic("implement me")
 }
 
 func (n *Node16[V]) hasEnoughSpace(ctx context.Context) bool {
 	//TODO implement me
+	panic("implement me")
+}
+
+func (n *Node16[V]) isShrinkable(ctx context.Context) bool {
 	panic("implement me")
 }
 

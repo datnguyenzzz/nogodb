@@ -8,7 +8,7 @@ import (
 const (
 	Node48KeysLen     uint16 = 256
 	Node48PointersMax uint8  = 48
-	Node48PointersMin uint8  = 17 // node48 needs at least 17 children, else it can be shrunk to node16
+	Node48PointersMin uint8  = Node16KeysMax + 1 // node48 needs at least 17 children, else it can be shrunk to node16
 )
 
 // Node48 As the number of entries in a node increases,

@@ -6,7 +6,7 @@ import (
 )
 
 const (
-	Node16KeysMin     uint8 = 5 // node_16 needs at least 5 children, else it should be shrunk to the node4
+	Node16KeysMin     uint8 = Node4KeysMax + 1 // node_16 needs at least 5 children, else it should be shrunk to the node4
 	Node16KeysMax     uint8 = 16
 	Node16PointersLen uint8 = 16
 )

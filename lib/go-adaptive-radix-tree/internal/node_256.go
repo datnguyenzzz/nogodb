@@ -2,10 +2,12 @@ package internal
 
 import (
 	"context"
+	"fmt"
 )
 
 const (
-	Node256PointersLen = 256
+	Node256PointersMin uint8  = Node48PointersMax + 1
+	Node256PointersMax uint16 = 256
 )
 
 // Node256 The largest node type is simply an array of 256
@@ -17,7 +19,8 @@ const (
 // only pointers need to be stored.
 type Node256[V any] struct {
 	nodeHeader
-	children [Node256PointersLen]*INode[V] // pointers to children node
+	// pointers to children node
+	children [Node256PointersMax]*INode[V]
 }
 
 func (n *Node256[V]) getValue(ctx context.Context) V {
@@ -33,37 +36,105 @@ func (n *Node256[V]) getKind(ctx context.Context) Kind {
 }
 
 func (n *Node256[V]) addChild(ctx context.Context, key byte, child *INode[V]) error {
-	//TODO implement me
-	panic("implement me")
+	currChildrenLen := n.getChildrenLen(ctx)
+	if uint16(currChildrenLen) >= Node256PointersMax {
+		return fmt.Errorf("node256 is maxed out and don't have enough room for a new key")
+	}
+
+	n.children[key] = child
+	n.setChildrenLen(ctx, currChildrenLen+1)
+	return nil
 }
 
 func (n *Node256[V]) removeChild(ctx context.Context, key byte) error {
-	//TODO implement me
-	panic("implement me")
+	currChildrenLen := n.getChildrenLen(ctx)
+	if currChildrenLen == 0 {
+		return fmt.Errorf("node is empty")
+	}
+	n.children[key] = nil
+	n.setChildrenLen(ctx, currChildrenLen-1)
+	return nil
 }
 
-func (n *Node256[V]) getChild(ctx context.Context, key byte) (INode[V], error) {
-	//TODO implement me
-	panic("implement me")
+func (n *Node256[V]) getChild(ctx context.Context, key byte) (*INode[V], error) {
+	child := n.children[key]
+	if child == nil {
+		return nil, childNodeNotFound
+	}
+	return child, nil
 }
 
-func (n *Node256[V]) getAllChildren(ctx context.Context, order Order) []INode[V] {
-	panic("implement me")
+func (n *Node256[V]) getAllChildren(ctx context.Context, order Order) []*INode[V] {
+	switch order {
+	case AscOrder:
+		res := make([]*INode[V], n.getChildrenLen(ctx))
+		cnt := 0
+		for k := 0; uint16(k) < Node256PointersMax; k++ {
+			child := n.children[k]
+			if child == nil {
+				continue
+			}
+			res[cnt] = child
+			cnt += 1
+		}
+		return res
+	case DescOrder:
+		res := make([]*INode[V], n.getChildrenLen(ctx))
+		cnt := 0
+		for k := Node256PointersMax - 1; k >= uint16(0); k-- {
+			child := n.children[k]
+			if child == nil {
+				continue
+			}
+			res[cnt] = child
+			cnt += 1
+		}
+		return res
+	default:
+		// shouldn't go into that block
+		return make([]*INode[V], n.getChildrenLen(ctx))
+	}
 }
 
-func (n *Node256[V]) grow(ctx context.Context) INode[V] {
-	//TODO implement me
-	panic("implement me")
+func (n *Node256[V]) grow(ctx context.Context) (*INode[V], error) {
+	return nil, fmt.Errorf("node256 can not grow anymore")
 }
 
-func (n *Node256[V]) shrink(ctx context.Context) INode[V] {
-	//TODO implement me
-	panic("implement me")
+// shrink to node48
+func (n *Node256[V]) shrink(ctx context.Context) (*INode[V], error) {
+	if !n.isShrinkable(ctx) {
+		return nil, fmt.Errorf("node256 is still too big for shrinking")
+	}
+
+	currChildrenLen := n.getChildrenLen(ctx)
+	if currChildrenLen == 0 {
+		return nil, fmt.Errorf("node256 has 0 children, which is unexpected")
+	}
+
+	n48 := newNode[V](KindNode48)
+	n48.setPrefix(ctx, n.getPrefix(ctx))
+	n48.setChildrenLen(ctx, n.getChildrenLen(ctx))
+
+	for k := 0; uint16(k) < Node256PointersMax; k++ {
+		child := n.children[k]
+		if child == nil {
+			continue
+		}
+		if err := n48.addChild(ctx, byte(k), child); err != nil {
+			return nil, err
+		}
+	}
+
+	return &n48, nil
 }
 
 func (n *Node256[V]) hasEnoughSpace(ctx context.Context) bool {
-	//TODO implement me
-	panic("implement me")
+	// node256 is the biggest node so it always (supposed to be) has enough space
+	return true
+}
+
+func (n *Node256[V]) isShrinkable(ctx context.Context) bool {
+	return n.getChildrenLen(ctx) < Node256PointersMin
 }
 
 var _ INode[any] = (*Node256[any])(nil)

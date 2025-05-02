@@ -1,7 +1,8 @@
-package internal
+package local_lock
 
 import (
 	"context"
+	"fmt"
 )
 
 var (
@@ -14,7 +15,7 @@ type CtxLock struct {
 	ch chan struct{}
 }
 
-func NewLock() *CtxLock {
+func NewLocalLock() *CtxLock {
 	return &CtxLock{
 		// buffered chanel with a size of 1,
 		// so the sender will be blocked when the chanel is full
@@ -24,7 +25,7 @@ func NewLock() *CtxLock {
 
 func (l *CtxLock) AcquireCtx(ctx context.Context) error {
 	if l.ch == nil {
-		return failedToInitLock
+		return fmt.Errorf("failed to init lock")
 	}
 
 	select {
@@ -38,7 +39,7 @@ func (l *CtxLock) AcquireCtx(ctx context.Context) error {
 
 func (l *CtxLock) ReleaseCtx(ctx context.Context) error {
 	if l.ch == nil {
-		return failedToInitLock
+		return fmt.Errorf("failed to init lock")
 	}
 
 	select {

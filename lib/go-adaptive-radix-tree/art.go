@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/datnguyenzzz/nogodb/lib/go-adaptive-radix-tree/internal"
+	go_context_aware_lock "github.com/datnguyenzzz/nogodb/lib/go-context-aware-lock"
 )
 
 // Tree is an implementation of a radix tree with adaptive nodes.
@@ -11,11 +12,11 @@ import (
 // https://github.com/hashicorp/go-immutable-radix
 type Tree[V any] struct {
 	root internal.INode[V] // pointer to the root node
-	lock *internal.CtxLock
+	lock go_context_aware_lock.ICtxLock
 }
 
 func NewTree[V any](ctx context.Context) *Tree[V] {
-	return &Tree[V]{lock: internal.NewLock()}
+	return &Tree[V]{lock: go_context_aware_lock.NewLocalLock()}
 }
 
 func (t *Tree[V]) Insert(ctx context.Context, key Key, value V) (V, error) {
@@ -35,7 +36,8 @@ func (t *Tree[V]) Delete(ctx context.Context, key Key) (V, error) {
 	defer t.lock.ReleaseCtx(ctx)
 
 	ptr := &t.root
-	return internal.RemoveNode[V](ctx, ptr, key, 0)
+	v, _, err := internal.RemoveNode[V](ctx, ptr, key, 0)
+	return v, err
 }
 
 func (t *Tree[V]) Get(ctx context.Context, key Key) (V, error) {

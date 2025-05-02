@@ -12,7 +12,6 @@ var (
 	failedToRemoveChild error = fmt.Errorf("failed to remove child")
 	failedToGrowNode    error = fmt.Errorf("failed to grow node")
 	failedToShrinkNode  error = fmt.Errorf("failed to shrink node")
-	failedToInitLock    error = fmt.Errorf("failed to init lock")
 	childNodeNotFound   error = fmt.Errorf("child node not found")
 	noSuchKey           error = fmt.Errorf("not such key")
 )

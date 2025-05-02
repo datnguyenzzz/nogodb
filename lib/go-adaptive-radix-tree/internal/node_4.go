@@ -85,7 +85,7 @@ func (n *Node4[V]) removeChild(ctx context.Context, key byte) error {
 	}
 
 	// shift all keys[:pos] 1 step to the right
-	for i := pos; i > 1; i-- {
+	for i := int8(pos); i >= 1; i-- {
 		n.keys[i] = n.keys[i-1]
 		n.children[i] = n.children[i-1]
 	}
@@ -117,9 +117,10 @@ func (n *Node4[V]) getAllChildren(ctx context.Context, order Order) []*INode[V] 
 		currLen := n.getChildrenLen(ctx)
 		return n.children[Node4KeysMax-currLen:]
 	case DescOrder:
-		res := make([]*INode[V], n.getChildrenLen(ctx))
-		for i := uint8(0); i < Node4KeysMax; i++ {
-			res[Node4KeysMax-1-i] = n.children[i]
+		currLen := n.getChildrenLen(ctx)
+		res := make([]*INode[V], currLen)
+		for i := int8(Node4KeysMax - 1); i >= int8(Node4KeysMax-currLen); i-- {
+			res[int8(Node4KeysMax)-1-i] = n.children[i]
 		}
 		return res
 	default:

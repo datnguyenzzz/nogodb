@@ -6,9 +6,9 @@ import (
 )
 
 const (
-	Node4KeysMin     uint8 = 2 // we only need a node4 if it has at least 2 children
-	Node4KeysMax     uint8 = 4
-	Node4PointersLen uint8 = 4
+	Node4KeysMin     byte = 2 // we only need a node4 if it has at least 2 children
+	Node4KeysMax     byte = 4
+	Node4PointersLen byte = 4
 )
 
 // Node4 The smallest node type can store up to 4 child
@@ -51,7 +51,7 @@ func (n *Node4[V]) addChild(ctx context.Context, key byte, child *INode[V]) erro
 	pos := Node4KeysMax
 	for i := 0; i < int(Node4KeysMax); i++ {
 		if n.keys[i] > key {
-			pos = uint8(i)
+			pos = byte(i)
 			break
 		}
 	}
@@ -104,7 +104,7 @@ func (n *Node4[V]) getChild(ctx context.Context, key byte) (*INode[V], error) {
 			break
 		}
 	}
-	if pos == -1 {
+	if pos == -1 || n.children[pos] == nil {
 		return nil, childNodeNotFound
 	}
 

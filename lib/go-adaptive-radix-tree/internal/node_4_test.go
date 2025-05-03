@@ -2,12 +2,13 @@ package internal
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
-func Test_node4_insertAndRemoveChildren_str(t *testing.T) {
+func Test_node4_str_insertAndRemoveChildren(t *testing.T) {
 	type param struct {
 		desc                 string
 		actions              []nodeAction[string]
@@ -391,4 +392,70 @@ func Test_node4_insertAndRemoveChildren_str(t *testing.T) {
 			}
 		})
 	}
+}
+
+func Test_node4_str_grow(t *testing.T) {
+	ctx := context.Background()
+	n4 := newNode[string](KindNode4)
+
+	samplePrefix := randomBytes(5)
+	n4.setPrefix(ctx, samplePrefix)
+
+	sampleLeaves := generateStringLeaves(int(Node4KeysMax))
+	// Add children to the node until it reaches its space capacity
+	var keys []byte
+	var children []*INode[string]
+	for idx := byte(0); idx < Node4KeysMax; idx++ {
+		leaf := sampleLeaves[idx]
+		keys = append(keys, idx)
+		children = append(children, &leaf)
+		err := n4.addChild(ctx, idx, &leaf)
+		assert.NoError(t, err, fmt.Sprintf("shouldn't fail to add new child with key - %v", idx))
+	}
+
+	// grow to bigger node
+	nn, err := n4.grow(ctx)
+	assert.NoError(t, err, "shouldn't fail to grow")
+	// verify output
+	n16 := *nn
+	n16o, ok := n16.(*Node16[string])
+	assert.True(t, ok, "can not cast to Node16[string]")
+	assert.Equal(t, n16.getPrefix(ctx), samplePrefix)
+	// fill expectedKeys with 0
+	var expectedKeys [Node16KeysMax]byte
+	copy(expectedKeys[Node16KeysMax-Node4KeysMax:], keys)
+	assert.Equal(t, n16o.keys, expectedKeys, "node keys is different")
+	// fill expectedChildren with nil pointer
+	var expectedChildren [Node16PointersLen]*INode[string]
+	copy(expectedChildren[Node16KeysMax-Node4KeysMax:], children)
+	assert.Equal(t, n16o.children, expectedChildren, "node children is different")
+}
+
+func Test_node4_str_shrink(t *testing.T) {
+	ctx := context.Background()
+	n4 := newNode[string](KindNode4)
+
+	sampleLeaves := generateStringLeaves(1)
+	// Add children to the node which is lower than its minimum required capacity
+	var keys []byte
+	var children []*INode[string]
+	leaf := sampleLeaves[0]
+	keys = append(keys, 0)
+	children = append(children, &leaf)
+	err := n4.addChild(ctx, 0, &leaf)
+	assert.NoError(t, err)
+
+	// shrink to smaller node
+	nn, err := n4.shrink(ctx)
+	assert.NoError(t, err, "shouldn't fail to shrink")
+	// verify output
+	nl := *nn
+	nlo, ok := nl.(*NodeLeaf[string])
+	assert.True(t, ok, "can not cast to NodeLeaf[string]")
+
+	assert.Equal(t, nlo.getPrefix(ctx), leaf.getPrefix(ctx), "node prefix is different")
+	// fill expectedChildren with nil pointer
+	var expectedChildren [Node16PointersLen]*INode[string]
+	copy(expectedChildren[Node16KeysMax-Node4KeysMax:], children)
+	assert.Equal(t, nlo.getValue(ctx), leaf.getValue(ctx), "node value is different")
 }

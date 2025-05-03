@@ -1,5 +1,5 @@
 unit-test: ## test whole packages with the race detector
-	@go test -count=1 -race -v ./...
+	@go test -coverprofile=coverage.out -count=1 -race -v ./...
 
 pre-push:
 	@echo "✔️ Running go mod tidy and go mod verify..."

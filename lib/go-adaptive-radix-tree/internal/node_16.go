@@ -106,7 +106,7 @@ func (n *Node16[V]) getChild(ctx context.Context, key byte) (*INode[V], error) {
 			break
 		}
 	}
-	if pos == -1 {
+	if pos == -1 || n.children[pos] == nil {
 		return nil, childNodeNotFound
 	}
 

@@ -16,6 +16,7 @@ func Test_insertAndRemoveChildren_str(t *testing.T) {
 		expectedChildrenLen  uint8
 		expectedAscChildren  []*INode[string]
 		expectedDescChildren []*INode[string]
+		expectedGetChild     map[byte]*INode[string]
 	}
 
 	sampleLeaves := generateStringLeaves(4)
@@ -58,6 +59,11 @@ func Test_insertAndRemoveChildren_str(t *testing.T) {
 				&sampleLeaves[1],
 				&sampleLeaves[0],
 			},
+			expectedGetChild: map[byte]*INode[string]{
+				1: &sampleLeaves[0],
+				2: &sampleLeaves[1],
+				3: &sampleLeaves[2],
+			},
 		},
 		{
 			desc: "Happy case: #2",
@@ -90,6 +96,9 @@ func Test_insertAndRemoveChildren_str(t *testing.T) {
 			},
 			expectedDescChildren: []*INode[string]{
 				&sampleLeaves[3],
+			},
+			expectedGetChild: map[byte]*INode[string]{
+				1: &sampleLeaves[3],
 			},
 		},
 		{
@@ -124,6 +133,7 @@ func Test_insertAndRemoveChildren_str(t *testing.T) {
 			expectedChildrenLen:  0,
 			expectedAscChildren:  []*INode[string]{},
 			expectedDescChildren: []*INode[string]{},
+			expectedGetChild:     map[byte]*INode[string]{},
 		},
 		{
 			desc: "Happy case: #4",
@@ -171,6 +181,11 @@ func Test_insertAndRemoveChildren_str(t *testing.T) {
 				&sampleLeaves[2],
 				&sampleLeaves[0],
 			},
+			expectedGetChild: map[byte]*INode[string]{
+				1: &sampleLeaves[0],
+				3: &sampleLeaves[2],
+				4: &sampleLeaves[3],
+			},
 		},
 		{
 			desc: "Happy case: #5",
@@ -217,6 +232,11 @@ func Test_insertAndRemoveChildren_str(t *testing.T) {
 				&sampleLeaves[3],
 				&sampleLeaves[0],
 				&sampleLeaves[2],
+			},
+			expectedGetChild: map[byte]*INode[string]{
+				1: &sampleLeaves[2],
+				3: &sampleLeaves[0],
+				4: &sampleLeaves[3],
 			},
 		},
 		{
@@ -281,6 +301,12 @@ func Test_insertAndRemoveChildren_str(t *testing.T) {
 				&sampleLeaves[3],
 				&sampleLeaves[2],
 			},
+			expectedGetChild: map[byte]*INode[string]{
+				1: &sampleLeaves[2],
+				2: &sampleLeaves[3],
+				3: &sampleLeaves[0],
+				4: &sampleLeaves[3],
+			},
 		},
 		{
 			desc: "Happy case: #6",
@@ -304,22 +330,34 @@ func Test_insertAndRemoveChildren_str(t *testing.T) {
 					key:   4,
 					child: &sampleLeaves[3],
 				},
+				{
+					kind:  insertAction,
+					key:   1,
+					child: &sampleLeaves[2],
+				},
 			},
-			expectedKeys: [Node4KeysMax]byte{0, 0, 3, 4},
+			expectedKeys: [Node4KeysMax]byte{0, 1, 3, 4},
 			expectedChildren: [Node4PointersLen]*INode[string]{
 				nil,
-				nil,
+				&sampleLeaves[2],
 				&sampleLeaves[0],
 				&sampleLeaves[3],
 			},
-			expectedChildrenLen: 2,
+			expectedChildrenLen: 3,
 			expectedAscChildren: []*INode[string]{
+				&sampleLeaves[2],
 				&sampleLeaves[0],
 				&sampleLeaves[3],
 			},
 			expectedDescChildren: []*INode[string]{
 				&sampleLeaves[3],
 				&sampleLeaves[0],
+				&sampleLeaves[2],
+			},
+			expectedGetChild: map[byte]*INode[string]{
+				1: &sampleLeaves[2],
+				3: &sampleLeaves[0],
+				4: &sampleLeaves[3],
 			},
 		},
 	}
@@ -346,6 +384,11 @@ func Test_insertAndRemoveChildren_str(t *testing.T) {
 			assert.Equal(t, tc.expectedChildrenLen, n4o.getChildrenLen(ctx), "node children length is different")
 			assert.Equal(t, tc.expectedAscChildren, n4o.getAllChildren(ctx, AscOrder), "node children in ASC is different")
 			assert.Equal(t, tc.expectedDescChildren, n4o.getAllChildren(ctx, DescOrder), "node children in DESC is different")
+			for k, expectedChild := range tc.expectedGetChild {
+				child, err := n4o.getChild(ctx, k)
+				assert.NoError(t, err)
+				assert.Equal(t, expectedChild, child)
+			}
 		})
 	}
 }

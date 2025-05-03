@@ -49,14 +49,14 @@ func (n *Node4[V]) addChild(ctx context.Context, key byte, child *INode[V]) erro
 	}
 
 	pos := Node4KeysMax
-	for i := uint8(0); i < Node4KeysMax; i++ {
+	for i := 0; i < int(Node4KeysMax); i++ {
 		if n.keys[i] > key {
-			pos = i
+			pos = uint8(i)
 			break
 		}
 	}
 	// shift all keys[:pos] 1 step to the left to make room
-	for i := 0; uint8(i+1) < pos; i++ {
+	for i := 0; i+1 < int(pos); i++ {
 		n.keys[i] = n.keys[i+1]
 		n.children[i] = n.children[i+1]
 	}
@@ -138,7 +138,7 @@ func (n *Node4[V]) grow(ctx context.Context) (*INode[V], error) {
 	n16.setPrefix(ctx, n.getPrefix(ctx))
 	n16.setChildrenLen(ctx, n.getChildrenLen(ctx))
 
-	for i := uint8(0); i < Node4KeysMax; i++ {
+	for i := 0; i < int(Node4KeysMax); i++ {
 		if err := n16.addChild(ctx, n.keys[i], n.children[i]); err != nil {
 			return nil, err
 		}

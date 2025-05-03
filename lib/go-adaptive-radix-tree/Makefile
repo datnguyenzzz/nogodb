@@ -1,0 +1,11 @@
+unit-test: ## test whole packages with the race detector
+	@go test -count=1 -race -v ./...
+
+pre-push:
+	@echo "✔️ Running go mod tidy and go mod verify..."
+	@go mod tidy -v
+	@go mod verify
+	@echo "✔️ Running gofmt..."
+	@gofmt -l .
+	@echo "✔️ Running go vet..."
+	@go vet ./...

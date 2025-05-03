@@ -15,7 +15,7 @@ type CtxLock struct {
 	ch chan struct{}
 }
 
-func NewLocalLock() *CtxLock {
+func NewLock() *CtxLock {
 	return &CtxLock{
 		// buffered chanel with a size of 1,
 		// so the sender will be blocked when the chanel is full

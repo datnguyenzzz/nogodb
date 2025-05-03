@@ -7,15 +7,14 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func Test_node4_insertAndRemoveChildren_str(t *testing.T) {
+func Test_node16_insertAndRemoveChildren_str(t *testing.T) {
 	type param struct {
 		desc                 string
 		actions              []nodeAction[string]
-		expectedKeys         [Node4KeysMax]byte
-		expectedChildren     [Node4PointersLen]*INode[string]
+		expectedKeys         []byte // non 0 keys
 		expectedChildrenLen  uint8
-		expectedAscChildren  []*INode[string]
-		expectedDescChildren []*INode[string]
+		expectedAscChildren  []*INode[string] // non nil pointers
+		expectedDescChildren []*INode[string] // non nil pointers
 		expectedGetChild     map[byte]*INode[string]
 	}
 
@@ -41,13 +40,7 @@ func Test_node4_insertAndRemoveChildren_str(t *testing.T) {
 					child: &sampleLeaves[2],
 				},
 			},
-			expectedKeys: [Node4KeysMax]byte{0, 1, 2, 3},
-			expectedChildren: [Node4PointersLen]*INode[string]{
-				nil,
-				&sampleLeaves[0],
-				&sampleLeaves[1],
-				&sampleLeaves[2],
-			},
+			expectedKeys:        []byte{1, 2, 3},
 			expectedChildrenLen: 3,
 			expectedAscChildren: []*INode[string]{
 				&sampleLeaves[0],
@@ -83,13 +76,7 @@ func Test_node4_insertAndRemoveChildren_str(t *testing.T) {
 					child: &sampleLeaves[3],
 				},
 			},
-			expectedKeys: [Node4KeysMax]byte{0, 0, 0, 1},
-			expectedChildren: [Node4PointersLen]*INode[string]{
-				nil,
-				nil,
-				nil,
-				&sampleLeaves[3],
-			},
+			expectedKeys:        []byte{1},
 			expectedChildrenLen: 1,
 			expectedAscChildren: []*INode[string]{
 				&sampleLeaves[3],
@@ -123,13 +110,7 @@ func Test_node4_insertAndRemoveChildren_str(t *testing.T) {
 					key:  2,
 				},
 			},
-			expectedKeys: [Node4KeysMax]byte{0, 0, 0, 0},
-			expectedChildren: [Node4PointersLen]*INode[string]{
-				nil,
-				nil,
-				nil,
-				nil,
-			},
+			expectedKeys:         []byte{},
 			expectedChildrenLen:  0,
 			expectedAscChildren:  []*INode[string]{},
 			expectedDescChildren: []*INode[string]{},
@@ -163,13 +144,7 @@ func Test_node4_insertAndRemoveChildren_str(t *testing.T) {
 					child: &sampleLeaves[3],
 				},
 			},
-			expectedKeys: [Node4KeysMax]byte{0, 1, 3, 4},
-			expectedChildren: [Node4PointersLen]*INode[string]{
-				nil,
-				&sampleLeaves[0],
-				&sampleLeaves[2],
-				&sampleLeaves[3],
-			},
+			expectedKeys:        []byte{1, 3, 4},
 			expectedChildrenLen: 3,
 			expectedAscChildren: []*INode[string]{
 				&sampleLeaves[0],
@@ -215,13 +190,7 @@ func Test_node4_insertAndRemoveChildren_str(t *testing.T) {
 					child: &sampleLeaves[3],
 				},
 			},
-			expectedKeys: [Node4KeysMax]byte{0, 1, 3, 4},
-			expectedChildren: [Node4PointersLen]*INode[string]{
-				nil,
-				&sampleLeaves[2],
-				&sampleLeaves[0],
-				&sampleLeaves[3],
-			},
+			expectedKeys:        []byte{1, 3, 4},
 			expectedChildrenLen: 3,
 			expectedAscChildren: []*INode[string]{
 				&sampleLeaves[2],
@@ -281,13 +250,7 @@ func Test_node4_insertAndRemoveChildren_str(t *testing.T) {
 					child: &sampleLeaves[3],
 				},
 			},
-			expectedKeys: [Node4KeysMax]byte{1, 2, 3, 4},
-			expectedChildren: [Node4PointersLen]*INode[string]{
-				&sampleLeaves[2],
-				&sampleLeaves[3],
-				&sampleLeaves[0],
-				&sampleLeaves[3],
-			},
+			expectedKeys:        []byte{1, 2, 3, 4},
 			expectedChildrenLen: 4,
 			expectedAscChildren: []*INode[string]{
 				&sampleLeaves[2],
@@ -336,13 +299,7 @@ func Test_node4_insertAndRemoveChildren_str(t *testing.T) {
 					child: &sampleLeaves[2],
 				},
 			},
-			expectedKeys: [Node4KeysMax]byte{0, 1, 3, 4},
-			expectedChildren: [Node4PointersLen]*INode[string]{
-				nil,
-				&sampleLeaves[2],
-				&sampleLeaves[0],
-				&sampleLeaves[3],
-			},
+			expectedKeys:        []byte{1, 3, 4},
 			expectedChildrenLen: 3,
 			expectedAscChildren: []*INode[string]{
 				&sampleLeaves[2],
@@ -364,30 +321,36 @@ func Test_node4_insertAndRemoveChildren_str(t *testing.T) {
 
 	for _, tc := range testList {
 		t.Run(tc.desc, func(t *testing.T) {
-			n4 := newNode[string](KindNode4)
+			n16 := newNode[string](KindNode16)
 			ctx := context.Background()
 			// perform actions
 			for _, action := range tc.actions {
 				if action.kind == insertAction {
-					err := n4.addChild(ctx, action.key, action.child)
+					err := n16.addChild(ctx, action.key, action.child)
 					assert.NoError(t, err)
 				} else {
-					err := n4.removeChild(ctx, action.key)
+					err := n16.removeChild(ctx, action.key)
 					assert.NoError(t, err)
 				}
 			}
 			// verify output
-			n4o, ok := n4.(*Node4[string])
+			n16o, ok := n16.(*Node16[string])
 			assert.True(t, ok, "can not cast to Node4[string]")
-			assert.Equal(t, tc.expectedKeys, n4o.keys, "node keys is different")
-			assert.Equal(t, tc.expectedChildren, n4o.children, "node children is different")
-			assert.Equal(t, tc.expectedChildrenLen, n4o.getChildrenLen(ctx), "node children length is different")
-			assert.Equal(t, tc.expectedAscChildren, n4o.getAllChildren(ctx, AscOrder), "node children in ASC is different")
-			assert.Equal(t, tc.expectedDescChildren, n4o.getAllChildren(ctx, DescOrder), "node children in DESC is different")
+			// fill expectedKeys with 0
+			var expectedKeys [Node16KeysMax]byte
+			copy(expectedKeys[Node16KeysMax-tc.expectedChildrenLen:], tc.expectedKeys)
+			assert.Equal(t, n16o.keys, expectedKeys, "node keys is different")
+			// fill expectedChildren with nil pointer
+			var expectedChildren [Node16PointersLen]*INode[string]
+			copy(expectedChildren[Node16KeysMax-tc.expectedChildrenLen:], tc.expectedAscChildren)
+			assert.Equal(t, n16o.children, expectedChildren, "node children is different")
+			assert.Equal(t, n16o.getChildrenLen(ctx), tc.expectedChildrenLen, "node children length is different")
+			assert.Equal(t, n16o.getAllChildren(ctx, AscOrder), tc.expectedAscChildren, "node children in ASC is different")
+			assert.Equal(t, n16o.getAllChildren(ctx, DescOrder), tc.expectedDescChildren, "node children in DESC is different")
 			for k, expectedChild := range tc.expectedGetChild {
-				child, err := n4o.getChild(ctx, k)
+				child, err := n16o.getChild(ctx, k)
 				assert.NoError(t, err)
-				assert.Equal(t, expectedChild, child)
+				assert.Equal(t, child, expectedChild)
 			}
 		})
 	}

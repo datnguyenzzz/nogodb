@@ -51,14 +51,14 @@ func (n *Node16[V]) addChild(ctx context.Context, key byte, child *INode[V]) err
 	}
 
 	pos := Node16KeysMax
-	for i := uint8(0); i < Node16KeysMax; i++ {
+	for i := 0; i < int(Node16KeysMax); i++ {
 		if n.keys[i] > key {
-			pos = i
+			pos = uint8(i)
 			break
 		}
 	}
 	// shift all keys[:pos] 1 step to the left to make room
-	for i := 0; uint8(i+1) < pos; i++ {
+	for i := 0; i+1 < int(pos); i++ {
 		n.keys[i] = n.keys[i+1]
 		n.children[i] = n.children[i+1]
 	}
@@ -87,7 +87,7 @@ func (n *Node16[V]) removeChild(ctx context.Context, key byte) error {
 	}
 
 	// shift all keys[:pos] 1 step to the right
-	for i := pos; i > 1; i-- {
+	for i := pos; i >= 1; i-- {
 		n.keys[i] = n.keys[i-1]
 		n.children[i] = n.children[i-1]
 	}
@@ -119,9 +119,10 @@ func (n *Node16[V]) getAllChildren(ctx context.Context, order Order) []*INode[V]
 		currLen := n.getChildrenLen(ctx)
 		return n.children[Node16KeysMax-currLen:]
 	case DescOrder:
-		res := make([]*INode[V], n.getChildrenLen(ctx))
-		for i := uint8(0); i < Node16KeysMax; i++ {
-			res[Node16KeysMax-1-i] = n.children[i]
+		currLen := n.getChildrenLen(ctx)
+		res := make([]*INode[V], currLen)
+		for i := int8(Node16KeysMax - 1); i >= int8(Node16KeysMax-currLen); i-- {
+			res[int8(Node16KeysMax)-1-i] = n.children[i]
 		}
 		return res
 	default:
@@ -139,7 +140,7 @@ func (n *Node16[V]) grow(ctx context.Context) (*INode[V], error) {
 	n48.setPrefix(ctx, n.getPrefix(ctx))
 	n48.setChildrenLen(ctx, n.getChildrenLen(ctx))
 
-	for i := uint8(0); i < Node16KeysMax; i++ {
+	for i := 0; i < int(Node16KeysMax); i++ {
 		if err := n48.addChild(ctx, n.keys[i], n.children[i]); err != nil {
 			return nil, err
 		}
@@ -163,7 +164,7 @@ func (n *Node16[V]) shrink(ctx context.Context) (*INode[V], error) {
 	n4.setPrefix(ctx, n.getPrefix(ctx))
 	n4.setChildrenLen(ctx, currChildrenLen)
 
-	for i := uint8(0); i < currChildrenLen; i++ {
+	for i := 0; i < int(currChildrenLen); i++ {
 		if err := n4.addChild(ctx, n.keys[i], n.children[i]); err != nil {
 			return nil, err
 		}

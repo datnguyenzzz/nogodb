@@ -198,7 +198,6 @@ func (n *Node48[V]) shrink(ctx context.Context) (*INode[V], error) {
 
 	n16 := newNode[V](KindNode16)
 	n16.setPrefix(ctx, n.getPrefix(ctx))
-	n16.setChildrenLen(ctx, n.getChildrenLen(ctx))
 
 	for k := 0; k < int(Node48KeysLen); k++ {
 		if n.keys[k] == 0 {

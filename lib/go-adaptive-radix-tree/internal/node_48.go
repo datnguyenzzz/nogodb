@@ -53,7 +53,7 @@ func (n *Node48[V]) addChild(ctx context.Context, key byte, child *INode[V]) err
 	}
 
 	// shift all keys[key+1:] 1 step to the right to make room
-	for k := Node48KeysLen - 1; k > uint16(key); k-- {
+	for k := int(Node48KeysLen) - 1; k > int(key); k-- {
 		if n.keys[k] == 0 {
 			// key k-th is not exist yet
 			continue
@@ -67,7 +67,7 @@ func (n *Node48[V]) addChild(ctx context.Context, key byte, child *INode[V]) err
 		n.keys[k] += 1
 	}
 	pos := uint8(0)
-	for k := uint8(0); k < key; k++ {
+	for k := 0; k < int(key); k++ {
 		if n.keys[k] == 0 {
 			// key k-th is not exist yet
 			continue
@@ -94,8 +94,12 @@ func (n *Node48[V]) removeChild(ctx context.Context, key byte) error {
 		return childNodeNotFound
 	}
 
+	// remove n.keys[key]
+	n.children[n.keys[key]-1] = nil
+	n.keys[key] = 0
+
 	// shift all keys[key+1:] 1 step to the left
-	for k := key + 1; uint16(k) < Node48KeysLen; k++ {
+	for k := int(key) + 1; k < int(Node48KeysLen); k++ {
 		if n.keys[k] == 0 {
 			// key k-th is not exist yet
 			continue
@@ -109,8 +113,6 @@ func (n *Node48[V]) removeChild(ctx context.Context, key byte) error {
 		n.children[childPos] = nil
 		n.keys[k] -= 1
 	}
-	// remove n.keys[key]
-	n.keys[key] = 0
 	n.setChildrenLen(ctx, currChildrenLen-1)
 
 	return nil
@@ -129,7 +131,7 @@ func (n *Node48[V]) getAllChildren(ctx context.Context, order Order) []*INode[V]
 	case AscOrder:
 		res := make([]*INode[V], n.getChildrenLen(ctx))
 		cnt := 0
-		for k := 0; uint16(k) < Node48KeysLen; k++ {
+		for k := 0; k < int(Node48KeysLen); k++ {
 			if n.keys[k] == 0 {
 				// key k-th is not exist yet
 				continue
@@ -142,7 +144,7 @@ func (n *Node48[V]) getAllChildren(ctx context.Context, order Order) []*INode[V]
 	case DescOrder:
 		res := make([]*INode[V], n.getChildrenLen(ctx))
 		cnt := 0
-		for k := Node48KeysLen - 1; k >= uint16(0); k-- {
+		for k := int(Node48KeysLen) - 1; k >= 0; k-- {
 			if n.keys[k] == 0 {
 				// key k-th is not exist yet
 				continue
@@ -168,7 +170,7 @@ func (n *Node48[V]) grow(ctx context.Context) (*INode[V], error) {
 	n256.setPrefix(ctx, n.getPrefix(ctx))
 	n256.setChildrenLen(ctx, n.getChildrenLen(ctx))
 
-	for k := 0; uint16(k) < Node48KeysLen; k++ {
+	for k := 0; k < int(Node48KeysLen); k++ {
 		if n.keys[k] == 0 {
 			// key k-th is not exist yet
 			continue
@@ -198,7 +200,7 @@ func (n *Node48[V]) shrink(ctx context.Context) (*INode[V], error) {
 	n16.setPrefix(ctx, n.getPrefix(ctx))
 	n16.setChildrenLen(ctx, n.getChildrenLen(ctx))
 
-	for k := 0; uint16(k) < Node48KeysLen; k++ {
+	for k := 0; k < int(Node48KeysLen); k++ {
 		if n.keys[k] == 0 {
 			// key k-th is not exist yet
 			continue

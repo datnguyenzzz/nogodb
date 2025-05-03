@@ -162,9 +162,8 @@ func (n *Node16[V]) shrink(ctx context.Context) (*INode[V], error) {
 
 	n4 := newNode[V](KindNode4)
 	n4.setPrefix(ctx, n.getPrefix(ctx))
-	n4.setChildrenLen(ctx, currChildrenLen)
 
-	for i := 0; i < int(currChildrenLen); i++ {
+	for i := int(Node16KeysMax - 1); i >= int(Node16KeysMax-currChildrenLen); i-- {
 		if err := n4.addChild(ctx, n.keys[i], n.children[i]); err != nil {
 			return nil, err
 		}

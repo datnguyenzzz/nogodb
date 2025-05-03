@@ -2,12 +2,13 @@ package internal
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
-func Test_node256_insertAndRemoveChildren_str(t *testing.T) {
+func Test_node256_str_insertAndRemoveChildren(t *testing.T) {
 	type param struct {
 		desc                 string
 		actions              []nodeAction[string]
@@ -352,4 +353,66 @@ func Test_node256_insertAndRemoveChildren_str(t *testing.T) {
 			}
 		})
 	}
+}
+
+func Test_node256_str_grow(t *testing.T) {
+	ctx := context.Background()
+	n256 := newNode[string](KindNode256)
+
+	samplePrefix := randomBytes(5)
+	n256.setPrefix(ctx, samplePrefix)
+
+	sampleLeaves := generateStringLeaves(int(Node48PointersMax))
+	// Add children to the node until it reaches its space capacity
+	var children []*INode[string]
+	for idx := byte(0); idx < Node48PointersMax; idx++ {
+		leaf := sampleLeaves[idx]
+		children = append(children, &leaf)
+		err := n256.addChild(ctx, idx, &leaf)
+		assert.NoError(t, err, fmt.Sprintf("shouldn't fail to add new child with key - %v", idx))
+	}
+
+	// grow to bigger node
+	_, err := n256.grow(ctx)
+	assert.Error(t, err, "shouldn't succeed to grow")
+}
+
+func Test_node256_str_shrink(t *testing.T) {
+	ctx := context.Background()
+	n256 := newNode[string](KindNode256)
+
+	samplePrefix := randomBytes(5)
+	n256.setPrefix(ctx, samplePrefix)
+
+	sampleLeaves := generateStringLeaves(int(Node256PointersMin - 1))
+	// Add children to the node which is lower than the minimum required capacity
+	var keys []byte
+	var children []*INode[string]
+	for idx := byte(0); idx < Node256PointersMin-1; idx++ {
+		leaf := sampleLeaves[idx]
+		keys = append(keys, idx)
+		children = append(children, &leaf)
+		err := n256.addChild(ctx, idx, &leaf)
+		assert.NoError(t, err, fmt.Sprintf("shouldn't fail to add new child with key - %v", idx))
+	}
+
+	// shrink to smaller node
+	nn, err := n256.shrink(ctx)
+	assert.NoError(t, err, "shouldn't fail to shrink")
+	// verify output
+	n48 := *nn
+	n48o, ok := n48.(*Node48[string])
+	assert.True(t, ok, "can not cast to Node48[string]")
+	assert.Equal(t, n48o.getPrefix(ctx), samplePrefix)
+	assert.Equal(t, n48o.getKind(ctx), KindNode48)
+	// fill expectedKeys with 0
+	var expectedKeys [Node48KeysLen]byte
+	for _, key := range keys {
+		expectedKeys[key] = key + 1
+	}
+	assert.Equal(t, n48o.keys, expectedKeys, "node keys is different")
+	// fill expectedChildren with nil pointer
+	var expectedChildren [Node48PointersMax]*INode[string]
+	copy(expectedChildren[:Node256PointersMin-1], children)
+	assert.Equal(t, n48o.children, expectedChildren, "node children is different")
 }

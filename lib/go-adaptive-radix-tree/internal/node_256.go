@@ -113,7 +113,6 @@ func (n *Node256[V]) shrink(ctx context.Context) (*INode[V], error) {
 
 	n48 := newNode[V](KindNode48)
 	n48.setPrefix(ctx, n.getPrefix(ctx))
-	n48.setChildrenLen(ctx, n.getChildrenLen(ctx))
 
 	for k := 0; k < int(Node256PointersMax); k++ {
 		child := n.children[k]

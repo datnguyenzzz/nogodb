@@ -69,7 +69,7 @@ func (n *Node256[V]) getAllChildren(ctx context.Context, order Order) []*INode[V
 	case AscOrder:
 		res := make([]*INode[V], n.getChildrenLen(ctx))
 		cnt := 0
-		for k := 0; uint16(k) < Node256PointersMax; k++ {
+		for k := 0; k < int(Node256PointersMax); k++ {
 			child := n.children[k]
 			if child == nil {
 				continue
@@ -81,7 +81,7 @@ func (n *Node256[V]) getAllChildren(ctx context.Context, order Order) []*INode[V
 	case DescOrder:
 		res := make([]*INode[V], n.getChildrenLen(ctx))
 		cnt := 0
-		for k := Node256PointersMax - 1; k >= uint16(0); k-- {
+		for k := int(Node256PointersMax) - 1; k >= 0; k-- {
 			child := n.children[k]
 			if child == nil {
 				continue
@@ -115,7 +115,7 @@ func (n *Node256[V]) shrink(ctx context.Context) (*INode[V], error) {
 	n48.setPrefix(ctx, n.getPrefix(ctx))
 	n48.setChildrenLen(ctx, n.getChildrenLen(ctx))
 
-	for k := 0; uint16(k) < Node256PointersMax; k++ {
+	for k := 0; k < int(Node256PointersMax); k++ {
 		child := n.children[k]
 		if child == nil {
 			continue

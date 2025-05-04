@@ -6,7 +6,7 @@ import (
 
 // NodeLeaf aka Single-value leaf: The values are stored
 // in an additional leaf node type, instead of in the inner node.
-// It's also an implication that the prefix on the leaf node is equal to the key itself.
+// It's also an implication that the prefix on the leaf node is equal to the Key itself.
 type NodeLeaf[V any] struct {
 	nodeHeader
 	value V

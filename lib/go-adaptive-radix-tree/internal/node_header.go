@@ -3,8 +3,8 @@ package internal
 import "context"
 
 type nodeHeader struct {
-	// prefix used in the node to store the compressed portion of the key.
-	// Note: To optimize memory usage, the prefix is not intended to store the entire key
+	// prefix used in the node to store the compressed portion of the Key.
+	// Note: To optimize memory usage, the prefix is not intended to store the entire Key
 	// starting from the first byte. Instead, it only stores the compressed portion that
 	// has not been preserved in the upper nodes.
 	prefix    []byte

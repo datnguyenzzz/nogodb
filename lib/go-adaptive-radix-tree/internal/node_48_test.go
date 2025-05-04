@@ -11,7 +11,7 @@ import (
 func Test_node48_str_insertAndRemoveChildren(t *testing.T) {
 	type param struct {
 		desc                 string
-		actions              []nodeAction[string]
+		actions              []NodeAction[string]
 		expectedKeys         []byte // non 0 keys
 		expectedChildrenLen  uint8
 		expectedAscChildren  []*INode[string] // non nil pointers
@@ -24,21 +24,21 @@ func Test_node48_str_insertAndRemoveChildren(t *testing.T) {
 	testList := []param{
 		{
 			desc: "Happy case: #1",
-			actions: []nodeAction[string]{
+			actions: []NodeAction[string]{
 				{
-					kind:  insertAction,
-					key:   1,
-					child: &sampleLeaves[0],
+					Kind:  InsertAction,
+					Key:   1,
+					Child: &sampleLeaves[0],
 				},
 				{
-					kind:  insertAction,
-					key:   2,
-					child: &sampleLeaves[1],
+					Kind:  InsertAction,
+					Key:   2,
+					Child: &sampleLeaves[1],
 				},
 				{
-					kind:  insertAction,
-					key:   3,
-					child: &sampleLeaves[2],
+					Kind:  InsertAction,
+					Key:   3,
+					Child: &sampleLeaves[2],
 				},
 			},
 			expectedKeys:        []byte{1, 2, 3},
@@ -61,20 +61,20 @@ func Test_node48_str_insertAndRemoveChildren(t *testing.T) {
 		},
 		{
 			desc: "Happy case: #2",
-			actions: []nodeAction[string]{
+			actions: []NodeAction[string]{
 				{
-					kind:  insertAction,
-					key:   1,
-					child: &sampleLeaves[0],
+					Kind:  InsertAction,
+					Key:   1,
+					Child: &sampleLeaves[0],
 				},
 				{
-					kind: removeAction,
-					key:  1,
+					Kind: RemoveAction,
+					Key:  1,
 				},
 				{
-					kind:  insertAction,
-					key:   1,
-					child: &sampleLeaves[3],
+					Kind:  InsertAction,
+					Key:   1,
+					Child: &sampleLeaves[3],
 				},
 			},
 			expectedKeys:        []byte{1},
@@ -91,24 +91,24 @@ func Test_node48_str_insertAndRemoveChildren(t *testing.T) {
 		},
 		{
 			desc: "Happy case: #3",
-			actions: []nodeAction[string]{
+			actions: []NodeAction[string]{
 				{
-					kind:  insertAction,
-					key:   1,
-					child: &sampleLeaves[0],
+					Kind:  InsertAction,
+					Key:   1,
+					Child: &sampleLeaves[0],
 				},
 				{
-					kind:  insertAction,
-					key:   2,
-					child: &sampleLeaves[1],
+					Kind:  InsertAction,
+					Key:   2,
+					Child: &sampleLeaves[1],
 				},
 				{
-					kind: removeAction,
-					key:  1,
+					Kind: RemoveAction,
+					Key:  1,
 				},
 				{
-					kind: removeAction,
-					key:  2,
+					Kind: RemoveAction,
+					Key:  2,
 				},
 			},
 			expectedKeys:         []byte{},
@@ -119,30 +119,30 @@ func Test_node48_str_insertAndRemoveChildren(t *testing.T) {
 		},
 		{
 			desc: "Happy case: #4",
-			actions: []nodeAction[string]{
+			actions: []NodeAction[string]{
 				{
-					kind:  insertAction,
-					key:   1,
-					child: &sampleLeaves[0],
+					Kind:  InsertAction,
+					Key:   1,
+					Child: &sampleLeaves[0],
 				},
 				{
-					kind:  insertAction,
-					key:   2,
-					child: &sampleLeaves[1],
+					Kind:  InsertAction,
+					Key:   2,
+					Child: &sampleLeaves[1],
 				},
 				{
-					kind:  insertAction,
-					key:   3,
-					child: &sampleLeaves[2],
+					Kind:  InsertAction,
+					Key:   3,
+					Child: &sampleLeaves[2],
 				},
 				{
-					kind: removeAction,
-					key:  2,
+					Kind: RemoveAction,
+					Key:  2,
 				},
 				{
-					kind:  insertAction,
-					key:   4,
-					child: &sampleLeaves[3],
+					Kind:  InsertAction,
+					Key:   4,
+					Child: &sampleLeaves[3],
 				},
 			},
 			expectedKeys:        []byte{1, 3, 4},
@@ -165,30 +165,30 @@ func Test_node48_str_insertAndRemoveChildren(t *testing.T) {
 		},
 		{
 			desc: "Happy case: #5",
-			actions: []nodeAction[string]{
+			actions: []NodeAction[string]{
 				{
-					kind:  insertAction,
-					key:   3,
-					child: &sampleLeaves[0],
+					Kind:  InsertAction,
+					Key:   3,
+					Child: &sampleLeaves[0],
 				},
 				{
-					kind:  insertAction,
-					key:   2,
-					child: &sampleLeaves[1],
+					Kind:  InsertAction,
+					Key:   2,
+					Child: &sampleLeaves[1],
 				},
 				{
-					kind:  insertAction,
-					key:   1,
-					child: &sampleLeaves[2],
+					Kind:  InsertAction,
+					Key:   1,
+					Child: &sampleLeaves[2],
 				},
 				{
-					kind: removeAction,
-					key:  2,
+					Kind: RemoveAction,
+					Key:  2,
 				},
 				{
-					kind:  insertAction,
-					key:   4,
-					child: &sampleLeaves[3],
+					Kind:  InsertAction,
+					Key:   4,
+					Child: &sampleLeaves[3],
 				},
 			},
 			expectedKeys:        []byte{1, 3, 4},
@@ -211,44 +211,44 @@ func Test_node48_str_insertAndRemoveChildren(t *testing.T) {
 		},
 		{
 			desc: "Happy case: #6",
-			actions: []nodeAction[string]{
+			actions: []NodeAction[string]{
 				{
-					kind:  insertAction,
-					key:   3,
-					child: &sampleLeaves[0],
+					Kind:  InsertAction,
+					Key:   3,
+					Child: &sampleLeaves[0],
 				},
 				{
-					kind:  insertAction,
-					key:   2,
-					child: &sampleLeaves[1],
+					Kind:  InsertAction,
+					Key:   2,
+					Child: &sampleLeaves[1],
 				},
 				{
-					kind:  insertAction,
-					key:   4,
-					child: &sampleLeaves[1],
+					Kind:  InsertAction,
+					Key:   4,
+					Child: &sampleLeaves[1],
 				},
 				{
-					kind:  insertAction,
-					key:   1,
-					child: &sampleLeaves[2],
+					Kind:  InsertAction,
+					Key:   1,
+					Child: &sampleLeaves[2],
 				},
 				{
-					kind: removeAction,
-					key:  2,
+					Kind: RemoveAction,
+					Key:  2,
 				},
 				{
-					kind: removeAction,
-					key:  4,
+					Kind: RemoveAction,
+					Key:  4,
 				},
 				{
-					kind:  insertAction,
-					key:   2,
-					child: &sampleLeaves[3],
+					Kind:  InsertAction,
+					Key:   2,
+					Child: &sampleLeaves[3],
 				},
 				{
-					kind:  insertAction,
-					key:   4,
-					child: &sampleLeaves[3],
+					Kind:  InsertAction,
+					Key:   4,
+					Child: &sampleLeaves[3],
 				},
 			},
 			expectedKeys:        []byte{1, 2, 3, 4},
@@ -274,30 +274,30 @@ func Test_node48_str_insertAndRemoveChildren(t *testing.T) {
 		},
 		{
 			desc: "Happy case: #7",
-			actions: []nodeAction[string]{
+			actions: []NodeAction[string]{
 				{
-					kind:  insertAction,
-					key:   3,
-					child: &sampleLeaves[0],
+					Kind:  InsertAction,
+					Key:   3,
+					Child: &sampleLeaves[0],
 				},
 				{
-					kind:  insertAction,
-					key:   2,
-					child: &sampleLeaves[1],
+					Kind:  InsertAction,
+					Key:   2,
+					Child: &sampleLeaves[1],
 				},
 				{
-					kind: removeAction,
-					key:  2,
+					Kind: RemoveAction,
+					Key:  2,
 				},
 				{
-					kind:  insertAction,
-					key:   4,
-					child: &sampleLeaves[3],
+					Kind:  InsertAction,
+					Key:   4,
+					Child: &sampleLeaves[3],
 				},
 				{
-					kind:  insertAction,
-					key:   1,
-					child: &sampleLeaves[2],
+					Kind:  InsertAction,
+					Key:   1,
+					Child: &sampleLeaves[2],
 				},
 			},
 			expectedKeys:        []byte{1, 3, 4},
@@ -322,15 +322,15 @@ func Test_node48_str_insertAndRemoveChildren(t *testing.T) {
 
 	for _, tc := range testList {
 		t.Run(tc.desc, func(t *testing.T) {
-			n48 := newNode[string](KindNode48)
+			n48 := NewNode[string](KindNode48)
 			ctx := context.Background()
 			// perform actions
 			for _, action := range tc.actions {
-				if action.kind == insertAction {
-					err := n48.addChild(ctx, action.key, action.child)
+				if action.Kind == InsertAction {
+					err := n48.addChild(ctx, action.Key, action.Child)
 					assert.NoError(t, err)
 				} else {
-					err := n48.removeChild(ctx, action.key)
+					err := n48.removeChild(ctx, action.Key)
 					assert.NoError(t, err)
 				}
 			}
@@ -361,9 +361,9 @@ func Test_node48_str_insertAndRemoveChildren(t *testing.T) {
 
 func Test_node48_str_grow(t *testing.T) {
 	ctx := context.Background()
-	n48 := newNode[string](KindNode48)
+	n48 := NewNode[string](KindNode48)
 
-	samplePrefix := randomBytes(5)
+	samplePrefix := RandomBytes(5)
 	n48.setPrefix(ctx, samplePrefix)
 
 	sampleLeaves := generateStringLeaves(int(Node48PointersMax))
@@ -373,7 +373,7 @@ func Test_node48_str_grow(t *testing.T) {
 		leaf := sampleLeaves[idx]
 		children = append(children, &leaf)
 		err := n48.addChild(ctx, idx, &leaf)
-		assert.NoError(t, err, fmt.Sprintf("shouldn't fail to add new child with key - %v", idx))
+		assert.NoError(t, err, fmt.Sprintf("shouldn't fail to add new Child with Key - %v", idx))
 	}
 
 	// grow to bigger node
@@ -395,9 +395,9 @@ func Test_node48_str_grow(t *testing.T) {
 
 func Test_node48_str_shrink(t *testing.T) {
 	ctx := context.Background()
-	n48 := newNode[string](KindNode48)
+	n48 := NewNode[string](KindNode48)
 
-	samplePrefix := randomBytes(5)
+	samplePrefix := RandomBytes(5)
 	n48.setPrefix(ctx, samplePrefix)
 
 	sampleLeaves := generateStringLeaves(int(Node48PointersMin - 1))
@@ -409,7 +409,7 @@ func Test_node48_str_shrink(t *testing.T) {
 		keys = append(keys, idx)
 		children = append(children, &leaf)
 		err := n48.addChild(ctx, idx, &leaf)
-		assert.NoError(t, err, fmt.Sprintf("shouldn't fail to add new child with key - %v", idx))
+		assert.NoError(t, err, fmt.Sprintf("shouldn't fail to add new Child with Key - %v", idx))
 	}
 
 	// shrink to smaller node

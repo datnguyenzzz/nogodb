@@ -36,7 +36,12 @@ func (t *Tree[V]) Delete(ctx context.Context, key Key) (V, error) {
 	defer t.lock.ReleaseCtx(ctx)
 
 	ptr := &t.root
-	v, _, err := internal.RemoveNode[V](ctx, ptr, key, 0)
+	v, isNodeRemovable, err := internal.RemoveNode[V](ctx, ptr, key, 0)
+	if isNodeRemovable && err == nil {
+		// it means the root node can be removed
+		// since the all nodes in the tree have been deleted
+		t.root = nil
+	}
 	return v, err
 }
 

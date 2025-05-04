@@ -13,7 +13,7 @@ const (
 // Node256 The largest node type is simply an array of 256
 // pointers and is used for storing between 49 and 256 entries.
 // With this representation, the next node can be found very
-// efficiently using a single lookup of the key byte in that array.
+// efficiently using a single lookup of the Key byte in that array.
 // No additional indirection is necessary. If most entries are not
 // null, this representation is also very space efficient because
 // only pointers need to be stored.
@@ -38,7 +38,7 @@ func (n *Node256[V]) getKind(ctx context.Context) Kind {
 func (n *Node256[V]) addChild(ctx context.Context, key byte, child *INode[V]) error {
 	currChildrenLen := n.getChildrenLen(ctx)
 	if uint16(currChildrenLen) >= Node256PointersMax {
-		return fmt.Errorf("node256 is maxed out and don't have enough room for a new key")
+		return fmt.Errorf("node256 is maxed out and don't have enough room for a new Key")
 	}
 
 	n.children[key] = child
@@ -111,7 +111,7 @@ func (n *Node256[V]) shrink(ctx context.Context) (*INode[V], error) {
 		return nil, fmt.Errorf("node256 has 0 children, which is unexpected")
 	}
 
-	n48 := newNode[V](KindNode48)
+	n48 := NewNode[V](KindNode48)
 	n48.setPrefix(ctx, n.getPrefix(ctx))
 
 	for k := 0; k < int(Node256PointersMax); k++ {

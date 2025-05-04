@@ -11,17 +11,17 @@ const (
 	Node4PointersLen byte = 4
 )
 
-// Node4 The smallest node type can store up to 4 child
+// Node4 The smallest node type can store up to 4 Child
 // pointers and uses an array of length 4 for keys and another
 // array of the same length for pointers. The keys and pointers
 // are stored at corresponding positions and the keys are sorted.
 type Node4[V any] struct {
 	nodeHeader
-	// At position i-th, keys[i] = key value, pointers[i] = pointer to child for the keys[i]
-	// keys is an array of length 4 for a 1-byte key.
+	// At position i-th, keys[i] = Key value, pointers[i] = pointer to Child for the keys[i]
+	// keys is an array of length 4 for a 1-byte Key.
 	// The keys array is sorted in ascending order.
 	keys [Node4KeysMax]byte
-	// pointers to children node. pointers[i] is a pointer to a child node for a key = keys[i]
+	// pointers to children node. pointers[i] is a pointer to a Child node for a Key = keys[i]
 	children [Node4PointersLen]*INode[V]
 }
 
@@ -40,12 +40,12 @@ func (n *Node4[V]) getKind(ctx context.Context) Kind {
 func (n *Node4[V]) addChild(ctx context.Context, key byte, child *INode[V]) error {
 	currChildrenLen := n.getChildrenLen(ctx)
 	if currChildrenLen >= Node4KeysMax {
-		return fmt.Errorf("node_4 is maxed out and don't have enough room for a new key")
+		return fmt.Errorf("node_4 is maxed out and don't have enough room for a new Key")
 	}
 
 	_, err := n.getChild(ctx, key)
 	if err == nil {
-		return fmt.Errorf("key: %v already exists", key)
+		return fmt.Errorf("Key: %v already exists", key)
 	}
 
 	pos := Node4KeysMax
@@ -60,7 +60,7 @@ func (n *Node4[V]) addChild(ctx context.Context, key byte, child *INode[V]) erro
 		n.keys[i] = n.keys[i+1]
 		n.children[i] = n.children[i+1]
 	}
-	// add a new key to pos-1
+	// add a new Key to pos-1
 	n.keys[pos-1] = key
 	n.children[pos-1] = child
 	n.setChildrenLen(ctx, currChildrenLen+1)
@@ -134,7 +134,7 @@ func (n *Node4[V]) grow(ctx context.Context) (*INode[V], error) {
 	if n.getChildrenLen(ctx) != Node4KeysMax {
 		return nil, fmt.Errorf("node4 is not maxed out yet, so don't have to grow to a bigger node")
 	}
-	n16 := newNode[V](KindNode16)
+	n16 := NewNode[V](KindNode16)
 	n16.setPrefix(ctx, n.getPrefix(ctx))
 	n16.setChildrenLen(ctx, n.getChildrenLen(ctx))
 
@@ -162,7 +162,7 @@ func (n *Node4[V]) shrink(ctx context.Context) (*INode[V], error) {
 		return &child, nil
 	}
 
-	// if a child is not leaf, then the node4 is not shrinkable
+	// if a Child is not leaf, then the node4 is not shrinkable
 	// however it shouldn't return any errors either, thus we can
 	// just simply return the current node without modifying anything
 	var nn INode[V] = n

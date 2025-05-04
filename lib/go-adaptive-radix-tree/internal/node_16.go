@@ -12,15 +12,15 @@ const (
 )
 
 // Node16 This node type is used for storing between 5 and
-// 16 child pointers. Like the Node4, the keys and pointers
+// 16 Child pointers. Like the Node4, the keys and pointers
 // are stored in separate arrays at corresponding positions, but
-// both arrays have space for 16 entries. A key can be found
+// both arrays have space for 16 entries. A Key can be found
 // efficiently with binary search or, on modern hardware, with
 // parallel comparisons using SIMD instructions.
 type Node16[V any] struct {
 	nodeHeader
-	// At position i-th, keys[i] = key value, pointers[i] = pointer to child for the keys[i]
-	// keys is an array of length 16 for a 1-byte key.
+	// At position i-th, keys[i] = Key value, pointers[i] = pointer to Child for the keys[i]
+	// keys is an array of length 16 for a 1-byte Key.
 	// The keys array is sorted in ascending order.
 	keys [Node16KeysMax]byte
 	// pointers to children node.
@@ -42,12 +42,12 @@ func (n *Node16[V]) getKind(ctx context.Context) Kind {
 func (n *Node16[V]) addChild(ctx context.Context, key byte, child *INode[V]) error {
 	currChildrenLen := n.getChildrenLen(ctx)
 	if currChildrenLen >= Node16KeysMax {
-		return fmt.Errorf("node_16 is maxed out and don't have enough room for a new key")
+		return fmt.Errorf("node_16 is maxed out and don't have enough room for a new Key")
 	}
 
 	_, err := n.getChild(ctx, key)
 	if err == nil {
-		return fmt.Errorf("key: %v already exists", key)
+		return fmt.Errorf("Key: %v already exists", key)
 	}
 
 	pos := Node16KeysMax
@@ -62,7 +62,7 @@ func (n *Node16[V]) addChild(ctx context.Context, key byte, child *INode[V]) err
 		n.keys[i] = n.keys[i+1]
 		n.children[i] = n.children[i+1]
 	}
-	// add a new key to pos-1
+	// add a new Key to pos-1
 	n.keys[pos-1] = key
 	n.children[pos-1] = child
 	n.setChildrenLen(ctx, currChildrenLen+1)
@@ -136,7 +136,7 @@ func (n *Node16[V]) grow(ctx context.Context) (*INode[V], error) {
 	if n.getChildrenLen(ctx) != Node16KeysMax {
 		return nil, fmt.Errorf("node16 is not maxed out yet, so don't have to grow to a bigger node")
 	}
-	n48 := newNode[V](KindNode48)
+	n48 := NewNode[V](KindNode48)
 	n48.setPrefix(ctx, n.getPrefix(ctx))
 	n48.setChildrenLen(ctx, n.getChildrenLen(ctx))
 
@@ -160,7 +160,7 @@ func (n *Node16[V]) shrink(ctx context.Context) (*INode[V], error) {
 		return nil, fmt.Errorf("node16 has 0 children, which is unexpected")
 	}
 
-	n4 := newNode[V](KindNode4)
+	n4 := NewNode[V](KindNode4)
 	n4.setPrefix(ctx, n.getPrefix(ctx))
 
 	for i := int(Node16KeysMax - 1); i >= int(Node16KeysMax-currChildrenLen); i-- {

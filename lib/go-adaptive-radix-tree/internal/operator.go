@@ -9,13 +9,13 @@ import (
 // InsertNode returns the previous value and an error indicating if any was set.
 //
 //	nodePtr: Pointer to the current node
-//	key, v: The target key and value
-//	offset: The number of bytes of the "key" that have been processed
+//	Key, v: The target Key and value
+//	offset: The number of bytes of the "Key" that have been processed
 func InsertNode[V any](ctx context.Context, nodePtr *INode[V], key []byte, v V, offset uint8) (V, error) {
-	if nodePtr == nil {
+	if *nodePtr == nil {
 		// Encounter an empty node.
 		// Create a new leaf then replace the node pointer to the newly created leaf
-		newLeaf := newLeafWithKV[V](ctx, key, v)
+		newLeaf := NewLeafWithKV[V](ctx, key, v)
 		*nodePtr = newLeaf
 		return *new(V), nil
 	}
@@ -32,56 +32,63 @@ func InsertNode[V any](ctx context.Context, nodePtr *INode[V], key []byte, v V, 
 
 		lcp := findLCP(key, currLeafKey, offset)
 		// create the smallest inner node
-		nn := newNode[V](KindNode4)
+		nn := NewNode[V](KindNode4)
 		nn.setPrefix(ctx, key[offset:offset+lcp])
 		offset += lcp
+		// deep copy the current node to nodeCopy
+		nodeCopy := new(INode[V])
+		*nodeCopy = *nodePtr
 		// add current leaf node to the new inner node
-		if err := nn.addChild(ctx, currLeafKey[offset], nodePtr); err != nil {
+		if err := nn.addChild(ctx, currLeafKey[offset], nodeCopy); err != nil {
 			return *new(V), fmt.Errorf("%w: %v", failedToAddChild, err)
 		}
-		// create new leaf node for the targeting key, and add it to the inner node
-		newLeaf := newLeafWithKV[V](ctx, key, v)
+		// create new leaf node for the targeting Key, and add it to the inner node
+		newLeaf := NewLeafWithKV[V](ctx, key, v)
 		if err := nn.addChild(ctx, key[offset], &newLeaf); err != nil {
 			return *new(V), fmt.Errorf("%w: %v", failedToAddChild, err)
 		}
 		// replace the current node with the newly created inner node
-		node = nn
+		*nodePtr = nn
 		return *new(V), nil
 	}
 
 	matchedPrefixLen := node.checkPrefix(ctx, key, offset)
 	if matchedPrefixLen != node.getPrefixLen(ctx) {
 		currNodePrefix := node.getPrefix(ctx)
-		nn := newNode[V](KindNode4)
+		nn := NewNode[V](KindNode4)
 		nn.setPrefix(ctx, currNodePrefix[:matchedPrefixLen])
 
-		newLeaf := newLeafWithKV[V](ctx, key, v)
+		newLeaf := NewLeafWithKV[V](ctx, key, v)
 		if err := nn.addChild(ctx, key[offset+matchedPrefixLen], &newLeaf); err != nil {
 			return *new(V), fmt.Errorf("%w: %v", failedToAddChild, err)
 		}
 
 		// adjust the current node compressed prefix accordingly
-		node.setPrefix(ctx, currNodePrefix[matchedPrefixLen:])
-		if err := nn.addChild(ctx, currNodePrefix[matchedPrefixLen], nodePtr); err != nil {
+		// 1 character is in edge
+		node.setPrefix(ctx, currNodePrefix[matchedPrefixLen+1:])
+		// deep copy the current node to nodeCopy
+		nodeCopy := new(INode[V])
+		*nodeCopy = *nodePtr
+		if err := nn.addChild(ctx, currNodePrefix[matchedPrefixLen], nodeCopy); err != nil {
 			return *new(V), fmt.Errorf("%w: %v", failedToAddChild, err)
 		}
 
 		// replace the current node with the newly created inner node
-		node = nn
+		*nodePtr = nn
 		return *new(V), nil
 	}
 
 	offset += node.getPrefixLen(ctx)
 	childPtr, err := node.getChild(ctx, key[offset])
 	if errors.Is(err, childNodeNotFound) {
-		newLeaf := newLeafWithKV[V](ctx, key, v)
+		newLeaf := NewLeafWithKV[V](ctx, key, v)
 		// grow to a bigger node if don't have enough space
 		if !node.hasEnoughSpace(ctx) {
 			biggerNodePtr, err := node.grow(ctx)
 			if err != nil {
 				return *new(V), fmt.Errorf("%w: %v", failedToGrowNode, err)
 			}
-			node = *biggerNodePtr
+			*nodePtr = *biggerNodePtr
 		}
 		if err := node.addChild(ctx, key[offset], &newLeaf); err != nil {
 			return *new(V), fmt.Errorf("%w: %v", failedToAddChild, err)
@@ -92,19 +99,19 @@ func InsertNode[V any](ctx context.Context, nodePtr *INode[V], key []byte, v V, 
 	return InsertNode[V](ctx, childPtr, key, v, offset+1)
 }
 
-// RemoveNode is used to delete a given key. Returns the old value if any
+// RemoveNode is used to delete a given Key. Returns the old value if any
 //
 // Parameters:
 // nodePtr: Pointer to the current node
-// key: The target key
-// offset: The number of bytes of the "key" that have been processed
+// Key: The target Key
+// offset: The number of bytes of the "Key" that have been processed
 //
 // Output:
 // 1. old value before removal
-// 2. is the "child" node removable ?
+// 2. is the "Child" node removable ?
 // 3.removal error ?
 func RemoveNode[V any](ctx context.Context, nodePtr *INode[V], key []byte, offset uint8) (V, bool, error) {
-	if nodePtr == nil || len(key) == 0 {
+	if *nodePtr == nil || len(key) == 0 {
 		return *new(V), false, noSuchKey
 	}
 
@@ -144,13 +151,13 @@ func RemoveNode[V any](ctx context.Context, nodePtr *INode[V], key []byte, offse
 		// mark the current node to be removable
 		return removedV, true, nil
 	case 1:
-		// replace the node with its only child and adjust the compressed prefix path
+		// replace the node with its only Child and adjust the compressed prefix path
 		// and NOT propagate the deletion action to the upper nodes.
-		// we also don't need to shrink it because the child should already
+		// we also don't need to shrink it because the Child should already
 		// go through the shrink process
 		currNodePrefix := node.getPrefix(ctx)
 		newPrefix := append(currNodePrefix, child.getPrefix(ctx)...)
-		node = child
+		*nodePtr = child
 		node.setPrefix(ctx, newPrefix)
 
 		return removedV, false, nil
@@ -162,17 +169,17 @@ func RemoveNode[V any](ctx context.Context, nodePtr *INode[V], key []byte, offse
 		if err != nil {
 			return *new(V), false, fmt.Errorf("%w: %v", failedToShrinkNode, err)
 		}
-		node = *smallerNodePtr
+		*nodePtr = *smallerNodePtr
 	}
 
 	return removedV, false, nil
 }
 
-// Get is used to look up a specific key, returning the value and if it was found
+// Get is used to look up a specific Key, returning the value and if it was found
 //
 //	node: The current node
-//	key: The target key
-//	offset: The number of bytes of the "key" that have been processed
+//	Key: The target Key
+//	offset: The number of bytes of the "Key" that have been processed
 func Get[V any](ctx context.Context, node INode[V], key []byte, offset uint8) (V, error) {
 	if node == nil {
 		return *new(V), noSuchKey
@@ -219,8 +226,8 @@ func Walk[V any](ctx context.Context, node INode[V], cb Callback[V], order Order
 	}
 }
 
-func newLeafWithKV[V any](ctx context.Context, key []byte, v V) INode[V] {
-	newLeaf := newNode[V](KindNodeLeaf)
+func NewLeafWithKV[V any](ctx context.Context, key []byte, v V) INode[V] {
+	newLeaf := NewNode[V](KindNodeLeaf)
 	newLeaf.setPrefix(ctx, key)
 	newLeaf.setValue(ctx, v)
 	return newLeaf

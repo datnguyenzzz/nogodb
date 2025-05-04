@@ -8,12 +8,12 @@ import (
 // errors
 var (
 	// tree level errors
-	failedToAddChild    error = fmt.Errorf("failed to add child")
-	failedToRemoveChild error = fmt.Errorf("failed to remove child")
+	failedToAddChild    error = fmt.Errorf("failed to add Child")
+	failedToRemoveChild error = fmt.Errorf("failed to remove Child")
 	failedToGrowNode    error = fmt.Errorf("failed to grow node")
 	failedToShrinkNode  error = fmt.Errorf("failed to shrink node")
-	childNodeNotFound   error = fmt.Errorf("child node not found")
-	noSuchKey           error = fmt.Errorf("not such key")
+	childNodeNotFound   error = fmt.Errorf("Child node not found")
+	noSuchKey           error = fmt.Errorf("not such Key")
 )
 
 type Callback[V any] func(ctx context.Context, k []byte, v V)
@@ -37,7 +37,7 @@ const (
 )
 
 type iNodeHeader interface {
-	// checkPrefix compares the compressed path of a node with the key and returns the number of equal bytes
+	// checkPrefix compares the compressed path of a node with the Key and returns the number of equal bytes
 	checkPrefix(ctx context.Context, key []byte, offset uint8) uint8
 	getPrefix(ctx context.Context) []byte
 	getPrefixLen(ctx context.Context) uint8

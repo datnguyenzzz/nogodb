@@ -12,21 +12,21 @@ const (
 )
 
 // Node48 As the number of entries in a node increases,
-// searching the key array becomes expensive. Therefore, nodes
+// searching the Key array becomes expensive. Therefore, nodes
 // with more than 16 pointers do not store the keys explicitly.
 // Instead, a 256-element array is used, which can be indexed
-// with key bytes directly. If a node has between 17 and 48 child
+// with Key bytes directly. If a node has between 17 and 48 Child
 // pointers, this array stores indexes into a second array which
 // contains up to 48 pointers.
 type Node48[V any] struct {
 	nodeHeader
 	// At position i-th, keys[i] = [position in the pointers array] + 1,
-	// if keys[i] = 0 means the key i-th haven't had a child yet
-	// pointers[i] = pointer to child for the key = i-th
-	// keys is an array of length 256 for a 1-byte key.
+	// if keys[i] = 0 means the Key i-th haven't had a Child yet
+	// pointers[i] = pointer to Child for the Key = i-th
+	// keys is an array of length 256 for a 1-byte Key.
 	// The pointers array is sorted in ascending order (by the value of keys)
 	keys [Node48KeysLen]byte
-	// pointers to children node. children[i] is a pointer to a child node for a key = i
+	// pointers to children node. children[i] is a pointer to a Child node for a Key = i
 	children [Node48PointersMax]*INode[V]
 }
 
@@ -45,22 +45,22 @@ func (n *Node48[V]) getKind(ctx context.Context) Kind {
 func (n *Node48[V]) addChild(ctx context.Context, key byte, child *INode[V]) error {
 	currChildrenLen := n.getChildrenLen(ctx)
 	if currChildrenLen >= Node48PointersMax {
-		return fmt.Errorf("node_48 is maxed out and don't have enough room for a new key")
+		return fmt.Errorf("node_48 is maxed out and don't have enough room for a new Key")
 	}
 
 	if n.keys[key] > 0 {
-		return fmt.Errorf("key: %v already exists", key)
+		return fmt.Errorf("Key: %v already exists", key)
 	}
 
-	// shift all keys[key+1:] 1 step to the right to make room
+	// shift all keys[Key+1:] 1 step to the right to make room
 	for k := int(Node48KeysLen) - 1; k > int(key); k-- {
 		if n.keys[k] == 0 {
-			// key k-th is not exist yet
+			// Key k-th is not exist yet
 			continue
 		}
 		childPos := n.keys[k] - 1
 		if childPos+1 >= Node48PointersMax {
-			return fmt.Errorf("node_48 is maxed out and don't have enough room for a new key")
+			return fmt.Errorf("node_48 is maxed out and don't have enough room for a new Key")
 		}
 		n.children[childPos+1] = n.children[childPos]
 		n.children[childPos] = nil
@@ -69,7 +69,7 @@ func (n *Node48[V]) addChild(ctx context.Context, key byte, child *INode[V]) err
 	pos := uint8(0)
 	for k := 0; k < int(key); k++ {
 		if n.keys[k] == 0 {
-			// key k-th is not exist yet
+			// Key k-th is not exist yet
 			continue
 		}
 		pos = n.keys[k]
@@ -94,19 +94,19 @@ func (n *Node48[V]) removeChild(ctx context.Context, key byte) error {
 		return childNodeNotFound
 	}
 
-	// remove n.keys[key]
+	// remove n.keys[Key]
 	n.children[n.keys[key]-1] = nil
 	n.keys[key] = 0
 
-	// shift all keys[key+1:] 1 step to the left
+	// shift all keys[Key+1:] 1 step to the left
 	for k := int(key) + 1; k < int(Node48KeysLen); k++ {
 		if n.keys[k] == 0 {
-			// key k-th is not exist yet
+			// Key k-th is not exist yet
 			continue
 		}
 		childPos := n.keys[k] - 1
 		if childPos-1 < 0 {
-			return fmt.Errorf("can not shift the key: %v to the left due to run out of space", key)
+			return fmt.Errorf("can not shift the Key: %v to the left due to run out of space", key)
 		}
 
 		n.children[childPos-1] = n.children[childPos]
@@ -133,7 +133,7 @@ func (n *Node48[V]) getAllChildren(ctx context.Context, order Order) []*INode[V]
 		cnt := 0
 		for k := 0; k < int(Node48KeysLen); k++ {
 			if n.keys[k] == 0 {
-				// key k-th is not exist yet
+				// Key k-th is not exist yet
 				continue
 			}
 			childPos := n.keys[k] - 1
@@ -146,7 +146,7 @@ func (n *Node48[V]) getAllChildren(ctx context.Context, order Order) []*INode[V]
 		cnt := 0
 		for k := int(Node48KeysLen) - 1; k >= 0; k-- {
 			if n.keys[k] == 0 {
-				// key k-th is not exist yet
+				// Key k-th is not exist yet
 				continue
 			}
 			childPos := n.keys[k] - 1
@@ -166,13 +166,13 @@ func (n *Node48[V]) grow(ctx context.Context) (*INode[V], error) {
 		return nil, fmt.Errorf("node48 is not maxed out yet, so don't have to grow to a bigger node")
 	}
 
-	n256 := newNode[V](KindNode256)
+	n256 := NewNode[V](KindNode256)
 	n256.setPrefix(ctx, n.getPrefix(ctx))
 	n256.setChildrenLen(ctx, n.getChildrenLen(ctx))
 
 	for k := 0; k < int(Node48KeysLen); k++ {
 		if n.keys[k] == 0 {
-			// key k-th is not exist yet
+			// Key k-th is not exist yet
 			continue
 		}
 		childPos := n.keys[k] - 1
@@ -196,12 +196,12 @@ func (n *Node48[V]) shrink(ctx context.Context) (*INode[V], error) {
 		return nil, fmt.Errorf("node48 has 0 children, which is unexpected")
 	}
 
-	n16 := newNode[V](KindNode16)
+	n16 := NewNode[V](KindNode16)
 	n16.setPrefix(ctx, n.getPrefix(ctx))
 
 	for k := 0; k < int(Node48KeysLen); k++ {
 		if n.keys[k] == 0 {
-			// key k-th is not exist yet
+			// Key k-th is not exist yet
 			continue
 		}
 		childPos := n.keys[k] - 1

@@ -2,7 +2,7 @@ package internal
 
 import "fmt"
 
-func newNode[V any](k Kind) INode[V] {
+func NewNode[V any](k Kind) INode[V] {
 	switch k {
 	case KindNode4:
 		return new(Node4[V])

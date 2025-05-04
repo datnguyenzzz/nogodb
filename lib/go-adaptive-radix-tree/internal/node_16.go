@@ -148,7 +148,6 @@ func (n *Node16[V]) grow(ctx context.Context) (*INode[V], error) {
 	}
 	n48 := NewNode[V](KindNode48)
 	n48.setPrefix(ctx, n.getPrefix(ctx))
-	n48.setChildrenLen(ctx, n.getChildrenLen(ctx))
 
 	for i := 0; i < int(Node16KeysMax); i++ {
 		if err := n48.addChild(ctx, n.keys[i], n.children[i]); err != nil {

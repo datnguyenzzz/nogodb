@@ -23,10 +23,14 @@ type NodeAction[V any] struct {
 	Child *INode[V]
 }
 
-type TreeAction[V any] struct {
-	Kind  ActionType
+type KV[V any] struct {
 	Key   []byte
 	Value V
+}
+
+type TreeAction[V any] struct {
+	Kind ActionType
+	KV[V]
 }
 
 func randomByte() byte {
@@ -71,6 +75,17 @@ func generateStringLeaves(sz int) []INode[string] {
 		res[i] = NewLeafWithKV[string](context.Background(), RandomBytes(5), RandomQuote())
 	}
 
+	return res
+}
+
+func SeedMapKVString(sz int) []KV[string] {
+	res := make([]KV[string], sz)
+	for i := 0; i < sz; i++ {
+		res[i] = KV[string]{
+			Key:   []byte(fmt.Sprintf("%d__%v", i, RandomQuote())),
+			Value: RandomQuote(),
+		}
+	}
 	return res
 }
 

@@ -85,7 +85,7 @@ func InsertNode[V any](ctx context.Context, nodePtr *INode[V], key []byte, v V, 
 		if !(*nodePtr).hasEnoughSpace(ctx) {
 			biggerNodePtr, err := (*nodePtr).grow(ctx)
 			if err != nil {
-				return *new(V), fmt.Errorf("%w: %v", failedToGrowNode, err)
+				return *new(V), fmt.Errorf("current node type - %v, %w: %v", (*nodePtr).getKind(ctx), failedToGrowNode, err)
 			}
 			*nodePtr = *biggerNodePtr
 		}
@@ -140,7 +140,7 @@ func RemoveNode[V any](ctx context.Context, nodePtr *INode[V], key []byte, offse
 	}
 
 	if err := (*nodePtr).removeChild(ctx, key[offset]); err != nil {
-		return *new(V), false, fmt.Errorf("%w: %v", failedToRemoveChild, err)
+		return *new(V), false, fmt.Errorf("current node type - %v, %w: %v", (*nodePtr).getKind(ctx), failedToRemoveChild, err)
 	}
 
 	switch (*nodePtr).getChildrenLen(ctx) {

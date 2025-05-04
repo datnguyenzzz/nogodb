@@ -48,9 +48,6 @@ func (n *Node256[V]) addChild(ctx context.Context, key byte, child *INode[V]) er
 
 func (n *Node256[V]) removeChild(ctx context.Context, key byte) error {
 	currChildrenLen := n.getChildrenLen(ctx)
-	if currChildrenLen == 0 {
-		return fmt.Errorf("node is empty")
-	}
 	n.children[key] = nil
 	n.setChildrenLen(ctx, currChildrenLen-1)
 	return nil

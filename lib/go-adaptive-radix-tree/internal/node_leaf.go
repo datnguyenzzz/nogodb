@@ -40,6 +40,10 @@ func (n *NodeLeaf[V]) getAllChildren(ctx context.Context, order Order) []*INode[
 	return []*INode[V]{}
 }
 
+func (n *NodeLeaf[V]) getChildByIndex(ctx context.Context, idx uint8) (byte, *INode[V], error) {
+	panic("node leaf doesn't support this function")
+}
+
 func (n *NodeLeaf[V]) grow(ctx context.Context) (*INode[V], error) {
 	panic("node leaf doesn't support this function")
 }

@@ -60,6 +60,7 @@ type iNodeChildrenManager[V any] interface {
 	removeChild(ctx context.Context, key byte) error
 	getChild(ctx context.Context, key byte) (*INode[V], error)
 	getAllChildren(ctx context.Context, order Order) []*INode[V]
+	getChildByIndex(ctx context.Context, idx uint8) (byte, *INode[V], error)
 }
 
 type INode[V any] interface {

@@ -156,8 +156,14 @@ func RemoveNode[V any](ctx context.Context, nodePtr *INode[V], key []byte, offse
 		// we also don't need to shrink it because the Child should already
 		// go through the shrink process
 		currNodePrefix := node.getPrefix(ctx)
-		newPrefix := append(currNodePrefix, child.getPrefix(ctx)...)
-		*nodePtr = child
+		onlyChildK, onlyChildPtr, err := node.getChildByIndex(ctx, 0)
+		if err != nil {
+			return *new(V), false, err
+		}
+		onlyChild := *onlyChildPtr
+		newPrefix := append(currNodePrefix, onlyChildK)
+		newPrefix = append(newPrefix, onlyChild.getPrefix(ctx)...)
+		*nodePtr = onlyChild
 		node.setPrefix(ctx, newPrefix)
 
 		return removedV, false, nil

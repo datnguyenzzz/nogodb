@@ -17,7 +17,7 @@ func Test_node4_str_insertAndRemoveChildren(t *testing.T) {
 		expectedChildrenLen  uint8
 		expectedAscChildren  []*INode[string]
 		expectedDescChildren []*INode[string]
-		expectedGetChild     map[byte]*INode[string]
+		expectedGetChild     map[byte]*INode[string] // expectedGetChild in ASC sorted order by key
 	}
 
 	sampleLeaves := generateStringLeaves(4)

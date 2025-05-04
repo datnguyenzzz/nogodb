@@ -131,6 +131,16 @@ func (n *Node16[V]) getAllChildren(ctx context.Context, order Order) []*INode[V]
 	}
 }
 
+func (n *Node16[V]) getChildByIndex(ctx context.Context, idx uint8) (byte, *INode[V], error) {
+	currLen := n.getChildrenLen(ctx)
+	if idx == currLen {
+		return byte(0), nil, childNodeNotFound
+	}
+
+	pos := Node16KeysMax - currLen + idx
+	return n.keys[pos], n.children[pos], nil
+}
+
 // grow to node48
 func (n *Node16[V]) grow(ctx context.Context) (*INode[V], error) {
 	if n.getChildrenLen(ctx) != Node16KeysMax {

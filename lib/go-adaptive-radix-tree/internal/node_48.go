@@ -160,6 +160,27 @@ func (n *Node48[V]) getAllChildren(ctx context.Context, order Order) []*INode[V]
 	}
 }
 
+func (n *Node48[V]) getChildByIndex(ctx context.Context, idx uint8) (byte, *INode[V], error) {
+	currLen := n.getChildrenLen(ctx)
+	if idx == currLen {
+		return byte(0), nil, childNodeNotFound
+	}
+
+	cnt := 0
+	for k := 0; k < int(Node48KeysLen); k++ {
+		if n.keys[k] == 0 {
+			// Key k-th is not exist yet
+			continue
+		}
+		if cnt == int(idx) {
+			return byte(k), n.children[n.keys[k]-1], nil
+		}
+		cnt += 1
+
+	}
+	return byte(0), nil, childNodeNotFound
+}
+
 // grow to node256
 func (n *Node48[V]) grow(ctx context.Context) (*INode[V], error) {
 	if n.getChildrenLen(ctx) != Node48PointersMax {

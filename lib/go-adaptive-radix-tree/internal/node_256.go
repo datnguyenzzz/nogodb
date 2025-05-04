@@ -96,6 +96,26 @@ func (n *Node256[V]) getAllChildren(ctx context.Context, order Order) []*INode[V
 	}
 }
 
+func (n *Node256[V]) getChildByIndex(ctx context.Context, idx uint8) (byte, *INode[V], error) {
+	currLen := n.getChildrenLen(ctx)
+	if idx == currLen {
+		return byte(0), nil, childNodeNotFound
+	}
+
+	cnt := 0
+	for k := 0; k < int(Node256PointersMax); k++ {
+		child := n.children[k]
+		if child == nil {
+			continue
+		}
+		if cnt == int(idx) {
+			return byte(k), child, nil
+		}
+		cnt += 1
+	}
+	return byte(0), nil, childNodeNotFound
+}
+
 func (n *Node256[V]) grow(ctx context.Context) (*INode[V], error) {
 	return nil, fmt.Errorf("node256 can not grow anymore")
 }

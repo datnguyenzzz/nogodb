@@ -20,13 +20,12 @@ func InsertNode[V any](ctx context.Context, nodePtr *INode[V], key []byte, v V, 
 		return *new(V), nil
 	}
 
-	node := *nodePtr
-	if node.getKind(ctx) == KindNodeLeaf {
-		currLeafKey := node.getPrefix(ctx)
+	if (*nodePtr).getKind(ctx) == KindNodeLeaf {
+		currLeafKey := (*nodePtr).getPrefix(ctx)
 
 		if isExactMatch(key, currLeafKey) {
-			oldValue := node.getValue(ctx)
-			node.setValue(ctx, v)
+			oldValue := (*nodePtr).getValue(ctx)
+			(*nodePtr).setValue(ctx, v)
 			return oldValue, nil
 		}
 
@@ -52,9 +51,9 @@ func InsertNode[V any](ctx context.Context, nodePtr *INode[V], key []byte, v V, 
 		return *new(V), nil
 	}
 
-	matchedPrefixLen := node.checkPrefix(ctx, key, offset)
-	if matchedPrefixLen != node.getPrefixLen(ctx) {
-		currNodePrefix := node.getPrefix(ctx)
+	matchedPrefixLen := (*nodePtr).checkPrefix(ctx, key, offset)
+	if matchedPrefixLen != (*nodePtr).getPrefixLen(ctx) {
+		currNodePrefix := (*nodePtr).getPrefix(ctx)
 		nn := NewNode[V](KindNode4)
 		nn.setPrefix(ctx, currNodePrefix[:matchedPrefixLen])
 
@@ -65,7 +64,7 @@ func InsertNode[V any](ctx context.Context, nodePtr *INode[V], key []byte, v V, 
 
 		// adjust the current node compressed prefix accordingly
 		// 1 character is in edge
-		node.setPrefix(ctx, currNodePrefix[matchedPrefixLen+1:])
+		(*nodePtr).setPrefix(ctx, currNodePrefix[matchedPrefixLen+1:])
 		// deep copy the current node to nodeCopy
 		nodeCopy := new(INode[V])
 		*nodeCopy = *nodePtr
@@ -78,19 +77,19 @@ func InsertNode[V any](ctx context.Context, nodePtr *INode[V], key []byte, v V, 
 		return *new(V), nil
 	}
 
-	offset += node.getPrefixLen(ctx)
-	childPtr, err := node.getChild(ctx, key[offset])
+	offset += (*nodePtr).getPrefixLen(ctx)
+	childPtr, err := (*nodePtr).getChild(ctx, key[offset])
 	if errors.Is(err, childNodeNotFound) {
 		newLeaf := NewLeafWithKV[V](ctx, key, v)
 		// grow to a bigger node if don't have enough space
-		if !node.hasEnoughSpace(ctx) {
-			biggerNodePtr, err := node.grow(ctx)
+		if !(*nodePtr).hasEnoughSpace(ctx) {
+			biggerNodePtr, err := (*nodePtr).grow(ctx)
 			if err != nil {
 				return *new(V), fmt.Errorf("%w: %v", failedToGrowNode, err)
 			}
 			*nodePtr = *biggerNodePtr
 		}
-		if err := node.addChild(ctx, key[offset], &newLeaf); err != nil {
+		if err := (*nodePtr).addChild(ctx, key[offset], &newLeaf); err != nil {
 			return *new(V), fmt.Errorf("%w: %v", failedToAddChild, err)
 		}
 		return *new(V), nil
@@ -115,63 +114,63 @@ func RemoveNode[V any](ctx context.Context, nodePtr *INode[V], key []byte, offse
 		return *new(V), false, noSuchKey
 	}
 
-	node := *nodePtr
-	if node.getKind(ctx) == KindNodeLeaf {
-		leafKey, leafV := node.getPrefix(ctx), node.getValue(ctx)
+	if (*nodePtr).getKind(ctx) == KindNodeLeaf {
+		leafKey, leafV := (*nodePtr).getPrefix(ctx), (*nodePtr).getValue(ctx)
 		if !isExactMatch(key, leafKey) {
 			return *new(V), false, noSuchKey
 		}
 
 		return leafV, true, nil
 	}
-	matchedPrefixLen := node.checkPrefix(ctx, key, offset)
-	if matchedPrefixLen != node.getPrefixLen(ctx) {
+	matchedPrefixLen := (*nodePtr).checkPrefix(ctx, key, offset)
+	if matchedPrefixLen != (*nodePtr).getPrefixLen(ctx) {
 		return *new(V), false, noSuchKey
 	}
 
-	offset += node.getPrefixLen(ctx)
-	childPtr, err := node.getChild(ctx, key[offset])
+	offset += (*nodePtr).getPrefixLen(ctx)
+	childPtr, err := (*nodePtr).getChild(ctx, key[offset])
 	if err != nil {
 		return *new(V), false, noSuchKey
 	}
 
-	child := *childPtr
-	removedV, isChildRemovable, removeErr := RemoveNode[V](ctx, &child, key, offset+1)
+	removedV, isChildRemovable, removeErr := RemoveNode[V](ctx, childPtr, key, offset+1)
 
 	if removeErr != nil || !isChildRemovable {
-		return *new(V), isChildRemovable, removeErr
+		return removedV, isChildRemovable, removeErr
 	}
 
-	if err := node.removeChild(ctx, key[offset]); err != nil {
+	if err := (*nodePtr).removeChild(ctx, key[offset]); err != nil {
 		return *new(V), false, fmt.Errorf("%w: %v", failedToRemoveChild, err)
 	}
 
-	switch node.getChildrenLen(ctx) {
+	switch (*nodePtr).getChildrenLen(ctx) {
 	case 0:
 		// mark the current node to be removable
 		return removedV, true, nil
 	case 1:
 		// replace the node with its only Child and adjust the compressed prefix path
 		// and NOT propagate the deletion action to the upper nodes.
-		// we also don't need to shrink it because the Child should already
-		// go through the shrink process
-		currNodePrefix := node.getPrefix(ctx)
-		onlyChildK, onlyChildPtr, err := node.getChildByIndex(ctx, 0)
+		currNodePrefix := (*nodePtr).getPrefix(ctx)
+		onlyChildK, onlyChildPtr, err := (*nodePtr).getChildByIndex(ctx, 0)
 		if err != nil {
 			return *new(V), false, err
 		}
-		onlyChild := *onlyChildPtr
-		newPrefix := append(currNodePrefix, onlyChildK)
-		newPrefix = append(newPrefix, onlyChild.getPrefix(ctx)...)
-		*nodePtr = onlyChild
-		node.setPrefix(ctx, newPrefix)
+		var newPrefix []byte
+		if (*onlyChildPtr).getKind(ctx) == KindNodeLeaf {
+			newPrefix = (*onlyChildPtr).getPrefix(ctx)
+		} else {
+			newPrefix := append(currNodePrefix, onlyChildK)
+			newPrefix = append(newPrefix, (*onlyChildPtr).getPrefix(ctx)...)
+		}
+		*nodePtr = *onlyChildPtr
+		(*nodePtr).setPrefix(ctx, newPrefix)
 
 		return removedV, false, nil
 	}
 
 	// shrink to a smaller node to save resources
-	if node.isShrinkable(ctx) {
-		smallerNodePtr, err := node.shrink(ctx)
+	if (*nodePtr).isShrinkable(ctx) {
+		smallerNodePtr, err := (*nodePtr).shrink(ctx)
 		if err != nil {
 			return *new(V), false, fmt.Errorf("%w: %v", failedToShrinkNode, err)
 		}

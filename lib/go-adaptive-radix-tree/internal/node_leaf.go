@@ -57,7 +57,7 @@ func (n *NodeLeaf[V]) hasEnoughSpace(ctx context.Context) bool {
 }
 
 func (n *NodeLeaf[V]) isShrinkable(ctx context.Context) bool {
-	panic("node leaf doesn't support this function")
+	return false
 }
 
 var _ INode[any] = (*NodeLeaf[any])(nil)

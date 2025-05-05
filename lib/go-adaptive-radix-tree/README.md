@@ -1,8 +1,11 @@
 # The Adaptive Radix Tree Implementation In Golang
 
-This library provides an implementation of a radix tree with adaptive nodes.
+This library provides an implementation of a radix tree with adaptive nodes and type-safe generics.
 It is also compatible with the interfaces of the popular immutable radix tree library:
 https://github.com/hashicorp/go-immutable-radix
+
+Additionally, the tree implementation utilizes context-aware locking to ensure that exactly 1 thread can modify 
+the tree during write operations, such as `Insert()` or `Delete()`.
 
 ## Supported functions 
 ```go

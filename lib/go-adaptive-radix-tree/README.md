@@ -52,3 +52,30 @@ BenchmarkGet_250000-10        	      50	  24875808 ns/op	       0 B/op	         
 BenchmarkGet_500000-10        	      24	  49266505 ns/op	       0 B/op	           0 allocs/op
 BenchmarkGet_1000000-10       	      10	 100743017 ns/op	       0 B/op	           0 allocs/op
 ```
+
+## Next releases / TODO 
+
+- [ ] Implement Swizzlable Pointers onto Tree[V any]
+
+  - Currently, the struct Tree[V Any] only supports in-memory storage because it relies on pointers to nodes.
+  Each node, in turn, contains multiple pointers to its children, forming the tree structure.
+  Due to this design, we cannot persist this structure to disk.
+  - While we could add additional fields to the struct, e.g
+  ```go
+  type Tree[V any] struct {
+    root internal.INode[V] // memory address - pointer to the root node
+    block_id uint32 // for unswizzling
+    offset uint32 // for unswizzling
+    lock gocontextawarelock.ICtxLock
+  }
+  ```
+  this approach might introduce unnecessary resource overhead (it requires extra 8 bytes per Node)
+  Therefore, we need to enhance the current object Tree[V] to Swizzlable Pointers 
+  - Implements plan:
+    - Serialization:
+       When saving the data structure to disk, the pointers are "unswizzled," often by converting them into
+       some form of identifier, such as an index or a unique ID, that is independent of memory addresses.
+    - Deserialization:
+       When loading the data structure back into memory, the identifiers are used to locate the corresponding
+       data objects, and the pointers are "swizzled" by replacing the identifiers with the actual memory
+       addresses of the loaded objects.

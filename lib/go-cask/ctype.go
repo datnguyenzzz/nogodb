@@ -8,7 +8,7 @@ type FoldFn[V any] = func(context.Context, Key, V) error
 
 type IEngine[V any] interface {
 	// Open a new or existing go-cask datastore
-	Open(ctx context.Context, dirName string) (IEngine[V], error)
+	Open(ctx context.Context) (IEngine[V], error)
 	// Close a go-cask data store and flush any pending writes to disk.
 	Close(context.Context) error
 	// Get a value by key from a go-cask datastore.
@@ -24,5 +24,5 @@ type IEngine[V any] interface {
 	// Fold over all keys in a go-cask datastore with limits on how out of date is allowed to be.
 	Fold(ctx context.Context, fn FoldFn[V], maxAge int) error
 	// Merge several data files within a go-cask datastore into a more compact form.
-	Merge(ctx context.Context, dirName string) error
+	Merge(ctx context.Context) error
 }

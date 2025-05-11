@@ -1,7 +1,9 @@
 package go_wal
 
 import (
+	"fmt"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -13,6 +15,9 @@ type options struct {
 
 	// segmentSize specifies the maximum size of each segment file in bytes.
 	segmentSize int64
+
+	// fileExt specifies the file extension of the segment files.
+	fileExt string
 
 	// sync is whether to synchronize writes through os buffer cache and down onto the actual disk.
 	// Setting sync is required for durability of a single write operation, but also results in slower writes.
@@ -31,6 +36,7 @@ type options struct {
 var defaultOptions = options{
 	dirPath:      os.TempDir(),
 	segmentSize:  1 * 1024 * 1024 * 2024, // 1GB
+	fileExt:      ".wal",
 	sync:         false,
 	bytesPerSync: 0,
 	syncInterval: 0,
@@ -39,6 +45,16 @@ var defaultOptions = options{
 func WithDirPath(dirPath string) OptionFn {
 	return func(wal *WAL) {
 		wal.opts.dirPath = dirPath
+	}
+}
+
+func WithFileExt(fileExt string) OptionFn {
+	return func(wal *WAL) {
+		// need a "." prefix
+		if !strings.HasPrefix(fileExt, ".") {
+			fileExt = fmt.Sprintf(".%s", fileExt)
+		}
+		wal.opts.fileExt = fileExt
 	}
 }
 

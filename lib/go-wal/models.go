@@ -1,15 +1,22 @@
 package go_wal
 
+import "time"
+
 type SegmentID uint32
+
+type syncCfg struct {
+	closeCh chan struct{}
+	ticker  *time.Ticker
+}
 
 // WAL represents a Write-Ahead Segment structure that provides durability and fault-tolerance for incoming writes.
 // It consists of an activeSegment, which is the current segment file used for new incoming writes,
 // and olderSegments, which is a map of segment files used for read operations.
 type WAL struct {
+	syncCfg
 	opts          options
 	activeSegment *Segment               // active log file, used for new incoming writes.
 	olderSegments map[SegmentID]*Segment // older segment files, only used for read.
-	// ...
 }
 
 // Segment represents a single log file in WAL. A Segment file consists of a sequence of variable length Record.

@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
+	"sync"
 	"time"
 
 	"go.uber.org/zap"
@@ -17,6 +19,7 @@ func New(opts ...OptionFn) *WAL {
 		syncCfg: syncCfg{
 			closeCh: make(chan struct{}),
 		},
+		mu: sync.RWMutex{},
 	}
 
 	for _, o := range opts {
@@ -106,9 +109,8 @@ func (w *WAL) Open(ctx context.Context) error {
 					w.syncCfg.ticker.Stop()
 					return
 				case <-w.syncCfg.ticker.C:
-					err := w.Sync(ctx)
-					if err != nil {
-						zap.L().Warn("Failed to sync file", zap.Error(err))
+					if err := w.Sync(ctx); err != nil {
+						zap.L().Warn("Failed to sync file to the stable storage", zap.Error(err))
 					}
 				}
 			}
@@ -119,8 +121,31 @@ func (w *WAL) Open(ctx context.Context) error {
 }
 
 func (w *WAL) Close(ctx context.Context) error {
-	//TODO implement me
-	panic("implement me")
+	// attempt to lock to avoid data racing, ie close during Write(), ...
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	// send a signal to stop a background job for sync-ing files to the stable storage
+	w.closeCh <- struct{}{}
+
+	// close all segments file that are in-open
+	for id, segment := range w.olderSegments {
+		if err := segment.Close(ctx); err != nil {
+			zap.L().Error("Failed to close segment", zap.String("segmentId", strconv.Itoa(int(id))), zap.Error(err))
+			return err
+		}
+	}
+
+	w.olderSegments = nil
+	err := w.activeSegment.Close(ctx)
+	if err != nil {
+		zap.L().Error("Failed to close segment", zap.String("segmentId", strconv.Itoa(int(w.activeSegment.Id))), zap.Error(err))
+		return err
+	}
+	w.activeSegment = nil
+
+	close(w.closeCh)
+	return nil
 }
 
 func (w *WAL) Delete(ctx context.Context) error {

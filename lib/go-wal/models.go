@@ -1,6 +1,9 @@
 package go_wal
 
-import "time"
+import (
+	"sync"
+	"time"
+)
 
 type SegmentID uint32
 
@@ -17,6 +20,7 @@ type WAL struct {
 	opts          options
 	activeSegment *Segment               // active log file, used for new incoming writes.
 	olderSegments map[SegmentID]*Segment // older segment files, only used for read.
+	mu            sync.RWMutex
 }
 
 // Segment represents a single log file in WAL. A Segment file consists of a sequence of variable length Record.

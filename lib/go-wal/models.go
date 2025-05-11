@@ -6,6 +6,7 @@ type SegmentID uint32
 // It consists of an activeSegment, which is the current segment file used for new incoming writes,
 // and olderSegments, which is a map of segment files used for read operations.
 type WAL struct {
+	opts          options
 	activeSegment *Segment               // active log file, used for new incoming writes.
 	olderSegments map[SegmentID]*Segment // older segment files, only used for read.
 	// ...

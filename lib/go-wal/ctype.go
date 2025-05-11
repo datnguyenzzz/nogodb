@@ -10,6 +10,15 @@ type IWal interface {
 	// Close the current WAL
 	Close(context.Context) error
 
+	// Delete deletes all segment files of the WAL
+	Delete(context.Context) error
+
 	// Sync syncs the current active file to the stable storage
 	Sync(context.Context) error
+
+	// Write writes the data to the WAL. It writes the data to the active Segment file.
+	Write(ctx context.Context, data []byte) (*Record, error)
+
+	// Read reads the data from the WAL according to the given record.
+	Read(ctx context.Context, r *Record) ([]byte, error)
 }

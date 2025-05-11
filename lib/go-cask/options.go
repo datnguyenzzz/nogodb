@@ -173,3 +173,123 @@ type options struct {
 	compactionOptions
 	syncOptions
 }
+
+func WithDataRoot[V any](dataRoot string) EngineOpts[V] {
+	return func(engine *DB[V]) {
+		engine.opts.dataRoot = dataRoot
+	}
+}
+
+func WithMaxFileSize[V any](maxFileSize uint64) EngineOpts[V] {
+	return func(engine *DB[V]) {
+		engine.opts.maxFileSize = maxFileSize
+	}
+}
+
+func WithFoldMaxAge[V any](foldMaxAge int) EngineOpts[V] {
+	return func(engine *DB[V]) {
+		engine.opts.foldMaxAge = foldMaxAge
+	}
+}
+
+func WithFoldMaxPuts[V any](foldMaxPuts int) EngineOpts[V] {
+	return func(engine *DB[V]) {
+		engine.opts.foldMaxPuts = foldMaxPuts
+	}
+}
+
+func WithOpenTimeout[V any](openTimeout time.Duration) EngineOpts[V] {
+	return func(engine *DB[V]) {
+		engine.opts.openTimeout = openTimeout
+	}
+}
+
+func WithExpiry[V any](expiry time.Duration) EngineOpts[V] {
+	return func(engine *DB[V]) {
+		engine.opts.expiry = expiry
+	}
+}
+
+func WithGraceTime[V any](graceTime time.Duration) EngineOpts[V] {
+	return func(engine *DB[V]) {
+		engine.opts.graceTime = graceTime
+	}
+}
+
+func WithFragmentationThreshold[V any](fragmentationThreshold float32) EngineOpts[V] {
+	return func(engine *DB[V]) {
+		engine.opts.fragmentationThreshold = fragmentationThreshold
+	}
+}
+
+func WithDeadBytesThreshold[V any](deadBytesThreshold uint) EngineOpts[V] {
+	return func(engine *DB[V]) {
+		engine.opts.deadBytesThreshold = deadBytesThreshold
+	}
+}
+
+func WithSmallFileThreshold[V any](smallFileThreshold uint) EngineOpts[V] {
+	return func(engine *DB[V]) {
+		engine.opts.smallFileThreshold = smallFileThreshold
+	}
+}
+
+func WithDeadBytesTriggers[V any](deadBytesTrigger uint) EngineOpts[V] {
+	return func(engine *DB[V]) {
+		engine.opts.deadBytesTriggers = deadBytesTrigger
+	}
+}
+
+func WithFragmentationTriggers[V any](fragmentationTrigger float32) EngineOpts[V] {
+	return func(engine *DB[V]) {
+		engine.opts.fragmentationTriggers = fragmentationTrigger
+	}
+}
+
+func WithCompactionPolicy[V any](policy CompactionPolicy) EngineOpts[V] {
+	return func(engine *DB[V]) {
+		engine.opts.policy = policy
+	}
+}
+
+func WithStartWindow[V any](startWindow int) EngineOpts[V] {
+	return func(engine *DB[V]) {
+		engine.opts.startWindow = startWindow
+	}
+}
+
+func WithEndWindow[V any](endWindow int) EngineOpts[V] {
+	return func(engine *DB[V]) {
+		engine.opts.endWindow = endWindow
+	}
+}
+
+func WithCheckInterval[V any](checkInterval time.Duration) EngineOpts[V] {
+	return func(engine *DB[V]) {
+		engine.opts.checkInterval = checkInterval
+	}
+}
+
+func WithCheckJitter[V any](checkJitter float32) EngineOpts[V] {
+	return func(engine *DB[V]) {
+		engine.opts.checkJitter = checkJitter
+	}
+}
+
+func WithMaxMergeSize[V any](maxMergeSize uint64) EngineOpts[V] {
+	return func(engine *DB[V]) {
+		engine.opts.maxMergeSize = maxMergeSize
+	}
+}
+
+func WithSyncPolicy[V any](sync SyncPolicy) EngineOpts[V] {
+	return func(engine *DB[V]) {
+		engine.opts.strategy = sync
+	}
+}
+
+func WithSyncInterval[V any](syncInterval time.Duration) EngineOpts[V] {
+	return func(engine *DB[V]) {
+		engine.opts.interval = syncInterval
+	}
+}

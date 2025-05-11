@@ -6,9 +6,9 @@ type Key []byte
 
 type FoldFn[V any] = func(context.Context, Key, V) error
 
-type IEngine[V any] interface {
+type IDB[V any] interface {
 	// Open a new or existing go-cask datastore
-	Open(ctx context.Context) (IEngine[V], error)
+	Open(ctx context.Context) error
 	// Close a go-cask data store and flush any pending writes to disk.
 	Close(context.Context) error
 	// Get a value by key from a go-cask datastore.

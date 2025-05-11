@@ -6,15 +6,25 @@ type DB[V any] struct {
 	opts options
 }
 
+// NewDB init new instance of go-cask with given configuration, but WILL NOT open the file
+// for neither reading nor writing yet
 func NewDB[V any](opts ...EngineOpts[V]) *DB[V] {
-	db := &DB[V]{}
+	// init a DB instance with the default options
+	db := &DB[V]{
+		opts: options{
+			generalOptions:    defaultGeneralOptions,
+			expiryOptions:     defaultExpiryOptions,
+			compactionOptions: defaultCompactionOptions,
+			syncOptions:       defaultSyncOptions,
+		},
+	}
 	for _, o := range opts {
 		o(db)
 	}
 	return db
 }
 
-func (D DB[V]) Open(ctx context.Context) (IEngine[V], error) {
+func (D DB[V]) Open(ctx context.Context) error {
 	//TODO implement me
 	panic("implement me")
 }
@@ -59,4 +69,4 @@ func (D DB[V]) Merge(ctx context.Context) error {
 	panic("implement me")
 }
 
-var _ IEngine[any] = (*DB[any])(nil)
+var _ IDB[any] = (*DB[any])(nil)

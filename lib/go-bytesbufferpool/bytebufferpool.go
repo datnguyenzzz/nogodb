@@ -1,4 +1,4 @@
-package bytesbufferpool
+package go_bytesbufferpool
 
 import (
 	"math/bits"

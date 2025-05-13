@@ -26,7 +26,7 @@ var readBufferPool = sync.Pool{
 // For example, in the case of writeBufferPool, the size of data writes can vary, making the
 // allocation of a fixed 32KB buffer wasteful.
 //
-// Non optimised implementation for the writeBufferPool
+// Non-optimised implementation for the writeBufferPool
 //var writeBufferPool = sync.Pool{
 //	New: func() interface{} {
 //		return make([]byte, blockSize)

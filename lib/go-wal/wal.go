@@ -148,22 +148,22 @@ func (w *WAL) Close(ctx context.Context) error {
 	return nil
 }
 
-func (w *WAL) Delete(ctx context.Context) error {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (w *WAL) Sync(ctx context.Context) error {
-	//TODO implement me
-	panic("implement me")
-}
-
 func (w *WAL) Write(ctx context.Context, data []byte) (*Record, error) {
 	//TODO implement me
 	panic("implement me")
 }
 
 func (w *WAL) Read(ctx context.Context, r *Record) ([]byte, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (w *WAL) Delete(ctx context.Context) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (w *WAL) Sync(ctx context.Context) error {
 	//TODO implement me
 	panic("implement me")
 }

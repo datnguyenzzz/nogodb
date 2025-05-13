@@ -21,7 +21,7 @@ const (
 // in caching byte slices with bigger capacities.
 var pools [maximumPoolCnt]sync.Pool
 
-func get(dataLen int) []byte {
+func Get(dataLen int) []byte {
 	id, poolCap := getPoolIDAndCapacity(dataLen)
 	if b := pools[id].Get(); b != nil {
 		return b.([]byte)
@@ -31,7 +31,7 @@ func get(dataLen int) []byte {
 	return make([]byte, 0, poolCap)
 }
 
-func put(buf []byte) {
+func Put(buf []byte) {
 	capacity := cap(buf)
 	id, poolCap := getPoolIDAndCapacity(capacity)
 	if capacity > poolCap {

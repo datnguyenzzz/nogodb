@@ -14,8 +14,8 @@ import (
 
 func New(opts ...OptionFn) *WAL {
 	wal := &WAL{
-		opts:          defaultOptions,
-		olderSegments: make(map[SegmentID]*Segment),
+		opts:       defaultOptions,
+		olderPages: make(map[PageID]*Page),
 		syncCfg: syncCfg{
 			closeCh: make(chan struct{}),
 		},
@@ -40,57 +40,67 @@ func (w *WAL) Open(ctx context.Context) error {
 		}
 	}
 
-	// loads all existing segments file
-	segmentEntries, err := os.ReadDir(w.opts.dirPath)
+	// loads all existing pages file
+	pageEntries, err := os.ReadDir(w.opts.dirPath)
 	if err != nil {
 		zap.L().Error("Failed to read dir", zap.String("dirPath", w.opts.dirPath), zap.Error(err))
 		return err
 	}
 
-	var segmentIDs []SegmentID
-	for _, entry := range segmentEntries {
-		// segment file should not be a directory
+	var pageIDs []PageID
+	for _, entry := range pageEntries {
+		// page file should not be a directory
 		if entry.IsDir() {
 			continue
 		}
-		// segment file has name of format "id.<opts.fileExt>"
-		var id SegmentID
+		// page file has name of format "id.<opts.fileExt>"
+		var id PageID
 		_, err := fmt.Sscanf(entry.Name(), "%d"+w.opts.fileExt, &id)
 		if err != nil {
 			zap.L().Warn("Failed to parse fileExt", zap.String("fileExt", w.opts.fileExt))
 			continue
 		}
 
-		segmentIDs = append(segmentIDs, id)
+		pageIDs = append(pageIDs, id)
 	}
 
-	// attempt to open all existing segment files, or open a new one if none exists
-	if len(segmentIDs) == 0 {
-		newSegmentFile := getSegmentFilePath(w.opts.dirPath, w.opts.fileExt, firstSegmentId)
-		segment, err := openSegmentByPath(newSegmentFile)
+	// attempt to open all existing page files, or open a new one if none exists
+	if len(pageIDs) == 0 {
+		newPageFile := getPageFilePath(w.opts.dirPath, w.opts.fileExt, firstPageId)
+		page, err := openPageByPath(newPageFile, firstPageId, PageAccessModeReadWrite)
 		if err != nil {
-			zap.L().Error("Failed to open segment", zap.String("segmentFilePath", newSegmentFile), zap.Error(err))
+			zap.L().Error("Failed to open page", zap.String("pageFilePath", newPageFile), zap.Error(err))
 			return err
 		}
-		w.activeSegment = segment
+		w.activePage = page
 	} else {
-		var latestSegmentId SegmentID = 0
-		for _, id := range segmentIDs {
-			latestSegmentId = max(latestSegmentId, id)
+		var latestPageId PageID = 0
+		for _, id := range pageIDs {
+			latestPageId = max(latestPageId, id)
 		}
 
-		for _, id := range segmentIDs {
-			segmentFile := getSegmentFilePath(w.opts.dirPath, w.opts.fileExt, id)
-			segment, err := openSegmentByPath(segmentFile)
+		for _, id := range pageIDs {
+
+			mode := PageAccessModeReadOnly
+			if id != latestPageId {
+				// for an active page, we can read and write
+				mode = PageAccessModeReadWrite
+				if w.opts.sync {
+					mode = PageAccessModeReadWriteSync
+				}
+			}
+
+			pageFile := getPageFilePath(w.opts.dirPath, w.opts.fileExt, id)
+			page, err := openPageByPath(pageFile, id, mode)
 			if err != nil {
-				zap.L().Error("Failed to open segment", zap.String("segmentFilePath", segmentFile), zap.Error(err))
+				zap.L().Error("Failed to open page", zap.String("pageFilePath", pageFile), zap.Error(err))
 				return err
 			}
 
-			if id == latestSegmentId {
-				w.activeSegment = segment
+			if id == latestPageId {
+				w.activePage = page
 			} else {
-				w.olderSegments[segment.Id] = segment
+				w.olderPages[page.Id] = page
 			}
 		}
 	}
@@ -128,21 +138,21 @@ func (w *WAL) Close(ctx context.Context) error {
 	// send a signal to stop a background job for sync-ing files to the stable storage
 	w.closeCh <- struct{}{}
 
-	// close all segments file that are in-open
-	for id, segment := range w.olderSegments {
-		if err := segment.Close(ctx); err != nil {
-			zap.L().Error("Failed to close segment", zap.String("segmentId", strconv.Itoa(int(id))), zap.Error(err))
+	// close all pages file that are in-open
+	for id, page := range w.olderPages {
+		if err := page.Close(ctx); err != nil {
+			zap.L().Error("Failed to close page", zap.String("pageId", strconv.Itoa(int(id))), zap.Error(err))
 			return err
 		}
 	}
 
-	w.olderSegments = nil
-	err := w.activeSegment.Close(ctx)
+	w.olderPages = nil
+	err := w.activePage.Close(ctx)
 	if err != nil {
-		zap.L().Error("Failed to close segment", zap.String("segmentId", strconv.Itoa(int(w.activeSegment.Id))), zap.Error(err))
+		zap.L().Error("Failed to close page", zap.String("pageId", strconv.Itoa(int(w.activePage.Id))), zap.Error(err))
 		return err
 	}
-	w.activeSegment = nil
+	w.activePage = nil
 
 	close(w.closeCh)
 	return nil
@@ -175,8 +185,8 @@ func (w *WAL) Next() (*Record, []byte, error) {
 	panic("implement me")
 }
 
-func getSegmentFilePath(dirPath, ext string, segmentID SegmentID) string {
-	return filepath.Join(dirPath, fmt.Sprintf("%d%s", segmentID, ext))
+func getPageFilePath(dirPath, ext string, pageID PageID) string {
+	return filepath.Join(dirPath, fmt.Sprintf("%d%s", pageID, ext))
 }
 
 var _ IWal = (*WAL)(nil)

@@ -1,38 +1,49 @@
 package go_wal
 
 import (
+	"os"
 	"sync"
 	"time"
 )
 
-type SegmentID uint32
+type PageID uint32
 
 type syncCfg struct {
 	closeCh chan struct{}
 	ticker  *time.Ticker
 }
 
-// WAL represents a Write-Ahead Segment structure that provides durability and fault-tolerance for incoming writes.
-// It consists of an activeSegment, which is the current segment file used for new incoming writes,
-// and olderSegments, which is a map of segment files used for read operations.
+type PageAccessMode int8
+
+const (
+	PageAccessModeReadOnly PageAccessMode = iota
+	PageAccessModeReadWrite
+	PageAccessModeReadWriteSync
+)
+
+// WAL represents a Write-Ahead Log structure that provides durability and fault-tolerance for incoming writes.
+// It consists of an activePage, which is the current segment file used for new incoming writes,
+// and olderPages, which is a map of segment files used for read operations.
 type WAL struct {
 	syncCfg
-	opts          options
-	activeSegment *Segment               // active log file, used for new incoming writes.
-	olderSegments map[SegmentID]*Segment // older segment files, only used for read.
-	mu            sync.RWMutex
+	opts       options
+	activePage *Page            // active page, used for writing
+	olderPages map[PageID]*Page // older pages, only used for read.
+	mu         sync.RWMutex
 }
 
-// Segment represents a single log file in WAL. A Segment file consists of a sequence of variable length Record.
-type Segment struct {
-	Id SegmentID
-	// ...
+// Page represents a single log file in WAL. A Page file consists of a sequence of variable length Record.
+type Page struct {
+	Id              PageID
+	F               *os.File
+	TotalBlockCount uint32
+	LastBlockSize   uint32
 }
 
 // Record represents the position of a record in a log file.
 type Record struct {
-	// LogId represents the ID of the log file where the record is located.
-	LogId SegmentID
+	// PageId represents the ID of the log file where the record is located.
+	PageId PageID
 	// BlockNumber indicate which block where the record is located
 	BlockNumber uint32
 	// Offset indicate the starting offset of the record in the log file.

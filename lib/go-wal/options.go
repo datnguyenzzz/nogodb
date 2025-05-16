@@ -10,13 +10,13 @@ import (
 type OptionFn func(*WAL)
 
 type options struct {
-	// dirPath specifies the directory path where the WAL segment files will be stored.
+	// dirPath specifies the directory path where the WAL page files will be stored.
 	dirPath string
 
-	// segmentSize specifies the maximum size of each segment file in bytes.
-	segmentSize int64
+	// pageSize specifies the maximum size of each page file in bytes.
+	pageSize int64
 
-	// fileExt specifies the file extension of the segment files.
+	// fileExt specifies the file extension of the page files.
 	fileExt string
 
 	// sync is whether to synchronize writes through os buffer cache and down onto the actual disk.
@@ -35,7 +35,7 @@ type options struct {
 
 var defaultOptions = options{
 	dirPath:      os.TempDir(),
-	segmentSize:  1 * 1024 * 1024 * 2024, // 1GB
+	pageSize:     512 * 1024 * 2024, // 512MB
 	fileExt:      ".wal",
 	sync:         false,
 	bytesPerSync: 0,
@@ -58,9 +58,9 @@ func WithFileExt(fileExt string) OptionFn {
 	}
 }
 
-func WithSegmentSize(segmentSize int64) OptionFn {
+func WithPageSize(pageSize int64) OptionFn {
 	return func(wal *WAL) {
-		wal.opts.segmentSize = segmentSize
+		wal.opts.pageSize = pageSize
 	}
 }
 

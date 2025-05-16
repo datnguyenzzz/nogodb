@@ -11,9 +11,9 @@
 
 ## Format and data layout 
 
-Inspired by the implementation from [RocksDB](https://github.com/facebook/rocksdb/wiki/Write-Ahead-Segment-File-Format)
+Inspired by the implementation from [RocksDB](https://github.com/facebook/rocksdb/wiki/Write-Ahead-Page-File-Format)
 
-### Segment file format 
+### Page file format 
 
 A segment file consists of a sequence of variable length records. Records are grouped by `BlockSize`(by default is `32KB`). 
 If a certain record cannot fit into the leftover space, then the leftover space is padded with empty (null) data. 

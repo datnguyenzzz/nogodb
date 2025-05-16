@@ -2,12 +2,15 @@ package go_wal
 
 import (
 	"context"
+	"fmt"
+	"io"
+	"os"
 	"sync"
 )
 
 const (
-	firstSegmentId SegmentID = 0
-	blockSize                = 32 * 1024 // 32KB
+	firstPageId      PageID = 0
+	defaultBlockSize        = 32 * 1024 // 32KB
 )
 
 // writeBufferPool, readBufferPool maintains a pool of 32KB buffers, each serving as a dedicated buffer for individual blocks.
@@ -17,7 +20,7 @@ const (
 // the maximum buffer size is predictable.
 var readBufferPool = sync.Pool{
 	New: func() interface{} {
-		return make([]byte, blockSize)
+		return make([]byte, defaultBlockSize)
 	},
 }
 
@@ -26,19 +29,51 @@ var readBufferPool = sync.Pool{
 // For example, in the case of writeBufferPool, the size of data writes can vary, making the
 // allocation of a fixed 32KB buffer wasteful.
 //
-// Non-optimised implementation for the writeBufferPool
+// A Non-optimised implementation for the writeBufferPool
 //var writeBufferPool = sync.Pool{
 //	New: func() interface{} {
 //		return make([]byte, blockSize)
 //	},
 //}
 
-func openSegmentByPath(path string) (*Segment, error) {
-	return nil, nil
+func openPageByPath(path string, id PageID, mode PageAccessMode) (*Page, error) {
+	var flag int
+	switch mode {
+	case PageAccessModeReadWrite:
+		flag = os.O_CREATE | os.O_RDWR | os.O_TRUNC
+	case PageAccessModeReadWriteSync:
+		flag = os.O_CREATE | os.O_RDWR | os.O_TRUNC | os.O_SYNC
+	case PageAccessModeReadOnly:
+		flag = os.O_RDONLY
+	default:
+		return nil, fmt.Errorf("invalid page mode: %d", mode)
+	}
+
+	f, err := os.OpenFile(path, flag, 0644)
+	if err != nil {
+		return nil, err
+	}
+
+	offset, err := f.Seek(0, io.SeekEnd)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Page{
+		Id:              id,
+		F:               f,
+		TotalBlockCount: uint32(offset / defaultBlockSize),
+		LastBlockSize:   uint32(offset % defaultBlockSize),
+	}, nil
 }
 
-func (s *Segment) Close(ctx context.Context) error {
+func (s *Page) Close(ctx context.Context) error {
 	return nil
+}
+
+// Write append an arbitrary slice of bytes to the currently open segment file.
+func (s *Page) Write(ctx context.Context, data []byte) (*Record, error) {
+	return nil, nil
 }
 
 // TODO Implement Write []byte --> buffer --> segment file

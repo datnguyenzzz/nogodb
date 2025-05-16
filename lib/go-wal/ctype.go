@@ -22,7 +22,7 @@ type IWal interface {
 	// Sync syncs the current active file to the stable storage
 	Sync(context.Context) error
 
-	// Write writes the data to the WAL. It writes the data to the active Segment file.
+	// Write writes the data to the WAL. It writes the data to the active Page file.
 	Write(ctx context.Context, data []byte) (*Record, error)
 
 	// Read reads the data from the WAL according to the given record.

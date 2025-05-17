@@ -35,7 +35,7 @@ type options struct {
 
 var defaultOptions = options{
 	dirPath:      os.TempDir(),
-	pageSize:     512 * 1024 * 2024, // 512MB
+	pageSize:     1 * 1024 * 1024 * 2024, // 1GB
 	fileExt:      ".wal",
 	sync:         false,
 	bytesPerSync: 0,

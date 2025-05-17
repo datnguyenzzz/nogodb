@@ -74,7 +74,7 @@ func (s *Page) Close(ctx context.Context) error {
 }
 
 // Write append an arbitrary slice of bytes to the currently open segment file.
-func (s *Page) Write(ctx context.Context, data []byte) (*Record, error) {
+func (s *Page) Write(ctx context.Context, data []byte, isFlush bool) (*Record, error) {
 	writeBuffer := go_bytesbufferpool.Get(len(data))
 
 	// put back (and reset) when finish using the buffer
@@ -82,10 +82,16 @@ func (s *Page) Write(ctx context.Context, data []byte) (*Record, error) {
 
 	// 1. Manage to write the data onto the already allocated buffer
 
-	// 2. Flush a buffer into the open file (a stable storage) immediately.
-
+	// 2. Write to OS buffer, aka page cache, which will be asynchronously flush (managed by OS kernel) to the disk later
 	if _, err := s.F.Write(writeBuffer); err != nil {
 		return nil, err
+	}
+
+	// 3. If client configured to flush for every write operations to achieve the high reliability
+	if isFlush {
+		if err := s.F.Sync(); err != nil {
+			return nil, err
+		}
 	}
 
 	return nil, nil

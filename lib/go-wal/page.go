@@ -6,6 +6,8 @@ import (
 	"io"
 	"os"
 	"sync"
+
+	go_bytesbufferpool "github.com/datnguyenzzz/nogodb/lib/go-bytesbufferpool"
 )
 
 const (
@@ -13,7 +15,7 @@ const (
 	defaultBlockSize        = 32 * 1024 // 32KB
 )
 
-// writeBufferPool, readBufferPool maintains a pool of 32KB buffers, each serving as a dedicated buffer for individual blocks.
+// readBufferPool maintains a pool of 32KB buffers, each serving as a dedicated buffer for individual blocks.
 // This design helps reduce garbage collection (GC) pressure and minimizes memory allocations by reusing buffers,
 // eliminating the need to create new buffers for every read and write operation, so the GC doesn't have to be kicked in
 // to clean up the buffers after used. Since records are guaranteed to never exceed a data size of 32KB,
@@ -73,8 +75,20 @@ func (s *Page) Close(ctx context.Context) error {
 
 // Write append an arbitrary slice of bytes to the currently open segment file.
 func (s *Page) Write(ctx context.Context, data []byte) (*Record, error) {
+	writeBuffer := go_bytesbufferpool.Get(len(data))
+
+	// put back (and reset) when finish using the buffer
+	defer go_bytesbufferpool.Put(writeBuffer)
+
+	// 1. Manage to write the data onto the already allocated buffer
+
+	// 2. Flush a buffer into the open file (a stable storage) immediately.
+
+	if _, err := s.F.Write(writeBuffer); err != nil {
+		return nil, err
+	}
+
 	return nil, nil
 }
 
-// TODO Implement Write []byte --> buffer --> segment file
 // TODO Implement Read segment file --> [32KB]byte --> buffer

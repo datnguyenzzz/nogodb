@@ -32,14 +32,16 @@ The writer writes and the reader reads in chunks of `BlockSize`.
 ### Record Format
 
 ```
-+---------+-----------+-----------+--- ... ---+
-|CRC (4B) | Size (2B) | Type (1B) | Payload   |
-+---------+-----------+-----------+--- ... ---+
++---------+-----------+-----------+----------------+--- ... ---+
+|CRC (4B) | Size (2B) | Type (1B) | Log number (8B)| Payload   |
++---------+-----------+-----------+----------------+--- ... ---+
 
 CRC = 32-bit hash computed over the payload using CRC checksum
 Size = Length of the payload data
 Type = Type of record (ZeroType, FullType, FirstType, LastType, MiddleType )
        The type is used to group a bunch of records together to represent
        blocks that are larger than BlockSize
+Log number = 64bit log file number, so that we can distinguish between
+             records written by the most recent log writer vs a previous one.
 Payload = Byte stream as long as specified by the payload size
 ```

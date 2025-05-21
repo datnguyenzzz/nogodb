@@ -13,12 +13,21 @@ type syncCfg struct {
 	ticker  *time.Ticker
 }
 
-type PageAccessMode int8
+type PageAccessMode byte
 
 const (
 	PageAccessModeReadOnly PageAccessMode = iota
 	PageAccessModeReadWrite
 	PageAccessModeReadWriteSync
+)
+
+type RecordType byte
+
+const (
+	FullType RecordType = iota
+	FirstType
+	MiddleType
+	LastType
 )
 
 // WAL represents a Write-Ahead Log structure that provides durability and fault-tolerance for incoming writes.

@@ -21,7 +21,7 @@ const (
 	headerSize = 15
 )
 
-// readBufferPool maintains a pool of 32KB buffers, each serving as a dedicated buffer for individual blocks.
+// readBufferPool maintains a pool of 32KB buffers, each serving as a dedicated buffer for individual blockp.
 // This design helps reduce garbage collection (GC) pressure and minimizes memory allocations by reusing buffers,
 // eliminating the need to create new buffers for every read and write operation, so the GC doesn't have to be kicked in
 // to clean up the buffers after used. Since records are guaranteed to never exceed a data size of 32KB,
@@ -75,31 +75,31 @@ func openPageByPath(path string, id PageID, mode PageAccessMode) (*Page, error) 
 	}, nil
 }
 
-func (s *Page) Close(ctx context.Context) error {
+func (p *Page) Close(ctx context.Context) error {
 	return nil
 }
 
 // Write append an arbitrary slice of bytes to the currently open segment file.
-func (s *Page) Write(ctx context.Context, data []byte, isFlush bool) (*Record, error) {
+func (p *Page) Write(ctx context.Context, data []byte, isFlush bool) (*Record, error) {
 	writeBuffer := go_bytesbufferpool.Get(len(data))
 
 	// put back (and reset) when finish using the buffer
 	defer go_bytesbufferpool.Put(writeBuffer)
 
 	// 1. Manage to write the data onto the already allocated buffer
-	rec, err := s.writeToBuffer(ctx, data, writeBuffer)
+	rec, err := p.writeToBuffer(ctx, data, writeBuffer)
 	if err != nil {
 		return nil, err
 	}
 
 	// 2. Write to OS buffer, aka page cache, which will be asynchronously flush (managed by OS kernel) to the disk later
-	if _, err := s.F.Write(writeBuffer); err != nil {
+	if _, err := p.F.Write(writeBuffer); err != nil {
 		return nil, err
 	}
 
 	// 3. If client configured to flush for every write operations to achieve a high reliability
 	if isFlush {
-		if err := s.F.Sync(); err != nil {
+		if err := p.F.Sync(); err != nil {
 			return nil, err
 		}
 	}
@@ -107,9 +107,9 @@ func (s *Page) Write(ctx context.Context, data []byte, isFlush bool) (*Record, e
 	return rec, nil
 }
 
-func (s *Page) writeToBuffer(ctx context.Context, data []byte, buf []byte) (*Record, error) {
-	if s.LastBlockSize+headerSize > defaultBlockSize {
-		padding := defaultBlockSize - s.LastBlockSize
+func (p *Page) writeToBuffer(ctx context.Context, data []byte, buf []byte) (*Record, error) {
+	if p.LastBlockSize+headerSize > defaultBlockSize {
+		padding := defaultBlockSize - p.LastBlockSize
 		if padding > 0 {
 			startPos := len(buf)
 			if startPos+int(padding) > cap(buf) {
@@ -117,24 +117,58 @@ func (s *Page) writeToBuffer(ctx context.Context, data []byte, buf []byte) (*Rec
 				return nil, io.ErrShortWrite
 			}
 			copy(buf[startPos:], make([]byte, padding))
-			s.LastBlockSize = 0
-			s.TotalBlockCount += 1
+			p.LastBlockSize = 0
+			p.TotalBlockCount += 1
 		}
 	}
 
 	rec := &Record{
-		PageId:      s.Id,
-		BlockNumber: s.TotalBlockCount,
-		Offset:      uint64(s.LastBlockSize),
-		Size:        0,
+		PageId:      p.Id,
+		BlockNumber: p.TotalBlockCount,
+		Offset:      uint64(p.LastBlockSize),
+		Size:        0, // compute later
 	}
 
-	willBeOverflow := s.LastBlockSize+headerSize+uint32(len(data)) > defaultBlockSize
+	willBeOverflow := p.LastBlockSize+headerSize+uint32(len(data)) > defaultBlockSize
 	if willBeOverflow {
-		// Write the data into multiple batches, which categorised as 3 types First, Middle, Last
+		pendingWriteBytes := uint32(len(data))
+		rec.Size = pendingWriteBytes
+		for pendingWriteBytes > 0 {
+			// write [header + writableBytes] to buffer
+			writableBytes := min(defaultBlockSize-headerSize-p.LastBlockSize, pendingWriteBytes)
+
+			pendingWriteBytes -= writableBytes
+
+			var recordType RecordType
+			switch {
+			case p.LastBlockSize > 0:
+				recordType = FirstType
+			case pendingWriteBytes > 0:
+				recordType = MiddleType
+			default:
+				recordType = LastType
+			}
+
+			end := uint32(len(data)) - pendingWriteBytes
+			start := end - writableBytes + 1
+			writeToBuffer(buf, data[start:end], recordType)
+
+			// Move to next batch
+			p.LastBlockSize = (p.LastBlockSize + headerSize + writableBytes) % defaultBlockSize
+			if p.LastBlockSize == 0 {
+				p.TotalBlockCount += 1
+			}
+
+			rec.Size += headerSize
+		}
 	} else {
 		writeToBuffer(buf, data, FullType)
 		rec.Size = uint32(headerSize + len(data))
+
+		p.LastBlockSize = (p.LastBlockSize + rec.Size) % defaultBlockSize
+		if p.LastBlockSize == 0 {
+			p.TotalBlockCount += 1
+		}
 	}
 
 	return rec, nil
@@ -154,8 +188,8 @@ func writeToBuffer(buf []byte, data []byte, recType RecordType) {
 	checksum = crc32.Update(checksum, crc32.IEEETable, data)
 	binary.LittleEndian.PutUint32(header[:4], checksum)
 
-	copy(buf[:headerSize], header)
-	copy(buf[headerSize:], data)
+	buf = append(buf, header...)
+	buf = append(buf, data...)
 }
 
 // TODO Implement Read segment file --> [32KB]byte --> buffer

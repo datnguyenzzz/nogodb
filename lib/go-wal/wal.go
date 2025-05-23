@@ -66,10 +66,8 @@ func (w *WAL) Open(ctx context.Context) error {
 
 	// attempt to open all existing page files, or open a new one if none exists
 	if len(pageIDs) == 0 {
-		newPageFile := getPageFilePath(w.opts.dirPath, w.opts.fileExt, firstPageId)
-		page, err := openPageByPath(newPageFile, firstPageId, PageAccessModeReadWrite)
+		page, err := w.openPage(firstPageId, PageAccessModeReadWrite)
 		if err != nil {
-			zap.L().Error("Failed to open page", zap.String("pageFilePath", newPageFile), zap.Error(err))
 			return err
 		}
 		w.activePage = page
@@ -89,11 +87,8 @@ func (w *WAL) Open(ctx context.Context) error {
 					mode = PageAccessModeReadWriteSync
 				}
 			}
-
-			pageFile := getPageFilePath(w.opts.dirPath, w.opts.fileExt, id)
-			page, err := openPageByPath(pageFile, id, mode)
+			page, err := w.openPage(id, mode)
 			if err != nil {
-				zap.L().Error("Failed to open page", zap.String("pageFilePath", pageFile), zap.Error(err))
 				return err
 			}
 
@@ -105,7 +100,7 @@ func (w *WAL) Open(ctx context.Context) error {
 		}
 	}
 
-	// Init the background job to periodically sync the files
+	// Init the background job to periodically sync the files to the stable storage
 	if w.opts.syncInterval > 0 {
 		w.syncCfg.ticker = time.NewTicker(w.opts.syncInterval)
 		newCtx := context.WithoutCancel(ctx)
@@ -159,8 +154,52 @@ func (w *WAL) Close(ctx context.Context) error {
 }
 
 func (w *WAL) Write(ctx context.Context, data []byte) (*Record, error) {
-	//TODO implement me
-	panic("implement me")
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	if int64(len(data))+headerSize > w.opts.pageSize {
+		zap.L().Error(fmt.Sprintf("Data size too big to fit into a page, %d > %d", len(data), w.opts.pageSize))
+		return nil, ErrDataTooLarge
+	}
+
+	// if the active page doesn't have enough space to hold the data
+	if w.activePage.Size()+estimateNeededSpaces(data) > w.opts.pageSize {
+		// TODO sync the current active page, move it to immutable, and create new one
+		if err := w.Sync(ctx); err != nil {
+			zap.L().Error("Failed to sync file to the stable storage", zap.Error(err))
+			return nil, err
+		}
+
+		// open a new mutable file and move the current active pages to immutable
+		mode := PageAccessModeReadWrite
+		if w.opts.sync {
+			mode = PageAccessModeReadWriteSync
+		}
+		newPage, err := w.openPage(w.activePage.Id+1, mode)
+		if err != nil {
+			return nil, err
+		}
+
+		w.olderPages[w.activePage.Id] = w.activePage
+		w.activePage = newPage
+	}
+
+	record, err := w.activePage.Write(ctx, data)
+	if err != nil {
+		zap.L().Error("Failed to write data to page", zap.Error(err))
+		return nil, err
+	}
+
+	w.notSyncBytes += int64(record.Size)
+	needSync := w.opts.sync && w.notSyncBytes > int64(w.opts.bytesPerSync)
+	if needSync {
+		if err := w.Sync(ctx); err != nil {
+			zap.L().Error("Failed to sync file to the stable storage", zap.Error(err))
+			return nil, err
+		}
+	}
+
+	return record, nil
 }
 
 func (w *WAL) Read(ctx context.Context, r *Record) ([]byte, error) {
@@ -174,8 +213,19 @@ func (w *WAL) Delete(ctx context.Context) error {
 }
 
 func (w *WAL) Sync(ctx context.Context) error {
-	//TODO implement me
-	panic("implement me")
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if err := w.activePage.Sync(ctx); err != nil {
+		return err
+	}
+
+	w.notSyncBytes = 0
+	return nil
+}
+
+func (w *WAL) openPage(id PageID, mode PageAccessMode) (*Page, error) {
+	pageFile := getPageFilePath(w.opts.dirPath, w.opts.fileExt, id)
+	return openPageByPath(pageFile, id, mode)
 }
 
 // Iterator \\
@@ -185,8 +235,16 @@ func (w *WAL) Next() (*Record, []byte, error) {
 	panic("implement me")
 }
 
+// Utils \\
+
 func getPageFilePath(dirPath, ext string, pageID PageID) string {
 	return filepath.Join(dirPath, fmt.Sprintf("%d%s", pageID, ext))
+}
+
+func estimateNeededSpaces(data []byte) int64 {
+	// estimateNeededSpaces = len(data) + number_of_header * headerSize
+	// number_of_header = [len(data)/defaultBlockSize] Middle Blocks + First + Last
+	return int64(len(data)) + int64((len(data)/defaultBlockSize+2)*headerSize)
 }
 
 var _ IWal = (*WAL)(nil)

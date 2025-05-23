@@ -44,43 +44,21 @@ var readBufferPool = sync.Pool{
 //	},
 //}
 
-func openPageByPath(path string, id PageID, mode PageAccessMode) (*Page, error) {
-	var flag int
-	switch mode {
-	case PageAccessModeReadWrite:
-		flag = os.O_CREATE | os.O_RDWR | os.O_TRUNC
-	case PageAccessModeReadWriteSync:
-		flag = os.O_CREATE | os.O_RDWR | os.O_TRUNC | os.O_SYNC
-	case PageAccessModeReadOnly:
-		flag = os.O_RDONLY
-	default:
-		return nil, fmt.Errorf("invalid page mode: %d", mode)
-	}
+// Sync manually flush the page to the disk
+func (p *Page) Sync(ctx context.Context) error {
+	return p.F.Sync()
+}
 
-	f, err := os.OpenFile(path, flag, 0644)
-	if err != nil {
-		return nil, err
-	}
-
-	offset, err := f.Seek(0, io.SeekEnd)
-	if err != nil {
-		return nil, err
-	}
-
-	return &Page{
-		Id:              id,
-		F:               f,
-		TotalBlockCount: uint32(offset / defaultBlockSize),
-		LastBlockSize:   uint32(offset % defaultBlockSize),
-	}, nil
+func (p *Page) Size() int64 {
+	return int64(p.TotalBlockCount)*int64(defaultBlockSize) + int64(p.LastBlockSize)
 }
 
 func (p *Page) Close(ctx context.Context) error {
 	return nil
 }
 
-// Write append an arbitrary slice of bytes to the currently open segment file.
-func (p *Page) Write(ctx context.Context, data []byte, isFlush bool) (*Record, error) {
+// Write append an arbitrary slice of bytes to the OS buffer
+func (p *Page) Write(ctx context.Context, data []byte) (*Record, error) {
 	writeBuffer := go_bytesbufferpool.Get(len(data))
 
 	// put back (and reset) when finish using the buffer
@@ -95,13 +73,6 @@ func (p *Page) Write(ctx context.Context, data []byte, isFlush bool) (*Record, e
 	// 2. Write to OS buffer, aka page cache, which will be asynchronously flush (managed by OS kernel) to the disk later
 	if _, err := p.F.Write(writeBuffer); err != nil {
 		return nil, err
-	}
-
-	// 3. If client configured to flush for every write operations to achieve a high reliability
-	if isFlush {
-		if err := p.F.Sync(); err != nil {
-			return nil, err
-		}
 	}
 
 	return rec, nil
@@ -190,6 +161,37 @@ func writeToBuffer(buf []byte, data []byte, recType RecordType) {
 
 	buf = append(buf, header...)
 	buf = append(buf, data...)
+}
+
+func openPageByPath(path string, id PageID, mode PageAccessMode) (*Page, error) {
+	var flag int
+	switch mode {
+	case PageAccessModeReadWrite:
+		flag = os.O_CREATE | os.O_RDWR | os.O_TRUNC
+	case PageAccessModeReadWriteSync:
+		flag = os.O_CREATE | os.O_RDWR | os.O_TRUNC | os.O_SYNC
+	case PageAccessModeReadOnly:
+		flag = os.O_RDONLY
+	default:
+		return nil, fmt.Errorf("invalid page mode: %d", mode)
+	}
+
+	f, err := os.OpenFile(path, flag, 0644)
+	if err != nil {
+		return nil, err
+	}
+
+	offset, err := f.Seek(0, io.SeekEnd)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Page{
+		Id:              id,
+		F:               f,
+		TotalBlockCount: uint32(offset / defaultBlockSize),
+		LastBlockSize:   uint32(offset % defaultBlockSize),
+	}, nil
 }
 
 // TODO Implement Read segment file --> [32KB]byte --> buffer

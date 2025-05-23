@@ -1,6 +1,7 @@
 package go_wal
 
 import (
+	"errors"
 	"os"
 	"sync"
 	"time"
@@ -35,18 +36,21 @@ const (
 // and olderPages, which is a map of segment files used for read operations.
 type WAL struct {
 	syncCfg
-	opts       options
-	activePage *Page            // active page, used for writing
-	olderPages map[PageID]*Page // older pages, only used for read.
-	mu         sync.RWMutex
+	opts         options
+	activePage   *Page            // active page, used for writing
+	olderPages   map[PageID]*Page // older pages, only used for read.
+	mu           sync.RWMutex
+	notSyncBytes int64
 }
 
 // Page represents a single log file in WAL. A Page file consists of a sequence of variable length Record.
 type Page struct {
-	Id              PageID
-	F               *os.File
+	Id PageID
+	F  *os.File
+	// TotalBlockCount Number of full blocks
 	TotalBlockCount uint32
-	LastBlockSize   uint32
+	// LastBlockSize Size of the last block that is not full
+	LastBlockSize uint32
 }
 
 // Record represents the position of a record in a log file.
@@ -60,3 +64,9 @@ type Record struct {
 	// 	Size How many bytes the record data takes up in the segment file.
 	Size uint32
 }
+
+// Errors \\
+
+var (
+	ErrDataTooLarge = errors.New("data is too large")
+)

@@ -5,7 +5,7 @@ import "context"
 type IIterator interface {
 	// Next returns the next chunk data and its position in the WAL.
 	// If there is no data, io.EOF will be returned.
-	Next() (*Record, []byte, error)
+	Next() (*Position, []byte, error)
 }
 
 type IWal interface {
@@ -23,10 +23,10 @@ type IWal interface {
 	Sync(context.Context) error
 
 	// Write writes the data to the WAL. It writes the data to the active Page file.
-	Write(ctx context.Context, data []byte) (*Record, error)
+	Write(ctx context.Context, data []byte) (*Position, error)
 
 	// Read reads the data from the WAL according to the given record.
-	Read(ctx context.Context, r *Record) ([]byte, error)
+	Read(ctx context.Context, r *Position) ([]byte, error)
 
 	IIterator
 }

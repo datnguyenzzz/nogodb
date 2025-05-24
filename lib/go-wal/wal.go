@@ -153,7 +153,8 @@ func (w *WAL) Close(ctx context.Context) error {
 	return nil
 }
 
-func (w *WAL) Write(ctx context.Context, data []byte) (*Record, error) {
+// Write the data to the OS buffer, and return Position of where the data is written
+func (w *WAL) Write(ctx context.Context, data []byte) (*Position, error) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
@@ -184,13 +185,13 @@ func (w *WAL) Write(ctx context.Context, data []byte) (*Record, error) {
 		w.activePage = newPage
 	}
 
-	record, err := w.activePage.Write(ctx, data)
+	pos, err := w.activePage.Write(ctx, data)
 	if err != nil {
 		zap.L().Error("Failed to write data to page", zap.Error(err))
 		return nil, err
 	}
 
-	w.notSyncBytes += int64(record.Size)
+	w.notSyncBytes += int64(pos.Size)
 	needSync := w.opts.sync && w.notSyncBytes > int64(w.opts.bytesPerSync)
 	if needSync {
 		if err := w.Sync(ctx); err != nil {
@@ -199,12 +200,27 @@ func (w *WAL) Write(ctx context.Context, data []byte) (*Record, error) {
 		}
 	}
 
-	return record, nil
+	return pos, nil
 }
 
-func (w *WAL) Read(ctx context.Context, r *Record) ([]byte, error) {
-	//TODO implement me
-	panic("implement me")
+func (w *WAL) Read(ctx context.Context, r *Position) ([]byte, error) {
+	w.mu.RLock()
+	defer w.mu.RUnlock()
+
+	pid := r.PageId
+	var page *Page
+	if pid == w.activePage.Id {
+		page = w.activePage
+	} else {
+		page = w.olderPages[pid]
+	}
+
+	if page == nil {
+		zap.L().Error(fmt.Sprintf("Page not found for page id %d", pid))
+		return nil, ErrPageNotFound
+	}
+
+	return page.Read(ctx, r)
 }
 
 func (w *WAL) Delete(ctx context.Context) error {
@@ -230,7 +246,7 @@ func (w *WAL) openPage(id PageID, mode PageAccessMode) (*Page, error) {
 
 // Iterator \\
 
-func (w *WAL) Next() (*Record, []byte, error) {
+func (w *WAL) Next() (*Position, []byte, error) {
 	//TODO implement me
 	panic("implement me")
 }

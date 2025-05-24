@@ -11,7 +11,7 @@
 
 ## Format and data layout 
 
-Inspired by the implementation from [RocksDB](https://github.com/facebook/rocksdb/wiki/Write-Ahead-Page-File-Format)
+_Inspired by the implementation from [RocksDB](https://github.com/facebook/rocksdb/wiki/Write-Ahead-Page-File-Format) and [LevelDB](https://github.com/google/leveldb)_
 
 ### Page file format 
 
@@ -45,3 +45,12 @@ Log number = 64bit log file number, so that we can distinguish between
              records written by the most recent log writer vs a previous one.
 Payload = Byte stream as long as specified by the payload size
 ```
+
+Records are initially written into a memory buffer. To optimize memory usage and avoid waste during memory allocation, 
+an enhanced bytes buffer pool, [go-bytesbufferpool](https://github.com/datnguyenzzz/nogodb/tree/master/lib/go-bytesbufferpool) 
+has been utilised. Once the record is stored in the memory buffer, it is subsequently written to the OS buffer. Eventually, the record 
+is asynchronously flushed into stable storage, a process managed by the OS kernel.
+
+The Write-Ahead Log (WAL) includes a background job with a configurable task that periodically flushes the data file to disk.
+Additionally, the WAL provides a function for clients to manually flush the data file to disk, ensuring higher reliability 
+at the cost of reduced throughput.

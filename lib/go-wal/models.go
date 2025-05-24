@@ -43,7 +43,7 @@ type WAL struct {
 	notSyncBytes int64
 }
 
-// Page represents a single log file in WAL. A Page file consists of a sequence of variable length Record.
+// Page represents a single log file in WAL. A Page file consists of a sequence of variable length Position.
 type Page struct {
 	Id PageID
 	F  *os.File
@@ -53,14 +53,14 @@ type Page struct {
 	LastBlockSize uint32
 }
 
-// Record represents the position of a record in a log file.
-type Record struct {
+// Position represents the position of a record in a log file.
+type Position struct {
 	// PageId represents the ID of the log file where the record is located.
 	PageId PageID
 	// BlockNumber indicate which block where the record is located
 	BlockNumber uint32
 	// Offset indicate the starting offset of the record in the log file.
-	Offset uint64
+	Offset uint32
 	// 	Size How many bytes the record data takes up in the segment file.
 	Size uint32
 }
@@ -68,5 +68,7 @@ type Record struct {
 // Errors \\
 
 var (
-	ErrDataTooLarge = errors.New("data is too large")
+	ErrDataTooLarge    = errors.New("data is too large")
+	ErrPageNotFound    = errors.New("page not found")
+	ErrInvalidChecksum = errors.New("invalid checksum")
 )

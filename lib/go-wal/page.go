@@ -57,28 +57,85 @@ func (p *Page) Close(ctx context.Context) error {
 	return nil
 }
 
+// Read data from given Position. Reader always reads full record with the size of 32KB
+func (p *Page) Read(ctx context.Context, pos *Position) ([]byte, error) {
+	rBuf := readBufferPool.Get().([]byte)
+	defer func() {
+		rBuf = rBuf[:0]
+		// ensure the memory buffer always be 32KB
+		if cap(rBuf) != defaultBlockSize {
+			rBuf = make([]byte, defaultBlockSize)
+		}
+		readBufferPool.Put(rBuf)
+	}()
+
+	var res []byte
+
+	record := pos.BlockNumber
+	recordOffset := pos.Offset
+
+	for {
+		pageOffset := defaultBlockSize * record
+
+		if recordOffset > defaultBlockSize {
+			zap.L().Error("Read out of range")
+			return nil, io.ErrUnexpectedEOF
+		}
+
+		// read whole record into the allocated buffer
+		if _, err := p.F.ReadAt(rBuf[:defaultBlockSize], int64(pageOffset)); err != nil {
+			return nil, err
+		}
+
+		header := rBuf[recordOffset : recordOffset+headerSize]
+		dataLen := binary.LittleEndian.Uint16(header[4:6])
+		start := recordOffset + headerSize
+		end := start + uint32(dataLen)
+		res = append(res, rBuf[start:end]...)
+
+		// Checksum to ensure data integrity
+		savedCRC := binary.LittleEndian.Uint32(header[:4])
+		crc := crc32.ChecksumIEEE(rBuf[recordOffset+4 : end])
+		if crc != savedCRC {
+			return nil, ErrInvalidChecksum
+		}
+
+		recType := RecordType(header[6])
+		if recType == FullType || recType == LastType {
+			break
+		}
+
+		// Read the next record
+		recordOffset = 0
+		record++
+	}
+
+	return res, nil
+}
+
 // Write append an arbitrary slice of bytes to the OS buffer
-func (p *Page) Write(ctx context.Context, data []byte) (*Record, error) {
-	writeBuffer := go_bytesbufferpool.Get(len(data))
+func (p *Page) Write(ctx context.Context, data []byte) (*Position, error) {
+	wBuf := go_bytesbufferpool.Get(len(data))
 
 	// put back (and reset) when finish using the buffer
-	defer go_bytesbufferpool.Put(writeBuffer)
+	defer go_bytesbufferpool.Put(wBuf)
 
 	// 1. Manage to write the data onto the already allocated buffer
-	rec, err := p.writeToBuffer(ctx, data, writeBuffer)
+	rec, err := p.writeToBuffer(ctx, data, wBuf)
 	if err != nil {
 		return nil, err
 	}
 
 	// 2. Write to OS buffer, aka page cache, which will be asynchronously flush (managed by OS kernel) to the disk later
-	if _, err := p.F.Write(writeBuffer); err != nil {
+	if _, err := p.F.Write(wBuf); err != nil {
 		return nil, err
 	}
 
 	return rec, nil
 }
 
-func (p *Page) writeToBuffer(ctx context.Context, data []byte, buf []byte) (*Record, error) {
+// writeToBuffer append an arbitrary slice of bytes to the memory buffer
+func (p *Page) writeToBuffer(ctx context.Context, data []byte, buf []byte) (*Position, error) {
 	if p.LastBlockSize+headerSize > defaultBlockSize {
 		padding := defaultBlockSize - p.LastBlockSize
 		if padding > 0 {
@@ -93,17 +150,17 @@ func (p *Page) writeToBuffer(ctx context.Context, data []byte, buf []byte) (*Rec
 		}
 	}
 
-	rec := &Record{
+	pos := &Position{
 		PageId:      p.Id,
 		BlockNumber: p.TotalBlockCount,
-		Offset:      uint64(p.LastBlockSize),
+		Offset:      p.LastBlockSize,
 		Size:        0, // compute later
 	}
 
 	willBeOverflow := p.LastBlockSize+headerSize+uint32(len(data)) > defaultBlockSize
 	if willBeOverflow {
 		pendingWriteBytes := uint32(len(data))
-		rec.Size = pendingWriteBytes
+		pos.Size = pendingWriteBytes
 		for pendingWriteBytes > 0 {
 			// write [header + writableBytes] to buffer
 			writableBytes := min(defaultBlockSize-headerSize-p.LastBlockSize, pendingWriteBytes)
@@ -130,19 +187,19 @@ func (p *Page) writeToBuffer(ctx context.Context, data []byte, buf []byte) (*Rec
 				p.TotalBlockCount += 1
 			}
 
-			rec.Size += headerSize
+			pos.Size += headerSize
 		}
 	} else {
 		writeToBuffer(buf, data, FullType)
-		rec.Size = uint32(headerSize + len(data))
+		pos.Size = uint32(headerSize + len(data))
 
-		p.LastBlockSize = (p.LastBlockSize + rec.Size) % defaultBlockSize
+		p.LastBlockSize = (p.LastBlockSize + pos.Size) % defaultBlockSize
 		if p.LastBlockSize == 0 {
 			p.TotalBlockCount += 1
 		}
 	}
 
-	return rec, nil
+	return pos, nil
 }
 
 func writeToBuffer(buf []byte, data []byte, recType RecordType) {
@@ -193,5 +250,3 @@ func openPageByPath(path string, id PageID, mode PageAccessMode) (*Page, error) 
 		LastBlockSize:   uint32(offset % defaultBlockSize),
 	}, nil
 }
-
-// TODO Implement Read segment file --> [32KB]byte --> buffer

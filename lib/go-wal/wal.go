@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strconv"
 	"sync"
 	"time"
@@ -130,8 +129,11 @@ func (w *WAL) Close(ctx context.Context) error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
-	// send a signal to stop a background job for sync-ing files to the stable storage
-	w.closeCh <- struct{}{}
+	select {
+	case <-w.closeCh:
+	default:
+		close(w.closeCh)
+	}
 
 	// close all pages file that are in-open
 	for id, page := range w.olderPages {
@@ -149,7 +151,6 @@ func (w *WAL) Close(ctx context.Context) error {
 	}
 	w.activePage = nil
 
-	close(w.closeCh)
 	return nil
 }
 
@@ -164,7 +165,7 @@ func (w *WAL) Write(ctx context.Context, data []byte) (*Position, error) {
 	}
 
 	// if the active page doesn't have enough space to hold the data
-	if w.activePage.Size()+estimateNeededSpaces(data) > w.opts.pageSize {
+	if w.activePage.Size()+int64(estimateNeededSpaces(data)) > w.opts.pageSize {
 		// TODO sync the current active page, move it to immutable, and create new one
 		if err := w.Sync(ctx); err != nil {
 			zap.L().Error("Failed to sync file to the stable storage", zap.Error(err))
@@ -249,18 +250,6 @@ func (w *WAL) openPage(id PageID, mode PageAccessMode) (*Page, error) {
 func (w *WAL) Next() (*Position, []byte, error) {
 	//TODO implement me
 	panic("implement me")
-}
-
-// Utils \\
-
-func getPageFilePath(dirPath, ext string, pageID PageID) string {
-	return filepath.Join(dirPath, fmt.Sprintf("%d%s", pageID, ext))
-}
-
-func estimateNeededSpaces(data []byte) int64 {
-	// estimateNeededSpaces = len(data) + number_of_header * headerSize
-	// number_of_header = [len(data)/defaultBlockSize] Middle Blocks + First + Last
-	return int64(len(data)) + int64((len(data)/defaultBlockSize+2)*headerSize)
 }
 
 var _ IWal = (*WAL)(nil)

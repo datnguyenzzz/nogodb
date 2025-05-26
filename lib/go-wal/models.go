@@ -25,7 +25,8 @@ const (
 type RecordType byte
 
 const (
-	FullType RecordType = iota
+	UnknownRecordType RecordType = iota
+	FullType
 	FirstType
 	MiddleType
 	LastType

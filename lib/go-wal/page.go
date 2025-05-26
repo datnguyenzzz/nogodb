@@ -54,7 +54,7 @@ func (p *Page) Size() int64 {
 }
 
 func (p *Page) Close(ctx context.Context) error {
-	return nil
+	return p.F.Close()
 }
 
 // Read data from given Position. Reader always reads full record with the size of 32KB
@@ -87,7 +87,8 @@ func (p *Page) Read(ctx context.Context, pos *Position) ([]byte, error) {
 			return nil, err
 		}
 
-		header := rBuf[recordOffset : recordOffset+headerSize]
+		header := make([]byte, headerSize)
+		copy(header, rBuf[recordOffset:recordOffset+headerSize])
 		dataLen := binary.LittleEndian.Uint16(header[4:6])
 		start := recordOffset + headerSize
 		end := start + uint32(dataLen)
@@ -115,13 +116,18 @@ func (p *Page) Read(ctx context.Context, pos *Position) ([]byte, error) {
 
 // Write append an arbitrary slice of bytes to the OS buffer
 func (p *Page) Write(ctx context.Context, data []byte) (*Position, error) {
-	wBuf := go_bytesbufferpool.Get(len(data))
+	neededSpaces := estimateNeededSpaces(data)
+	if p.LastBlockSize+headerSize >= defaultBlockSize {
+		// need spaces for padded bytes
+		neededSpaces += int(defaultBlockSize - p.LastBlockSize)
+	}
+	wBuf := go_bytesbufferpool.Get(neededSpaces)
 
 	// put back (and reset) when finish using the buffer
 	defer go_bytesbufferpool.Put(wBuf)
 
 	// 1. Manage to write the data onto the already allocated buffer
-	rec, err := p.writeToBuffer(ctx, data, wBuf)
+	rec, err := p.writeToMemBuffer(ctx, data, &wBuf)
 	if err != nil {
 		return nil, err
 	}
@@ -134,17 +140,18 @@ func (p *Page) Write(ctx context.Context, data []byte) (*Position, error) {
 	return rec, nil
 }
 
-// writeToBuffer append an arbitrary slice of bytes to the memory buffer
-func (p *Page) writeToBuffer(ctx context.Context, data []byte, buf []byte) (*Position, error) {
-	if p.LastBlockSize+headerSize > defaultBlockSize {
+// writeToMemBuffer append an arbitrary slice of bytes to the memory buffer
+func (p *Page) writeToMemBuffer(ctx context.Context, data []byte, buf *[]byte) (*Position, error) {
+	// If a data is not fit into the current block
+	if p.LastBlockSize+headerSize >= defaultBlockSize {
 		padding := defaultBlockSize - p.LastBlockSize
 		if padding > 0 {
-			startPos := len(buf)
-			if startPos+int(padding) > cap(buf) {
-				zap.L().Error(fmt.Sprintf("padding overflow, buf capacity: %d", cap(buf)))
+			startPos := len(*buf)
+			if startPos+int(padding) > cap(*buf) {
+				zap.L().Error(fmt.Sprintf("padding overflow, buf capacity: %d", cap(*buf)))
 				return nil, io.ErrShortWrite
 			}
-			copy(buf[startPos:], make([]byte, padding))
+			*buf = append(*buf, make([]byte, padding)...)
 			p.LastBlockSize = 0
 			p.TotalBlockCount += 1
 		}
@@ -165,20 +172,19 @@ func (p *Page) writeToBuffer(ctx context.Context, data []byte, buf []byte) (*Pos
 			// write [header + writableBytes] to buffer
 			writableBytes := min(defaultBlockSize-headerSize-p.LastBlockSize, pendingWriteBytes)
 
-			pendingWriteBytes -= writableBytes
-
 			var recordType RecordType
 			switch {
-			case p.LastBlockSize > 0:
+			case pendingWriteBytes == uint32(len(data)):
 				recordType = FirstType
-			case pendingWriteBytes > 0:
+			case pendingWriteBytes-writableBytes > 0:
 				recordType = MiddleType
 			default:
 				recordType = LastType
 			}
 
+			pendingWriteBytes -= writableBytes
 			end := uint32(len(data)) - pendingWriteBytes
-			start := end - writableBytes + 1
+			start := end - writableBytes
 			writeToBuffer(buf, data[start:end], recordType)
 
 			// Move to next batch
@@ -202,22 +208,22 @@ func (p *Page) writeToBuffer(ctx context.Context, data []byte, buf []byte) (*Pos
 	return pos, nil
 }
 
-func writeToBuffer(buf []byte, data []byte, recType RecordType) {
+func writeToBuffer(buf *[]byte, data []byte, recType RecordType) {
 	header := make([]byte, headerSize)
 	// 2-bytes: [4,5] for storing data length
 	binary.LittleEndian.PutUint16(header[4:6], uint16(len(data)))
 	// 1-byte: [6] for storing chunk type
 	header[6] = byte(recType)
-	// 8-bytes: [6,14] for storing the current timestamp
+	// 8-bytes: [7,14] for storing the current timestamp
 	currTs := time.Now().UTC().Unix()
-	binary.LittleEndian.PutUint64(header[8:], uint64(currTs))
+	binary.LittleEndian.PutUint64(header[7:], uint64(currTs))
 	// 4-bytes: [0,4] for storing the checksum of header[4:] + payload
 	checksum := crc32.ChecksumIEEE(header[4:])
 	checksum = crc32.Update(checksum, crc32.IEEETable, data)
 	binary.LittleEndian.PutUint32(header[:4], checksum)
 
-	buf = append(buf, header...)
-	buf = append(buf, data...)
+	*buf = append(*buf, header...)
+	*buf = append(*buf, data...)
 }
 
 func openPageByPath(path string, id PageID, mode PageAccessMode) (*Page, error) {

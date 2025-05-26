@@ -73,9 +73,11 @@ func (p *Page) Read(ctx context.Context, pos *Position) ([]byte, error) {
 
 	record := pos.BlockNumber
 	recordOffset := pos.Offset
+	totalSize := p.Size()
 
 	for {
 		pageOffset := defaultBlockSize * record
+		size := min(defaultBlockSize, totalSize-int64(pageOffset))
 
 		if recordOffset > defaultBlockSize {
 			zap.L().Error("Read out of range")
@@ -83,7 +85,7 @@ func (p *Page) Read(ctx context.Context, pos *Position) ([]byte, error) {
 		}
 
 		// read whole record into the allocated buffer
-		if _, err := p.F.ReadAt(rBuf[:defaultBlockSize], int64(pageOffset)); err != nil {
+		if _, err := p.F.ReadAt(rBuf[:size], int64(pageOffset)); err != nil {
 			return nil, err
 		}
 

@@ -44,6 +44,10 @@ var readBufferPool = sync.Pool{
 //	},
 //}
 
+func (p *Page) Delete(ctx context.Context) error {
+	return os.Remove(p.F.Name())
+}
+
 // Sync manually flush the page to the disk
 func (p *Page) Sync(ctx context.Context) error {
 	return p.F.Sync()

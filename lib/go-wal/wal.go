@@ -225,8 +225,16 @@ func (w *WAL) Read(ctx context.Context, r *Position) ([]byte, error) {
 }
 
 func (w *WAL) Delete(ctx context.Context) error {
-	//TODO implement me
-	panic("implement me")
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	for _, page := range w.olderPages {
+		if err := page.Delete(ctx); err != nil {
+			return err
+		}
+	}
+
+	w.olderPages = nil
+	return w.activePage.Delete(ctx)
 }
 
 func (w *WAL) Sync(ctx context.Context) error {

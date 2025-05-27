@@ -1,0 +1,10 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/datnguyenzzz/nogodb/lib/go-wal
+cpu: Apple M1 Pro
+BenchmarkWrite/counts=1000000,size=1kB-10         	       1	3429856500 ns/op	1081171160 B/op	 4031735 allocs/op
+BenchmarkWrite/counts=500000,size=4kB-10          	       1	3664167916 ns/op	2079547040 B/op	 2064613 allocs/op
+BenchmarkWrite/counts=10000,size=512kB-10         	       1	4783200583 ns/op	7133255688 B/op	  212915 allocs/op
+BenchmarkWrite/counts=5000,size=1024kB-10         	       1	5332830000 ns/op	10179697208 B/op	  192256 allocs/op
+remove file wal/0.walremove file wal/1.walremove file wal/2.walremove file wal/3.walremove file wal/4.walremove file wal/5.walremove file wal/6.walPASS
+ok  	github.com/datnguyenzzz/nogodb/lib/go-wal	18.433s

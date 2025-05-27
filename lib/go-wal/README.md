@@ -54,3 +54,16 @@ is asynchronously flushed into stable storage, a process managed by the OS kerne
 The Write-Ahead Log (WAL) includes a background job with a configurable task that periodically flushes the data file to disk.
 Additionally, the WAL provides a function for clients to manually flush the data file to disk, ensuring higher reliability 
 at the cost of reduced throughput.
+
+### Benchmark 
+```
+goos: darwin
+goarch: arm64
+pkg: github.com/datnguyenzzz/nogodb/lib/go-wal
+cpu: Apple M1 Pro
+Testcase                                                   #          Average Time          Bytes per operation   Allocs per operation
+BenchmarkWrite/counts=1000000,size=1kB-10         	       1	3429856500 ns/op	1081171160 B/op	 4031735 allocs/op
+BenchmarkWrite/counts=500000,size=4kB-10          	       1	3664167916 ns/op	2079547040 B/op	 2064613 allocs/op
+BenchmarkWrite/counts=10000,size=512kB-10         	       1	4783200583 ns/op	7133255688 B/op	  212915 allocs/op
+BenchmarkWrite/counts=5000,size=1024kB-10         	       1	5332830000 ns/op	10179697208 B/op	  192256 allocs/op
+```

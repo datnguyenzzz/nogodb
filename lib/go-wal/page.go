@@ -89,9 +89,8 @@ func (p *Page) Read(ctx context.Context, pos *Position) ([]byte, *Position, erro
 		pageOffset := defaultBlockSize * record
 		size := min(defaultBlockSize, totalSize-int64(pageOffset))
 
-		if recordOffset > defaultBlockSize {
-			zap.L().Error("Read out of range")
-			return nil, nil, io.ErrUnexpectedEOF
+		if recordOffset >= uint32(size) {
+			return nil, nil, io.EOF
 		}
 
 		// read whole record into the allocated buffer
@@ -295,8 +294,9 @@ func (p *Page) NewIterator(ctx context.Context) *PageIterator {
 
 func (i *PageIterator) Next(ctx context.Context) ([]byte, *Position, error) {
 	data, nextPos, err := i.page.Read(ctx, i.pos)
+	prevPos := i.pos
 	i.pos = nextPos
-	return data, nil, err
+	return data, prevPos, err
 }
 
 var _ IIterator = (*PageIterator)(nil)

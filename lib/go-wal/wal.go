@@ -183,7 +183,16 @@ func (w *WAL) Write(ctx context.Context, data []byte) (*Position, error) {
 			return nil, err
 		}
 
-		w.olderPages[w.activePage.Id] = w.activePage
+		currActivePageId := w.activePage.Id
+		if err := w.activePage.Close(ctx); err != nil {
+			return nil, err
+		}
+
+		oldPage, err := w.openPage(currActivePageId, PageAccessModeReadOnly)
+		if err != nil {
+			return nil, err
+		}
+		w.olderPages[w.activePage.Id] = oldPage
 		w.activePage = newPage
 	}
 
@@ -262,7 +271,7 @@ func (w *WAL) NewIterator(ctx context.Context) *WalIterator {
 	w.mu.RLock()
 	defer w.mu.RUnlock()
 	// As data always written in the asc sorted order of pageID
-	var pageIter map[PageID]*PageIterator
+	pageIter := map[PageID]*PageIterator{}
 	for _, page := range w.olderPages {
 		pageIter[page.Id] = page.NewIterator(ctx)
 	}
@@ -275,7 +284,7 @@ func (w *WAL) NewIterator(ctx context.Context) *WalIterator {
 	}
 }
 
-func (i WalIterator) Next(ctx context.Context) ([]byte, *Position, error) {
+func (i *WalIterator) Next(ctx context.Context) ([]byte, *Position, error) {
 	if int(i.currentPageId) >= len(i.pageIter) {
 		return nil, nil, io.EOF
 	}

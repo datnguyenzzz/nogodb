@@ -22,25 +22,35 @@ type WalSuite struct {
 
 func (w *WalSuite) Test_ReadAfterWrite_Small_tests() {
 	totalTestCases := 20
-	minCap := 0
+	minCap := 1
 	dataCap := 1024
 
 	data := make([][]byte, totalTestCases)
 	pos := make([]*go_wal.Position, totalTestCases)
 
 	ctx := context.Background()
+	// Do Write
 	for i := 0; i < totalTestCases; i++ {
 		d := generateBytes(minCap + rand.Intn(dataCap))
-		w.T().Logf("Test_ReadAfterWrite_Small_tests: Write data %v-th, len = %v", i, len(d))
+		//w.T().Logf("Test_ReadAfterWrite_Small_tests: Write data %v-th, len = %v", i, len(d))
 		data[i] = d
 		p, err := w.wal.Write(ctx, d)
 		assert.NoError(w.T(), err, "should be able to write data")
 		pos[i] = p
 	}
+	// Test Read
 	for i := 0; i < totalTestCases; i++ {
 		d, err := w.wal.Get(ctx, pos[i])
 		assert.NoError(w.T(), err, "should be able to read data")
 		assert.Equal(w.T(), data[i], d, "data must match")
+	}
+	// Test Iterator
+	reader := w.wal.NewIterator(ctx)
+	for ix := 0; ix < totalTestCases; ix++ {
+		d, p, err := reader.Next(ctx)
+		assert.NoError(w.T(), err, "should be able to iterate next block")
+		assert.Equal(w.T(), pos[ix], p, "position must match")
+		assert.Equal(w.T(), data[ix], d, "data must match")
 	}
 }
 
@@ -55,7 +65,7 @@ func (w *WalSuite) Test_ReadAfterWrite_Medium_tests() {
 	ctx := context.Background()
 	for i := 0; i < totalTestCases; i++ {
 		d := generateBytes(minCap + rand.Intn(dataCap))
-		w.T().Logf("Test_ReadAfterWrite_Medium_tests: Write data %v-th, len = %v", i, len(d))
+		//w.T().Logf("Test_ReadAfterWrite_Medium_tests: Write data %v-th, len = %v", i, len(d))
 		data[i] = d
 		p, err := w.wal.Write(ctx, d)
 		assert.NoError(w.T(), err, "should be able to write data")
@@ -65,6 +75,14 @@ func (w *WalSuite) Test_ReadAfterWrite_Medium_tests() {
 		d, err := w.wal.Get(ctx, pos[i])
 		assert.NoError(w.T(), err, "should be able to read data")
 		assert.Equal(w.T(), data[i], d, "data must match")
+	}
+	// Test Iterator
+	reader := w.wal.NewIterator(ctx)
+	for ix := 0; ix < totalTestCases; ix++ {
+		d, p, err := reader.Next(ctx)
+		assert.NoError(w.T(), err, "should be able to iterate next block")
+		assert.Equal(w.T(), pos[ix], p, "position must match")
+		assert.Equal(w.T(), data[ix], d, "data must match")
 	}
 }
 
@@ -79,7 +97,7 @@ func (w *WalSuite) Test_ReadAfterWrite_Big_tests() {
 	ctx := context.Background()
 	for i := 0; i < totalTestCases; i++ {
 		d := generateBytes(minCap + rand.Intn(dataCap))
-		w.T().Logf("Test_ReadAfterWrite_Big_tests: Write data %v-th, len = %v", i, len(d))
+		//w.T().Logf("Test_ReadAfterWrite_Big_tests: Write data %v-th, len = %v", i, len(d))
 		data[i] = d
 		p, err := w.wal.Write(ctx, d)
 		assert.NoError(w.T(), err, "should be able to write data")
@@ -90,19 +108,27 @@ func (w *WalSuite) Test_ReadAfterWrite_Big_tests() {
 		assert.NoError(w.T(), err, "should be able to read data")
 		assert.Equal(w.T(), data[i], d, "data must match")
 	}
+	// Test Iterator
+	reader := w.wal.NewIterator(ctx)
+	for ix := 0; ix < totalTestCases; ix++ {
+		d, p, err := reader.Next(ctx)
+		assert.NoError(w.T(), err, "should be able to iterate next block")
+		assert.Equal(w.T(), pos[ix], p, "position must match")
+		assert.Equal(w.T(), data[ix], d, "data must match")
+	}
 }
 
-func (w *WalSuite) SetupSuite() {
-	w.T().Logf("SetupSuite")
+func (w *WalSuite) SetupTest() {
+	w.T().Logf("SetupTest")
 	w.wal = go_wal.New(
 		go_wal.WithDirPath(CommonDirPath),
-		go_wal.WithPageSize(4*32*1024), // = 4 blocks
+		go_wal.WithPageSize(2*32*1024), // = 2 blocks
 	)
 	_ = w.wal.Open(context.Background())
 }
 
-func (w *WalSuite) TearDownSuite() {
-	w.T().Logf("TearDownSuite")
+func (w *WalSuite) TearDownTest() {
+	w.T().Logf("TearDownTest")
 
 	_ = w.wal.Close(context.Background())
 
@@ -111,7 +137,7 @@ func (w *WalSuite) TearDownSuite() {
 	for _, file := range files {
 		if !file.IsDir() {
 			filePath := filepath.Join(CommonDirPath, file.Name())
-			fmt.Printf("remove file %s", filePath)
+			fmt.Printf("remove file %s\n", filePath)
 			_ = os.Remove(filePath)
 		}
 	}

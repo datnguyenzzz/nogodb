@@ -38,7 +38,7 @@ func (w *WalSuite) Test_ReadAfterWrite_Small_tests() {
 		pos[i] = p
 	}
 	for i := 0; i < totalTestCases; i++ {
-		d, err := w.wal.Read(ctx, pos[i])
+		d, err := w.wal.Get(ctx, pos[i])
 		assert.NoError(w.T(), err, "should be able to read data")
 		assert.Equal(w.T(), data[i], d, "data must match")
 	}
@@ -62,7 +62,7 @@ func (w *WalSuite) Test_ReadAfterWrite_Medium_tests() {
 		pos[i] = p
 	}
 	for i := 0; i < totalTestCases; i++ {
-		d, err := w.wal.Read(ctx, pos[i])
+		d, err := w.wal.Get(ctx, pos[i])
 		assert.NoError(w.T(), err, "should be able to read data")
 		assert.Equal(w.T(), data[i], d, "data must match")
 	}
@@ -86,7 +86,7 @@ func (w *WalSuite) Test_ReadAfterWrite_Big_tests() {
 		pos[i] = p
 	}
 	for i := 0; i < totalTestCases; i++ {
-		d, err := w.wal.Read(ctx, pos[i])
+		d, err := w.wal.Get(ctx, pos[i])
 		assert.NoError(w.T(), err, "should be able to read data")
 		assert.Equal(w.T(), data[i], d, "data must match")
 	}

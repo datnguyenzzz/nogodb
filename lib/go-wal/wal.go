@@ -3,6 +3,7 @@ package go_wal
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"strconv"
 	"sync"
@@ -186,13 +187,13 @@ func (w *WAL) Write(ctx context.Context, data []byte) (*Position, error) {
 		w.activePage = newPage
 	}
 
-	pos, err := w.activePage.Write(ctx, data)
+	pos, size, err := w.activePage.Write(ctx, data)
 	if err != nil {
 		zap.L().Error("Failed to write data to page", zap.Error(err))
 		return nil, err
 	}
 
-	w.notSyncBytes += int64(pos.Size)
+	w.notSyncBytes += size
 	needSync := w.opts.sync && w.notSyncBytes > int64(w.opts.bytesPerSync)
 	if needSync {
 		if err := w.Sync(ctx); err != nil {
@@ -204,7 +205,7 @@ func (w *WAL) Write(ctx context.Context, data []byte) (*Position, error) {
 	return pos, nil
 }
 
-func (w *WAL) Read(ctx context.Context, r *Position) ([]byte, error) {
+func (w *WAL) Get(ctx context.Context, r *Position) ([]byte, error) {
 	w.mu.RLock()
 	defer w.mu.RUnlock()
 
@@ -221,7 +222,8 @@ func (w *WAL) Read(ctx context.Context, r *Position) ([]byte, error) {
 		return nil, ErrPageNotFound
 	}
 
-	return page.Read(ctx, r)
+	data, _, err := page.Read(ctx, r)
+	return data, err
 }
 
 func (w *WAL) Delete(ctx context.Context) error {
@@ -243,7 +245,6 @@ func (w *WAL) Sync(ctx context.Context) error {
 	if err := w.activePage.Sync(ctx); err != nil {
 		return err
 	}
-
 	w.notSyncBytes = 0
 	return nil
 }
@@ -253,11 +254,39 @@ func (w *WAL) openPage(id PageID, mode PageAccessMode) (*Page, error) {
 	return openPageByPath(pageFile, id, mode)
 }
 
+var _ IWal = (*WAL)(nil)
+
 // Iterator \\
 
-func (w *WAL) Next() (*Position, []byte, error) {
-	//TODO implement me
-	panic("implement me")
+func (w *WAL) NewIterator(ctx context.Context) *WalIterator {
+	w.mu.RLock()
+	defer w.mu.RUnlock()
+	// As data always written in the asc sorted order of pageID
+	var pageIter map[PageID]*PageIterator
+	for _, page := range w.olderPages {
+		pageIter[page.Id] = page.NewIterator(ctx)
+	}
+
+	pageIter[w.activePage.Id] = w.activePage.NewIterator(ctx)
+
+	return &WalIterator{
+		pageIter:      pageIter,
+		currentPageId: 0,
+	}
 }
 
-var _ IWal = (*WAL)(nil)
+func (i WalIterator) Next(ctx context.Context) ([]byte, *Position, error) {
+	if int(i.currentPageId) >= len(i.pageIter) {
+		return nil, nil, io.EOF
+	}
+
+	data, pos, err := i.pageIter[i.currentPageId].Next(ctx)
+	if err == io.EOF {
+		i.currentPageId++
+		return i.Next(ctx)
+	}
+
+	return data, pos, err
+}
+
+var _ IIterator = (*WalIterator)(nil)

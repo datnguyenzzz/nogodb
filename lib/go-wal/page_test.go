@@ -17,6 +17,7 @@ func Test_writeToMemBuffer(t *testing.T) {
 		data     []byte
 		pageInfo *Page
 		// expectation
+		expectedSize   int64
 		expectedPos    *Position
 		expectedPage   *Page
 		expectedRecord []byte
@@ -31,11 +32,11 @@ func Test_writeToMemBuffer(t *testing.T) {
 				TotalBlockCount: 1,
 				LastBlockSize:   21 * 1024,
 			},
+			expectedSize: 25,
 			expectedPos: &Position{
 				PageId:      1,
 				BlockNumber: 1,
 				Offset:      21 * 1024,
-				Size:        25,
 			},
 			expectedPage: &Page{
 				Id:              1,
@@ -52,11 +53,11 @@ func Test_writeToMemBuffer(t *testing.T) {
 				TotalBlockCount: 1,
 				LastBlockSize:   32*1024 - 15,
 			},
+			expectedSize: 25,
 			expectedPos: &Position{
 				PageId:      1,
 				BlockNumber: 2,
 				Offset:      0,
-				Size:        25,
 			},
 			expectedPage: &Page{
 				Id:              1,
@@ -73,11 +74,11 @@ func Test_writeToMemBuffer(t *testing.T) {
 				TotalBlockCount: 1,
 				LastBlockSize:   15 * 1024,
 			},
+			expectedSize: 15*2 + 30*1024,
 			expectedPos: &Position{
 				PageId:      1,
 				BlockNumber: 1,
 				Offset:      15 * 1024,
-				Size:        15*2 + 30*1024,
 			},
 			expectedPage: &Page{
 				Id:              1,
@@ -94,11 +95,11 @@ func Test_writeToMemBuffer(t *testing.T) {
 				TotalBlockCount: 1,
 				LastBlockSize:   32*1024 - 15,
 			},
+			expectedSize: 15*2 + 35*1024,
 			expectedPos: &Position{
 				PageId:      1,
 				BlockNumber: 2,
 				Offset:      0,
-				Size:        15*2 + 35*1024,
 			},
 			expectedPage: &Page{
 				Id:              1,
@@ -115,11 +116,11 @@ func Test_writeToMemBuffer(t *testing.T) {
 				TotalBlockCount: 1,
 				LastBlockSize:   15 * 1024,
 			},
+			expectedSize: 15*3 + 62*1024,
 			expectedPos: &Position{
 				PageId:      1,
 				BlockNumber: 1,
 				Offset:      15 * 1024,
-				Size:        15*3 + 62*1024,
 			},
 			expectedPage: &Page{
 				Id:              1,
@@ -136,11 +137,11 @@ func Test_writeToMemBuffer(t *testing.T) {
 				TotalBlockCount: 1,
 				LastBlockSize:   32*1024 - 15,
 			},
+			expectedSize: 15*3 + 67*1024,
 			expectedPos: &Position{
 				PageId:      1,
 				BlockNumber: 2,
 				Offset:      0,
-				Size:        15*3 + 67*1024,
 			},
 			expectedPage: &Page{
 				Id:              1,
@@ -157,11 +158,11 @@ func Test_writeToMemBuffer(t *testing.T) {
 				TotalBlockCount: 1,
 				LastBlockSize:   15 * 1024,
 			},
+			expectedSize: 15*4 + 94*1024,
 			expectedPos: &Position{
 				PageId:      1,
 				BlockNumber: 1,
 				Offset:      15 * 1024,
-				Size:        15*4 + 94*1024,
 			},
 			expectedPage: &Page{
 				Id:              1,
@@ -178,11 +179,11 @@ func Test_writeToMemBuffer(t *testing.T) {
 				TotalBlockCount: 1,
 				LastBlockSize:   32*1024 - 15,
 			},
+			expectedSize: 15*4 + 99*1024,
 			expectedPos: &Position{
 				PageId:      1,
 				BlockNumber: 2,
 				Offset:      0,
-				Size:        15*4 + 99*1024,
 			},
 			expectedPage: &Page{
 				Id:              1,
@@ -206,8 +207,9 @@ func Test_writeToMemBuffer(t *testing.T) {
 			}
 			buf := make([]byte, 0, neededSpaces)
 
-			pos, err := p.writeToMemBuffer(ctx, tc.data, &buf)
+			pos, size, err := p.writeToMemBuffer(ctx, tc.data, &buf)
 			assert.Nil(t, err)
+			assert.Equal(t, tc.expectedSize, size)
 			assert.Equal(t, tc.expectedPos, pos)
 			assert.Equal(t, tc.expectedPage, p)
 

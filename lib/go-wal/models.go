@@ -62,8 +62,16 @@ type Position struct {
 	BlockNumber uint32
 	// Offset indicate the starting offset of the record in the log file.
 	Offset uint32
-	// 	Size How many bytes the record data takes up in the segment file.
-	Size uint32
+}
+
+type WalIterator struct {
+	currentPageId PageID
+	pageIter      map[PageID]*PageIterator
+}
+
+type PageIterator struct {
+	page *Page
+	pos  *Position
 }
 
 // Errors \\

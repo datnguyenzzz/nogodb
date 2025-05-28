@@ -61,8 +61,9 @@ func (p *Page) Close(ctx context.Context) error {
 	return p.F.Close()
 }
 
-// Read data from given Position. Reader always reads full record with the size of 32KB
-func (p *Page) Read(ctx context.Context, pos *Position) ([]byte, error) {
+// Read data from given Position. Reader always reads full record with the size of 32KB.
+// Return data and the next position
+func (p *Page) Read(ctx context.Context, pos *Position) ([]byte, *Position, error) {
 	rBuf := readBufferPool.Get().([]byte)
 	defer func() {
 		rBuf = rBuf[:0]
@@ -79,18 +80,23 @@ func (p *Page) Read(ctx context.Context, pos *Position) ([]byte, error) {
 	recordOffset := pos.Offset
 	totalSize := p.Size()
 
+	nextPos := &Position{
+		PageId: pos.PageId,
+		// compute offset and block later
+	}
+
 	for {
 		pageOffset := defaultBlockSize * record
 		size := min(defaultBlockSize, totalSize-int64(pageOffset))
 
 		if recordOffset > defaultBlockSize {
 			zap.L().Error("Read out of range")
-			return nil, io.ErrUnexpectedEOF
+			return nil, nil, io.ErrUnexpectedEOF
 		}
 
 		// read whole record into the allocated buffer
 		if _, err := p.F.ReadAt(rBuf[:size], int64(pageOffset)); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
 		header := make([]byte, headerSize)
@@ -104,11 +110,21 @@ func (p *Page) Read(ctx context.Context, pos *Position) ([]byte, error) {
 		savedCRC := binary.LittleEndian.Uint32(header[:4])
 		crc := crc32.ChecksumIEEE(rBuf[recordOffset+4 : end])
 		if crc != savedCRC {
-			return nil, ErrInvalidChecksum
+			return nil, nil, ErrInvalidChecksum
 		}
 
 		recType := RecordType(header[6])
 		if recType == FullType || recType == LastType {
+			nextPos.BlockNumber = record
+			nextPos.Offset = end
+
+			// If the current block doesn't have enough space, then it means
+			// the rest of bytes in the block are padded
+			if end+headerSize >= defaultBlockSize {
+				nextPos.BlockNumber++
+				nextPos.Offset = 0
+			}
+
 			break
 		}
 
@@ -117,11 +133,11 @@ func (p *Page) Read(ctx context.Context, pos *Position) ([]byte, error) {
 		record++
 	}
 
-	return res, nil
+	return res, nextPos, nil
 }
 
-// Write append an arbitrary slice of bytes to the OS buffer
-func (p *Page) Write(ctx context.Context, data []byte) (*Position, error) {
+// Write append an arbitrary slice of bytes to the OS buffer. Return position and number of bytes have been written
+func (p *Page) Write(ctx context.Context, data []byte) (*Position, int64, error) {
 	neededSpaces := estimateNeededSpaces(data)
 	if p.LastBlockSize+headerSize >= defaultBlockSize {
 		// need spaces for padded bytes
@@ -133,21 +149,21 @@ func (p *Page) Write(ctx context.Context, data []byte) (*Position, error) {
 	defer go_bytesbufferpool.Put(wBuf)
 
 	// 1. Manage to write the data onto the already allocated buffer
-	rec, err := p.writeToMemBuffer(ctx, data, &wBuf)
+	rec, size, err := p.writeToMemBuffer(ctx, data, &wBuf)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
 	// 2. Write to OS buffer, aka page cache, which will be asynchronously flush (managed by OS kernel) to the disk later
 	if _, err := p.F.Write(wBuf); err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
-	return rec, nil
+	return rec, size, nil
 }
 
 // writeToMemBuffer append an arbitrary slice of bytes to the memory buffer
-func (p *Page) writeToMemBuffer(ctx context.Context, data []byte, buf *[]byte) (*Position, error) {
+func (p *Page) writeToMemBuffer(ctx context.Context, data []byte, buf *[]byte) (*Position, int64, error) {
 	// If a data is not fit into the current block
 	if p.LastBlockSize+headerSize >= defaultBlockSize {
 		padding := defaultBlockSize - p.LastBlockSize
@@ -155,7 +171,7 @@ func (p *Page) writeToMemBuffer(ctx context.Context, data []byte, buf *[]byte) (
 			startPos := len(*buf)
 			if startPos+int(padding) > cap(*buf) {
 				zap.L().Error(fmt.Sprintf("padding overflow, buf capacity: %d", cap(*buf)))
-				return nil, io.ErrShortWrite
+				return nil, int64(0), io.ErrShortWrite
 			}
 			*buf = append(*buf, make([]byte, padding)...)
 			p.LastBlockSize = 0
@@ -167,13 +183,14 @@ func (p *Page) writeToMemBuffer(ctx context.Context, data []byte, buf *[]byte) (
 		PageId:      p.Id,
 		BlockNumber: p.TotalBlockCount,
 		Offset:      p.LastBlockSize,
-		Size:        0, // compute later
 	}
+
+	size := int64(0)
 
 	willBeOverflow := p.LastBlockSize+headerSize+uint32(len(data)) > defaultBlockSize
 	if willBeOverflow {
 		pendingWriteBytes := uint32(len(data))
-		pos.Size = pendingWriteBytes
+		size = int64(pendingWriteBytes)
 		for pendingWriteBytes > 0 {
 			// write [header + writableBytes] to buffer
 			writableBytes := min(defaultBlockSize-headerSize-p.LastBlockSize, pendingWriteBytes)
@@ -199,19 +216,19 @@ func (p *Page) writeToMemBuffer(ctx context.Context, data []byte, buf *[]byte) (
 				p.TotalBlockCount += 1
 			}
 
-			pos.Size += headerSize
+			size += headerSize
 		}
 	} else {
 		writeToBuffer(buf, data, FullType)
-		pos.Size = uint32(headerSize + len(data))
+		size = int64(headerSize + len(data))
 
-		p.LastBlockSize = (p.LastBlockSize + pos.Size) % defaultBlockSize
+		p.LastBlockSize = uint32((int64(p.LastBlockSize) + size) % defaultBlockSize)
 		if p.LastBlockSize == 0 {
 			p.TotalBlockCount += 1
 		}
 	}
 
-	return pos, nil
+	return pos, size, nil
 }
 
 func writeToBuffer(buf *[]byte, data []byte, recType RecordType) {
@@ -262,3 +279,24 @@ func openPageByPath(path string, id PageID, mode PageAccessMode) (*Page, error) 
 		LastBlockSize:   uint32(offset % defaultBlockSize),
 	}, nil
 }
+
+// Iterator \\
+
+func (p *Page) NewIterator(ctx context.Context) *PageIterator {
+	return &PageIterator{
+		page: p,
+		pos: &Position{
+			PageId:      p.Id,
+			BlockNumber: 0,
+			Offset:      0,
+		},
+	}
+}
+
+func (i *PageIterator) Next(ctx context.Context) ([]byte, *Position, error) {
+	data, nextPos, err := i.page.Read(ctx, i.pos)
+	i.pos = nextPos
+	return data, nil, err
+}
+
+var _ IIterator = (*PageIterator)(nil)

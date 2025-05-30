@@ -18,13 +18,13 @@ _Inspired by [LevelDB file format](https://github.com/google/leveldb/blob/main/d
 [data block 2]
 ...
 [data block N]
-[meta block 1: filter block]                  (see section: "filter" Meta Block)
+[meta block 1: filter block]                  
 [meta block 2: index block]
-[meta block 3: compression dictionary block]  (see section: "compression dictionary" Meta Block)
-[meta block 4: range deletion block]          (see section: "range deletion" Meta Block)
-[meta block 5: stats block]                   (see section: "properties" Meta Block)
+[meta block 3: compression dictionary block] 
+[meta block 4: range deletion block]         
+[meta block 5: stats block]                   
 ...
-[meta block K: future extended block]  (we may add more meta blocks in the future)
+[meta block K: future extended block]  
 [metaindex block]
 [Footer]                               (fixed size; starts at file_size - sizeof(Footer))
 <end_of_file>
@@ -36,7 +36,7 @@ offset: varint64-encoded
 size:   varint64-encoded
 ```
 
-#### Key Aspects (Not up-to-date)
+#### Key Aspects (*Not up-to-date yet*)
 - A `Reader` eagerly loads the footer, `meta index` block and `meta properties` block,
 because the data contained in those blocks is needed on every read, and even before reading. 
 

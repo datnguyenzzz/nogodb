@@ -1,4 +1,4 @@
-package internal
+package base
 
 // Compression is the per-block compression algorithm to use.
 type Compression int

@@ -1,4 +1,4 @@
-package internal
+package base
 
 // KeyKind enumerates the kind of key: a deletion tombstone, a set
 // value, a merged value, etc.

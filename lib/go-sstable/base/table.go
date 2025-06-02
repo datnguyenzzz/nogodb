@@ -1,4 +1,4 @@
-package go_sstable
+package base
 
 type TableFormat byte
 

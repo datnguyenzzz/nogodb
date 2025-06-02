@@ -34,6 +34,12 @@ offset: int64
 size:   int64
 ```
 
+Each block consists of some data and a 5 byte trailer: a 1 byte block type and a
+4 byte checksum. The checksum is computed over the compressed data and the first
+byte of the trailer (i.e. the block type), and is serialized as little-endian.
+The block type gives the per-block compression used; each block is compressed
+independently
+
 Footer formats. Note that much of the existing footer parsing code assumes that the version (for non-legacy formats) 
 and magic number are at the end.
 

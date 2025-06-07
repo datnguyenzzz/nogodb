@@ -72,10 +72,9 @@ func (rw *RowBlockWriter) doFlush(key base.InternalKey, dataLen int) error {
 
 func NewRowBlockWriter(writable base.Writable, opts base.WriteOpt) *RowBlockWriter {
 	// Use bloom filter as a default method
-	bloomFilter := filter.NewFilter(filter.BloomFilter)
 	return &RowBlockWriter{
 		comparer:     base.NewComparer(),
-		filterWriter: bloomFilter.NewWriter(),
+		filterWriter: filter.NewFilterWriter(filter.BloomFilter),
 	}
 }
 

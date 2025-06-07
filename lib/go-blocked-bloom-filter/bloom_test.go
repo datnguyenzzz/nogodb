@@ -1,4 +1,4 @@
-package filter
+package go_blocked_bloom_filter
 
 import (
 	"encoding/binary"
@@ -23,7 +23,7 @@ func nextN(n int) int {
 }
 
 func TestBloomFilter_Small(t *testing.T) {
-	bf := newBloomFilter()
+	bf := NewBloomFilter()
 	writer := bf.NewWriter()
 	writer.Add([]byte("hello"))
 	writer.Add([]byte("world"))
@@ -38,7 +38,7 @@ func TestBloomFilter_Small(t *testing.T) {
 func TestBloomFilter_VaryingLengths(t *testing.T) {
 	var mediocre, good int
 	for n := 1; n < 100_000; n = nextN(n) {
-		bf := newBloomFilter()
+		bf := NewBloomFilter()
 		writer := bf.NewWriter()
 		for i := 0; i < n; i++ {
 			var b [4]byte

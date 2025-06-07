@@ -1,5 +1,7 @@
 package filter
 
+import "github.com/datnguyenzzz/nogodb/lib/go-blocked-bloom-filter"
+
 type Method byte
 
 const (
@@ -8,10 +10,7 @@ const (
 	RibbonFilter
 )
 
-// IFilter the methods that implement IFilter are usually static: they have a build phase and a probe phase.
-// Once probing begins, new insertions are not valid.
-type IFilter interface {
-	NewWriter() IWriter
+type IRead interface {
 	Name() string
 	// MayContain returns whether the encoded filter may contain given key.
 	// False positives are possible, where it returns true for keys not in the
@@ -26,10 +25,20 @@ type IWriter interface {
 	Build(pb *[]byte)
 }
 
-func NewFilter(method Method) IFilter {
+func NewFilterWriter(method Method) IWriter {
 	switch method {
 	case BloomFilter:
-		return newBloomFilter()
+		bf := go_blocked_bloom_filter.NewBloomFilter()
+		return bf.NewWriter()
+	default:
+		panic("unsupported / unknown filtering method")
+	}
+}
+
+func NewFilterReader(method Method) IRead {
+	switch method {
+	case BloomFilter:
+		return go_blocked_bloom_filter.NewBloomFilter()
 	default:
 		panic("unsupported / unknown filtering method")
 	}

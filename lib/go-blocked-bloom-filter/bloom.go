@@ -1,4 +1,4 @@
-package filter
+package go_blocked_bloom_filter
 
 import (
 	"encoding/binary"
@@ -157,10 +157,10 @@ func (bf *bloomFilter) MayContain(filter, key []byte) bool {
 }
 
 func (bf *bloomFilter) Name() string {
-	return "nogodb.BloomFilter"
+	return "nogodb.go_blocked_bloom_filter.BloomFilter"
 }
 
-func newBloomFilter() IFilter {
+func NewBloomFilter() IFilter {
 	return &bloomFilter{}
 }
 

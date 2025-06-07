@@ -53,6 +53,7 @@ func (rw *RowBlockWriter) add(key base.InternalKey, value []byte) error {
 	}
 
 	// TODO Write key/value to the buffer
+	panic("implement me")
 }
 
 // validateKey ensure the key is added in the asc order.

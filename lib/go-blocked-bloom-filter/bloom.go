@@ -2,26 +2,16 @@ package go_blocked_bloom_filter
 
 import (
 	"encoding/binary"
-	"sync"
 )
 
 const (
 	// TODO Make this configurable from 1->20
 	defaultBitsPerKeys = 10
-	hashBlockLen       = 0x4000
 	cacheLineBytesSize = 64
 	cacheLineBitsSize  = 8 * cacheLineBytesSize
 )
 
-type blockHash [hashBlockLen]uint32
-
-var blockHashBuffer = sync.Pool{
-	New: func() interface{} {
-		return &blockHash{}
-	},
-}
-
-// bloomFilter is an implementation of the blocked Bloom Filter
+// bloomFilter is an implementation of the blocked Bloom Filter with the bit patterns
 // https://save-buffer.github.io/bloom_filter.html
 type bloomFilter struct{}
 type bloomFilterWriter struct {
@@ -34,34 +24,23 @@ type bloomFilterWriter struct {
 	// Therefore, there are diminishing returns on eps past around bitsPerKeys = 10 (we chose 10 as defaultBitsPerKeys)
 	bitsPerKeys int
 
-	blocks   []*blockHash
-	numKeys  int
-	lastHash uint32
+	hashes  []uint32
+	numKeys int
 }
 
 // Writer \\
 
 func (bw *bloomFilterWriter) Add(key []byte) {
 	h := bloomHash(key)
-	if bw.numKeys > 0 && bw.lastHash == h {
-		return
-	}
-
-	pos := bw.numKeys % hashBlockLen
-	if pos == 0 {
-		// alloc a new block
-		bw.blocks = append(bw.blocks, blockHashBuffer.Get().(*blockHash))
-	}
-
-	bw.blocks[len(bw.blocks)-1][pos] = h
-	bw.lastHash = h
+	bw.hashes = append(bw.hashes, h)
 	bw.numKeys++
 }
 
 func (bw *bloomFilterWriter) Build(b *[]byte) {
 	var nLines int
 	var nProbes byte
-	// 1. calculate number of cache lines to fit all the added keys (round up)
+	// 1. calculate number of cache lines to fit all the added keys (round up).
+	// Each line holds maximum of 64 bytes (512 bits)
 	nLines = (bw.numKeys*bw.bitsPerKeys + cacheLineBitsSize - 1) / cacheLineBitsSize
 	// Make nLines an odd number to make sure more bits are involved when
 	// determining which block.
@@ -82,7 +61,7 @@ func (bw *bloomFilterWriter) Build(b *[]byte) {
 		clear(freeSpaces)
 	} else {
 		// grow (exponentially) the given buffer to have enough needed spaces
-		neededSize := 1024
+		neededSize := 64
 		for neededSize < wantSize {
 			neededSize += neededSize / 4
 		}
@@ -93,33 +72,24 @@ func (bw *bloomFilterWriter) Build(b *[]byte) {
 		copy(*b, tmp)
 	}
 
-	// 3. build the filters from the blocks
+	// 3. build the filters
 	nProbes = calculateProbes(bw.bitsPerKeys)
-	for idx, block := range bw.blocks {
-		nHashes := hashBlockLen
-		if idx == len(bw.blocks)-1 && bw.numKeys%hashBlockLen != 0 {
-			nHashes = bw.numKeys % hashBlockLen
-		}
-
-		for _, h := range block[:nHashes] {
-			delta := h>>17 | h<<15
-			startPos := (h % uint32(nLines)) * cacheLineBitsSize
-			for p := byte(0); p < nProbes; p++ {
-				bitPos := startPos + (h % cacheLineBitsSize)
-				freeSpaces[bitPos/8] |= 1 << (bitPos % 8)
-				h += delta
-			}
+	for _, h := range bw.hashes {
+		delta := h>>17 | h<<15
+		// 3.1 Each key maps to one block (line)
+		block := (h % uint32(nLines)) * cacheLineBitsSize
+		// 3.2 Generate the bit pattern that have exactly `nProbes` bits are 1
+		for p := byte(0); p < nProbes; p++ {
+			bitPos := block + (h % cacheLineBitsSize)
+			freeSpaces[bitPos/8] |= 1 << (bitPos % 8)
+			h += delta
 		}
 	}
 	freeSpaces[nBytes] = nProbes
 	binary.LittleEndian.PutUint32(freeSpaces[nBytes+1:], uint32(nLines))
 
-	// 4. Release the hashblock pool
-	for i, block := range bw.blocks {
-		blockHashBuffer.Put(block)
-		bw.blocks[i] = nil
-	}
-	bw.blocks = bw.blocks[:0]
+	// 4. Release
+	bw.hashes = bw.hashes[:0]
 	bw.numKeys = 0
 }
 
@@ -128,7 +98,7 @@ func (bw *bloomFilterWriter) Build(b *[]byte) {
 func (bf *bloomFilter) NewWriter() IWriter {
 	return &bloomFilterWriter{
 		bitsPerKeys: defaultBitsPerKeys,
-		blocks:      []*blockHash{},
+		hashes:      []uint32{},
 	}
 }
 
@@ -142,12 +112,14 @@ func (bf *bloomFilter) MayContain(filter, key []byte) bool {
 	nLines := binary.LittleEndian.Uint32(filter[n+1:])
 	cacheLineBits := 8 * (uint32(n) / nLines)
 
+	// Check if block contains pattern bits
 	h := bloomHash(key)
 	delta := h>>17 | h<<15
-	b := (h % nLines) * cacheLineBits
-
-	for j := uint8(0); j < nProbes; j++ {
-		bitPos := b + (h % cacheLineBits)
+	// 1. Get a block of the given key
+	block := (h % nLines) * cacheLineBits
+	// 2. The key is considered to be membership, if a block contains all the bits pattern of the key
+	for j := byte(0); j < nProbes; j++ {
+		bitPos := block + (h % cacheLineBits)
 		if filter[bitPos/8]&(1<<(bitPos%8)) == 0 {
 			return false
 		}

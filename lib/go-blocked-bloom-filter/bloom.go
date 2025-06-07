@@ -39,6 +39,12 @@ func (bw *bloomFilterWriter) Add(key []byte) {
 func (bw *bloomFilterWriter) Build(b *[]byte) {
 	var nBlocks int
 	var nProbes byte
+	// Layout
+	// Bytes form: |  b1, b2, ,,,, bn |  b1, b2, ,,,, bn | ,,,,
+	//             | block 1 64 bytes | block 1 64 bytes | ....
+	// Bits form:  |    000...0000    |    000...0000    | ....
+	//             | block 1 512 bits | block 2 512 bits | ....
+	//
 	// 1. calculate number of cache lines to fit all the added keys (round up).
 	// Each block holds maximum of 64 bytes (1 CPU cache line)
 	nBlocks = (bw.numKeys*bw.bitsPerKeys + blockBitsSize - 1) / blockBitsSize
@@ -77,12 +83,12 @@ func (bw *bloomFilterWriter) Build(b *[]byte) {
 	for _, h := range bw.hashes {
 		delta := h>>17 | h<<15
 		// 3.1 Each key maps to one block (line)
-		block := (h % uint32(nBlocks)) * blockBitsSize
+		b := (h % uint32(nBlocks)) * blockBitsSize
 		// 3.2 Generate the bit pattern that have exactly `nProbes` bits are 1
 		for p := byte(0); p < nProbes; p++ {
-			bitPos := block + (h % blockBitsSize)
-			byteIdx := bitPos / 8
-			freeSpaces[byteIdx] |= 1 << (bitPos % 8)
+			bitPos := b + (h % blockBitsSize)
+			byteIdx, bitIdx := bitPos/8, bitPos%8
+			freeSpaces[byteIdx] |= 1 << bitIdx
 			h += delta
 		}
 	}
@@ -117,10 +123,11 @@ func (bf *bloomFilter) MayContain(filter, key []byte) bool {
 	h := bloomHash(key)
 	delta := h>>17 | h<<15
 	// 1. Get a block of the given key
-	block := (h % nBlocks) * cacheLineBits
+	b := (h % nBlocks) * cacheLineBits
 	// 2. The key is considered to be membership, if a block contains all the bits pattern of the key
+	// Can refer to the Build() function for the detail how the pit pattern is generated
 	for j := byte(0); j < nProbes; j++ {
-		bitPos := block + (h % cacheLineBits)
+		bitPos := b + (h % cacheLineBits)
 		byteIdx := bitPos / 8
 		if filter[byteIdx]&(1<<(bitPos%8)) == 0 {
 			return false
@@ -162,18 +169,6 @@ func bloomHash(b []byte) uint32 {
 		h ^= h >> 16
 	}
 
-	// The code below first casts each byte to a signed 8-bit integer. This is
-	// necessary to match RocksDB's behavior. Note that the `byte` type in Go is
-	// unsigned. What is the difference between casting a signed 8-bit value vs
-	// unsigned 8-bit value into an unsigned 32-bit value?
-	// Sign-extension. Consider the value 250 which has the bit pattern 11111010:
-	//
-	//   uint32(250)        = 00000000000000000000000011111010
-	//   uint32(int8(250))  = 11111111111111111111111111111010
-	//
-	// Note that the original LevelDB code did not explicitly cast to a signed
-	// 8-bit value which left the behavior dependent on whether C characters were
-	// signed or unsigned which is a compiler flag for gcc (-funsigned-char).
 	switch len(b) {
 	case 3:
 		h += uint32(int8(b[2])) << 16

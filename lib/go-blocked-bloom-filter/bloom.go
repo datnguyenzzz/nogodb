@@ -7,8 +7,8 @@ import (
 const (
 	// TODO Make this configurable from 1->20
 	defaultBitsPerKeys = 10
-	cacheLineBytesSize = 64
-	cacheLineBitsSize  = 8 * cacheLineBytesSize
+	blockBytesSize     = 64                 // Fit 1 CPU cache line
+	blockBitsSize      = 8 * blockBytesSize // Fit 1 CPU cache line
 )
 
 // bloomFilter is an implementation of the blocked Bloom Filter with the bit patterns
@@ -37,17 +37,17 @@ func (bw *bloomFilterWriter) Add(key []byte) {
 }
 
 func (bw *bloomFilterWriter) Build(b *[]byte) {
-	var nLines int
+	var nBlocks int
 	var nProbes byte
 	// 1. calculate number of cache lines to fit all the added keys (round up).
-	// Each line holds maximum of 64 bytes (512 bits)
-	nLines = (bw.numKeys*bw.bitsPerKeys + cacheLineBitsSize - 1) / cacheLineBitsSize
-	// Make nLines an odd number to make sure more bits are involved when
+	// Each block holds maximum of 64 bytes (1 CPU cache line)
+	nBlocks = (bw.numKeys*bw.bitsPerKeys + blockBitsSize - 1) / blockBitsSize
+	// Make nBlocks an odd number to make sure more bits are involved when
 	// determining which block.
-	if nLines%2 == 0 {
-		nLines++
+	if nBlocks%2 == 0 {
+		nBlocks++
 	}
-	nBytes := nLines * cacheLineBytesSize
+	nBytes := nBlocks * blockBytesSize
 
 	// freeSpaces points to the starting index of the "b" buffer that are free to write
 	var freeSpaces []byte
@@ -77,16 +77,17 @@ func (bw *bloomFilterWriter) Build(b *[]byte) {
 	for _, h := range bw.hashes {
 		delta := h>>17 | h<<15
 		// 3.1 Each key maps to one block (line)
-		block := (h % uint32(nLines)) * cacheLineBitsSize
+		block := (h % uint32(nBlocks)) * blockBitsSize
 		// 3.2 Generate the bit pattern that have exactly `nProbes` bits are 1
 		for p := byte(0); p < nProbes; p++ {
-			bitPos := block + (h % cacheLineBitsSize)
-			freeSpaces[bitPos/8] |= 1 << (bitPos % 8)
+			bitPos := block + (h % blockBitsSize)
+			byteIdx := bitPos / 8
+			freeSpaces[byteIdx] |= 1 << (bitPos % 8)
 			h += delta
 		}
 	}
 	freeSpaces[nBytes] = nProbes
-	binary.LittleEndian.PutUint32(freeSpaces[nBytes+1:], uint32(nLines))
+	binary.LittleEndian.PutUint32(freeSpaces[nBytes+1:], uint32(nBlocks))
 
 	// 4. Release
 	bw.hashes = bw.hashes[:0]
@@ -109,18 +110,19 @@ func (bf *bloomFilter) MayContain(filter, key []byte) bool {
 	}
 	n := len(filter) - 5
 	nProbes := filter[n]
-	nLines := binary.LittleEndian.Uint32(filter[n+1:])
-	cacheLineBits := 8 * (uint32(n) / nLines)
+	nBlocks := binary.LittleEndian.Uint32(filter[n+1:])
+	cacheLineBits := 8 * (uint32(n) / nBlocks)
 
 	// Check if block contains pattern bits
 	h := bloomHash(key)
 	delta := h>>17 | h<<15
 	// 1. Get a block of the given key
-	block := (h % nLines) * cacheLineBits
+	block := (h % nBlocks) * cacheLineBits
 	// 2. The key is considered to be membership, if a block contains all the bits pattern of the key
 	for j := byte(0); j < nProbes; j++ {
 		bitPos := block + (h % cacheLineBits)
-		if filter[bitPos/8]&(1<<(bitPos%8)) == 0 {
+		byteIdx := bitPos / 8
+		if filter[byteIdx]&(1<<(bitPos%8)) == 0 {
 			return false
 		}
 		h += delta

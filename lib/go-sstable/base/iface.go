@@ -27,7 +27,7 @@ type RawWriter interface {
 	// Error returns the current accumulated error if any.
 	Error() error
 	// Add adds a key-value pair to the sstable.
-	Add(key Key, value []byte) error
+	Add(key InternalKey, value []byte) error
 	// Close finishes writing the table and closes the underlying file that the table was written to.
 	Close() error
 

@@ -1,6 +1,6 @@
 package go_sstable
 
-// IWriter represent writer to the SSTable
+// IWriter represent an interface of writer for downstream client to the SSTable
 type IWriter interface {
 	// Write appends key/value pair to the table. It is safe to modify the contents of the arguments after Append returns.
 	Write(key, value []byte) error

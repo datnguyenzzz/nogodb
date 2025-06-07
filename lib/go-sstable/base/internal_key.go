@@ -15,29 +15,32 @@ const (
 // key of a lower sequence number.
 type SeqNum uint64
 
-// Key or internal key. Due to the LSM structure, keys are never updated in place, but overwritten with new
-// versions. An Internal Key is composed of the user specified key, a sequence number (7 bytes) and a kind (1 byte).
+// InternalKeyTrailer encodes a [SeqNum (7) + InternalKeyKind (1)].
+type InternalKeyTrailer uint64
+
+// InternalKey or internal key. Due to the LSM structure, keys are never updated in place, but overwritten with new
+// versions. An Internal InternalKey is composed of the user specified key, a sequence number (7 bytes) and a kind (1 byte).
 //
 //	+-------------+------------+----------+
 //	| UserKey (N) | SeqNum (7) | Kind (1) |
 //	+-------------+------------+----------+
-type Key struct {
+type InternalKey struct {
 	UserKey []byte
-	Trailer uint64
+	Trailer InternalKeyTrailer
 }
 
-func MakeKey(userKey []byte, num SeqNum, kind KeyKind) Key {
-	trailer := (uint64(num) << 8) | uint64(kind)
-	return Key{
+func MakeKey(userKey []byte, num SeqNum, kind KeyKind) InternalKey {
+	trailer := InternalKeyTrailer((uint64(num) << 8) | uint64(kind))
+	return InternalKey{
 		UserKey: userKey,
 		Trailer: trailer,
 	}
 }
 
-func (k *Key) SeqNum() SeqNum {
+func (k *InternalKey) SeqNum() SeqNum {
 	return SeqNum(k.Trailer >> 8)
 }
 
-func (k *Key) KeyKind() KeyKind {
+func (k *InternalKey) KeyKind() KeyKind {
 	return KeyKind(k.Trailer & 0xFF) // trailer & (2^8 - 1)
 }

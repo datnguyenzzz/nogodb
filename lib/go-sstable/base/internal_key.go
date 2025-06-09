@@ -1,11 +1,14 @@
 package base
 
+import "encoding/binary"
+
 // KeyKind enumerates the kind of key: a deletion tombstone, a set
 // value, a merged value, etc.
 type KeyKind byte
 
 const (
-	KeyKindDelete KeyKind = iota
+	KeyKindUnknown KeyKind = iota
+	KeyKindDelete
 	KeyKindSet
 	KeyKindMerge
 )
@@ -18,6 +21,8 @@ type SeqNum uint64
 // InternalKeyTrailer encodes a [SeqNum (7) + InternalKeyKind (1)].
 type InternalKeyTrailer uint64
 
+const InternalKeyTrailerLen = 8
+
 // InternalKey or internal key. Due to the LSM structure, keys are never updated in place, but overwritten with new
 // versions. An Internal InternalKey is composed of the user specified key, a sequence number (7 bytes) and a kind (1 byte).
 //
@@ -27,6 +32,20 @@ type InternalKeyTrailer uint64
 type InternalKey struct {
 	UserKey []byte
 	Trailer InternalKeyTrailer
+}
+
+func DeserializeKey(key []byte) *InternalKey {
+	n := len(key) - InternalKeyTrailerLen
+	if n >= 0 {
+		return &InternalKey{
+			UserKey: key[:n:n],
+			Trailer: InternalKeyTrailer(binary.LittleEndian.Uint64(key[n:])),
+		}
+	}
+	
+	return &InternalKey{
+		Trailer: InternalKeyTrailer(KeyKindUnknown),
+	}
 }
 
 func MakeKey(userKey []byte, num SeqNum, kind KeyKind) InternalKey {

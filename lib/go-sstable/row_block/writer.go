@@ -9,9 +9,7 @@ import (
 
 // RowBlockWriter is an implementation of base.RawWriter, which writes SSTables with row-oriented blocks
 type RowBlockWriter struct {
-	// lastKey information of the most recent previous added key
-	lastKey base.InternalKey
-
+	dataBlock    *dataBlock
 	comparer     base.IComparer
 	filterWriter filter.IWriter
 }
@@ -21,7 +19,7 @@ func (rw *RowBlockWriter) Error() error {
 	panic("implement me")
 }
 
-func (rw *RowBlockWriter) Add(key base.InternalKey, value []byte) error {
+func (rw *RowBlockWriter) Set(key base.InternalKey, value []byte) error {
 	switch key.KeyKind() {
 	case base.KeyKindDelete:
 		return rw.addTombstone(key, value)
@@ -58,8 +56,12 @@ func (rw *RowBlockWriter) add(key base.InternalKey, value []byte) error {
 
 // validateKey ensure the key is added in the asc order.
 func (rw *RowBlockWriter) validateKey(key base.InternalKey) error {
-	cmp := rw.comparer.Compare(key.UserKey, rw.lastKey.UserKey)
-	if cmp < 0 || (cmp == 0 && rw.lastKey.Trailer <= key.Trailer) {
+	if rw.dataBlock.EntryCount() == 0 {
+		return nil
+	}
+	lastKey := *rw.dataBlock.CurKey()
+	cmp := rw.comparer.Compare(key.UserKey, lastKey.UserKey)
+	if cmp < 0 || (cmp == 0 && lastKey.Trailer <= key.Trailer) {
 		return fmt.Errorf("%w: keys must be added in strictly increasing order", base.ClientInvalidRequestError)
 	}
 
@@ -74,6 +76,7 @@ func (rw *RowBlockWriter) doFlush(key base.InternalKey, dataLen int) error {
 func NewRowBlockWriter(writable base.Writable, opts base.WriteOpt) *RowBlockWriter {
 	// Use bloom filter as a default method
 	return &RowBlockWriter{
+		dataBlock:    newDataBlock(),
 		comparer:     base.NewComparer(),
 		filterWriter: filter.NewFilterWriter(filter.BloomFilter),
 	}

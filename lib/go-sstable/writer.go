@@ -10,7 +10,7 @@ type Writer struct {
 	rw   base.RawWriter
 }
 
-func (w *Writer) Write(key, value []byte) error {
+func (w *Writer) Set(key, value []byte) error {
 	//TODO implement me
 	panic("implement me")
 }

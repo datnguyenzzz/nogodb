@@ -2,8 +2,8 @@ package go_sstable
 
 // IWriter represent an interface of writer for downstream client to the SSTable
 type IWriter interface {
-	// Write appends key/value pair to the table. It is safe to modify the contents of the arguments after Append returns.
-	Write(key, value []byte) error
+	// Set appends key/value pair to the table. It is safe to modify the contents of the arguments after Append returns.
+	Set(key, value []byte) error
 	// Close will finalize the table. Calling Append is not possible after Close
 	Close() error
 }

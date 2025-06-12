@@ -9,7 +9,7 @@ import (
 
 // RowBlockWriter is an implementation of base.RawWriter, which writes SSTables with row-oriented blocks
 type RowBlockWriter struct {
-	dataBlock    *dataBlock
+	dataBlock    *dataBlockBuf
 	comparer     base.IComparer
 	filterWriter filter.IWriter
 }
@@ -50,7 +50,10 @@ func (rw *RowBlockWriter) add(key base.InternalKey, value []byte) error {
 		rw.filterWriter.Add(key.UserKey)
 	}
 
-	// TODO Write key/value to the buffer
+	if err := rw.dataBlock.WriteToBuf(key, value); err != nil {
+		return err
+	}
+
 	panic("implement me")
 }
 
@@ -76,7 +79,7 @@ func (rw *RowBlockWriter) doFlush(key base.InternalKey, dataLen int) error {
 func NewRowBlockWriter(writable base.Writable, opts base.WriteOpt) *RowBlockWriter {
 	// Use bloom filter as a default method
 	return &RowBlockWriter{
-		dataBlock:    newDataBlock(),
+		dataBlock:    newDataBlock(opts.BlockRestartInterval),
 		comparer:     base.NewComparer(),
 		filterWriter: filter.NewFilterWriter(filter.BloomFilter),
 	}

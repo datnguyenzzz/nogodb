@@ -69,7 +69,7 @@ then that key would be encoded as `{0, "duck"}` instead of `{1, "uck"}`.
 Illustration:
 
 ```
-  + restart point              + restart point (depends on restart interval)
+  + restart point                  + restart point (depends on restart interval)
  /                                /
 +---------------+---------------+---------------+---------------+---------+
 | block entry 1 | block entry 2 |      ...      | block entry n | trailer |

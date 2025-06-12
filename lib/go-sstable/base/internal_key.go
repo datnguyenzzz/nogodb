@@ -34,6 +34,16 @@ type InternalKey struct {
 	Trailer InternalKeyTrailer
 }
 
+func (k *InternalKey) Size() int {
+	return len(k.UserKey) + InternalKeyTrailerLen
+}
+
+// SerializeTo serialise an internal key into give buffer. Caller must ensure buf has enough size to hold
+func (k *InternalKey) SerializeTo(buf []byte) {
+	i := copy(buf, k.UserKey)
+	binary.LittleEndian.PutUint64(buf[i:], uint64(k.Trailer))
+}
+
 func DeserializeKey(key []byte) *InternalKey {
 	n := len(key) - InternalKeyTrailerLen
 	if n >= 0 {
@@ -42,7 +52,7 @@ func DeserializeKey(key []byte) *InternalKey {
 			Trailer: InternalKeyTrailer(binary.LittleEndian.Uint64(key[n:])),
 		}
 	}
-	
+
 	return &InternalKey{
 		Trailer: InternalKeyTrailer(KeyKindUnknown),
 	}

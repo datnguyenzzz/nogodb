@@ -4,7 +4,7 @@ import (
 	"encoding/binary"
 
 	go_bytesbufferpool "github.com/datnguyenzzz/nogodb/lib/go-bytesbufferpool"
-	"github.com/datnguyenzzz/nogodb/lib/go-sstable/base"
+	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
 )
 
 const (
@@ -39,12 +39,12 @@ func (d *dataBlockBuf) EntryCount() int {
 	return d.nEntries
 }
 
-func (d *dataBlockBuf) CurKey() *base.InternalKey {
-	return base.DeserializeKey(d.curKey)
+func (d *dataBlockBuf) CurKey() *common.InternalKey {
+	return common.DeserializeKey(d.curKey)
 }
 
 // WriteToBuf write the key-value into the buffer block
-func (d *dataBlockBuf) WriteToBuf(key base.InternalKey, value []byte) error {
+func (d *dataBlockBuf) WriteToBuf(key common.InternalKey, value []byte) error {
 	d.prevKey = d.curKey
 
 	size := key.Size()
@@ -53,11 +53,18 @@ func (d *dataBlockBuf) WriteToBuf(key base.InternalKey, value []byte) error {
 	}
 	d.curKey = d.curKey[:size]
 	key.SerializeTo(d.curKey)
-	return d.writeToBuf(key, value)
+	return d.writeToBuf(value)
 }
 
-// Generate finalizes the data block, and returns the serialized data.
-func (d *dataBlockBuf) Generate() []byte {
+func (d *dataBlockBuf) CleanUpForReuse() {
+	d.nEntries = 0
+	d.nextRestartEntry = 0
+	d.restartOffset = d.restartOffset[:0]
+	d.buf = d.buf[:0]
+}
+
+// Finish finalizes the data block, and returns the serialized data.
+func (d *dataBlockBuf) Finish() []byte {
 	// write the trailer
 	//+-- 4-bytes --+
 	///               \
@@ -83,18 +90,13 @@ func (d *dataBlockBuf) Generate() []byte {
 
 	res := d.buf
 
-	// Clean up the state
-	d.nEntries = 0
-	d.nextRestartEntry = 0
-	d.restartOffset = d.restartOffset[:0]
-	d.buf = d.buf[:0]
-
+	d.CleanUpForReuse()
 	return res
 }
 
-func (d *dataBlockBuf) writeToBuf(key base.InternalKey, value []byte) error {
+func (d *dataBlockBuf) writeToBuf(value []byte) error {
 	if len(d.buf) > maximumRestartOffset {
-		return base.ClientInvalidRequestError
+		return common.ClientInvalidRequestError
 	}
 
 	// 1. Compute shared or restart point
@@ -156,6 +158,48 @@ func (d *dataBlockBuf) writeToBuf(key base.InternalKey, value []byte) error {
 
 	d.buf = d.buf[:n]
 	return nil
+}
+
+// ShouldFlush returns true if we should flush the current data block, because
+// adding a new K/V would breach the configured threshold
+func (d *dataBlockBuf) ShouldFlush(
+	pendingKeyLen int,
+	pendingValueLen int,
+	decider common.IFlushDecider,
+) bool {
+	// We shouldn't flush if the block doesn't have any data at all
+	if d.EntryCount() == 0 {
+		return false
+	}
+	estCurrentSize := d.EstimateSize()
+	estNewSize := estCurrentSize + pendingValueLen + pendingKeyLen
+	if d.EntryCount()%d.restartInterval == 0 {
+		estNewSize += 4
+	}
+	estNewSize += 4                                   // assume 0 as a shared varint
+	estNewSize += uvarintLen(uint32(pendingKeyLen))   // assume all pendingKeyLen is non-shared
+	estNewSize += uvarintLen(uint32(pendingValueLen)) // for value len
+
+	return decider.ShouldFlush(estCurrentSize, estNewSize)
+}
+
+func (d *dataBlockBuf) EstimateSize() int {
+	// buffer + 4 bytes for each entry offset + reserved 4-byte space for the restarts len
+	return len(d.buf) + 4*len(d.restartOffset) + 4
+}
+
+func uvarintLen(v uint32) int {
+	i := 0
+	for v >= 0x80 {
+		v >>= 7
+		i++
+	}
+	return i + 1
+}
+
+func closeDataBlock(d *dataBlockBuf) {
+	go_bytesbufferpool.Put(d.buf)
+	*d = dataBlockBuf{}
 }
 
 func newDataBlock(restartInterval int) *dataBlockBuf {

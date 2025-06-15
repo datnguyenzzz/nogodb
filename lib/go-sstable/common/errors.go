@@ -1,4 +1,4 @@
-package base
+package common
 
 import "errors"
 
@@ -14,4 +14,8 @@ var ClientInvalidRequestError = CustomError{
 var ClientContentTooLargeError = CustomError{
 	error: errors.New("client is too large"),
 	code:  413,
+}
+var InternalServerError = CustomError{
+	error: errors.New("internal server error"),
+	code:  500,
 }

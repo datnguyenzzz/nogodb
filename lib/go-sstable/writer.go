@@ -1,18 +1,32 @@
 package go_sstable
 
 import (
-	"github.com/datnguyenzzz/nogodb/lib/go-sstable/base"
+	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
+	"github.com/datnguyenzzz/nogodb/lib/go-sstable/options"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/row_block"
 )
 
 type Writer struct {
-	opts *base.WriteOpt
-	rw   base.RawWriter
+	datablockOpts *options.BlockWriteOpt
+	rw            common.RawWriter
+}
+
+func (w *Writer) DeleteRange(start, end []byte) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (w *Writer) Merge(key, value []byte) error {
+	//TODO implement me
+	panic("implement me")
 }
 
 func (w *Writer) Set(key, value []byte) error {
-	//TODO implement me
-	panic("implement me")
+	return w.rw.Add(common.MakeKey(key, 0, common.KeyKindSet), value)
+}
+
+func (w *Writer) Delete(key []byte) error {
+	return w.rw.Add(common.MakeKey(key, 0, common.KeyKindDelete), nil)
 }
 
 func (w *Writer) Close() error {
@@ -20,9 +34,9 @@ func (w *Writer) Close() error {
 	panic("implement me")
 }
 
-func NewWriter(writable base.Writable, opts ...WriteOptFn) *Writer {
+func NewWriter(writable common.Writable, opts ...WriteOptFn) *Writer {
 	w := &Writer{
-		opts: DefaultWriteOpt,
+		datablockOpts: DefaultWriteOpt,
 	}
 
 	for _, o := range opts {
@@ -30,11 +44,11 @@ func NewWriter(writable base.Writable, opts ...WriteOptFn) *Writer {
 	}
 
 	// Only support row-based format for now
-	if w.opts.TableFormat != base.RowBlockedBaseTableFormat {
+	if w.datablockOpts.TableFormat != common.RowBlockedBaseTableFormat {
 		panic("invalid table format")
 	}
 
-	w.rw = row_block.NewRowBlockWriter(writable, *w.opts)
+	w.rw = row_block.NewRowBlockWriter(writable, *w.datablockOpts)
 
 	return w
 }

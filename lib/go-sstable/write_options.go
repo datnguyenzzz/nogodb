@@ -1,43 +1,47 @@
 package go_sstable
 
-import "github.com/datnguyenzzz/nogodb/lib/go-sstable/base"
+import (
+	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
+	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common/compression"
+	"github.com/datnguyenzzz/nogodb/lib/go-sstable/options"
+)
 
 type WriteOptFn func(w *Writer)
 
-var DefaultWriteOpt = &base.WriteOpt{
+var DefaultWriteOpt = &options.BlockWriteOpt{
 	BlockRestartInterval: 16,
 	BlockSize:            4 * 1024,
 	BlockSizeThreshold:   0.9,
-	Compression:          base.SnappyCompression,
-	TableFormat:          base.RowBlockedBaseTableFormat,
+	Compression:          compression.SnappyCompression,
+	TableFormat:          common.RowBlockedBaseTableFormat,
 }
 
 func WithBlockRestartInterval(interval int) WriteOptFn {
 	return func(w *Writer) {
-		w.opts.BlockRestartInterval = interval
+		w.datablockOpts.BlockRestartInterval = interval
 	}
 }
 
 func WithBlockSize(blockSize int) WriteOptFn {
 	return func(w *Writer) {
-		w.opts.BlockSize = blockSize
+		w.datablockOpts.BlockSize = blockSize
 	}
 }
 
 func WithBlockSizeThreshold(blockSizeThreshold float32) WriteOptFn {
 	return func(w *Writer) {
-		w.opts.BlockSizeThreshold = blockSizeThreshold
+		w.datablockOpts.BlockSizeThreshold = blockSizeThreshold
 	}
 }
 
-func WithCompression(compression base.Compression) WriteOptFn {
+func WithCompression(compression compression.CompressionType) WriteOptFn {
 	return func(w *Writer) {
-		w.opts.Compression = compression
+		w.datablockOpts.Compression = compression
 	}
 }
 
-func WithTableFormat(tableFormat base.TableFormat) WriteOptFn {
+func WithTableFormat(tableFormat common.TableFormat) WriteOptFn {
 	return func(w *Writer) {
-		w.opts.TableFormat = tableFormat
+		w.datablockOpts.TableFormat = tableFormat
 	}
 }

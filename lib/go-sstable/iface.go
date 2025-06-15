@@ -4,6 +4,13 @@ package go_sstable
 type IWriter interface {
 	// Set appends key/value pair to the table. It is safe to modify the contents of the arguments after Append returns.
 	Set(key, value []byte) error
+	// Delete a key within a table
+	Delete(key []byte) error
+	// DeleteRange deletes all of the keys (and values) in the range [start,end)
+	// (inclusive on start, exclusive on end).
+	DeleteRange(start, end []byte) error
+	// Merge adds an action to the DB that merges the value at key with the new value.
+	Merge(key, value []byte) error
 	// Close will finalize the table. Calling Append is not possible after Close
 	Close() error
 }

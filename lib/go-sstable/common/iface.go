@@ -1,4 +1,4 @@
-package base
+package common
 
 // SSTables are either opened for reading or created for writing but not both.
 
@@ -26,8 +26,8 @@ type Writable interface {
 type RawWriter interface {
 	// Error returns the current accumulated error if any.
 	Error() error
-	// Set adds a key-value pair to the sstable.
-	Set(key InternalKey, value []byte) error
+	// Add adds a key-value pair to the sstable.
+	Add(key InternalKey, value []byte) error
 	// Close finishes writing the table and closes the underlying file that the table was written to.
 	Close() error
 

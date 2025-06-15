@@ -3,15 +3,21 @@ package row_block
 import (
 	"fmt"
 
-	"github.com/datnguyenzzz/nogodb/lib/go-sstable/base"
+	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
+	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common/compression"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/filter"
+	"github.com/datnguyenzzz/nogodb/lib/go-sstable/options"
 )
 
-// RowBlockWriter is an implementation of base.RawWriter, which writes SSTables with row-oriented blocks
+type compressorPerBlock map[common.BlockKind]compression.ICompression
+
+// RowBlockWriter is an implementation of common.RawWriter, which writes SSTables with row-oriented blocks
 type RowBlockWriter struct {
-	dataBlock    *dataBlockBuf
-	comparer     base.IComparer
-	filterWriter filter.IWriter
+	dataBlock             *dataBlockBuf
+	dataBlockFlushDecider common.IFlushDecider
+	comparer              common.IComparer
+	filterWriter          filter.IWriter
+	compressors           compressorPerBlock
 }
 
 func (rw *RowBlockWriter) Error() error {
@@ -19,13 +25,8 @@ func (rw *RowBlockWriter) Error() error {
 	panic("implement me")
 }
 
-func (rw *RowBlockWriter) Set(key base.InternalKey, value []byte) error {
-	switch key.KeyKind() {
-	case base.KeyKindDelete:
-		return rw.addTombstone(key, value)
-	default:
-		return rw.add(key, value)
-	}
+func (rw *RowBlockWriter) Add(key common.InternalKey, value []byte) error {
+	return rw.add(key, value)
 }
 
 func (rw *RowBlockWriter) Close() error {
@@ -33,11 +34,7 @@ func (rw *RowBlockWriter) Close() error {
 	panic("implement me")
 }
 
-func (rw *RowBlockWriter) addTombstone(key base.InternalKey, value []byte) error {
-	panic("implement me")
-}
-
-func (rw *RowBlockWriter) add(key base.InternalKey, value []byte) error {
+func (rw *RowBlockWriter) add(key common.InternalKey, value []byte) error {
 	if err := rw.validateKey(key); err != nil {
 		return err
 	}
@@ -54,35 +51,55 @@ func (rw *RowBlockWriter) add(key base.InternalKey, value []byte) error {
 		return err
 	}
 
-	panic("implement me")
+	return nil
 }
 
 // validateKey ensure the key is added in the asc order.
-func (rw *RowBlockWriter) validateKey(key base.InternalKey) error {
+func (rw *RowBlockWriter) validateKey(key common.InternalKey) error {
 	if rw.dataBlock.EntryCount() == 0 {
 		return nil
 	}
 	lastKey := *rw.dataBlock.CurKey()
 	cmp := rw.comparer.Compare(key.UserKey, lastKey.UserKey)
 	if cmp < 0 || (cmp == 0 && lastKey.Trailer <= key.Trailer) {
-		return fmt.Errorf("%w: keys must be added in strictly increasing order", base.ClientInvalidRequestError)
+		return fmt.Errorf("%w: keys must be added in strictly increasing order", common.ClientInvalidRequestError)
 	}
 
 	return nil
 }
 
 // doFlush validate if required or not, if yes then flush the data to the stable storage
-func (rw *RowBlockWriter) doFlush(key base.InternalKey, dataLen int) error {
-	panic("implement me")
+func (rw *RowBlockWriter) doFlush(key common.InternalKey, dataLen int) error {
+	// Skip if the data block is not ready to flush
+	if !rw.dataBlock.ShouldFlush(key.Size(), dataLen, rw.dataBlockFlushDecider) {
+		return nil
+	}
+
+	uncompressed := rw.dataBlock.Finish()
+	compressor := rw.compressors[common.BlockKindData]
+	compressed := compressor.Compress(nil, uncompressed)
+
+	// TODO Checksum the compressed with its method
+	panic("finish implementing me")
 }
 
-func NewRowBlockWriter(writable base.Writable, opts base.WriteOpt) *RowBlockWriter {
-	// Use bloom filter as a default method
+func NewRowBlockWriter(writable common.Writable, opts options.BlockWriteOpt) *RowBlockWriter {
+	c := compressorPerBlock{}
+	for blockKind, _ := range common.BlockKindStrings {
+		if _, ok := opts.Compression[blockKind]; !ok {
+			c[blockKind] = compression.NewCompressor(opts.DefaultCompression)
+			continue
+		}
+
+		c[blockKind] = compression.NewCompressor(opts.Compression[blockKind])
+	}
 	return &RowBlockWriter{
-		dataBlock:    newDataBlock(opts.BlockRestartInterval),
-		comparer:     base.NewComparer(),
-		filterWriter: filter.NewFilterWriter(filter.BloomFilter),
+		dataBlock:             newDataBlock(opts.BlockRestartInterval),
+		comparer:              common.NewComparer(),
+		filterWriter:          filter.NewFilterWriter(filter.BloomFilter), // Use bloom filter as a default method
+		dataBlockFlushDecider: common.NewFlushDecider(opts.BlockSize, opts.BlockSizeThreshold),
+		compressors:           c,
 	}
 }
 
-var _ base.RawWriter = (*RowBlockWriter)(nil)
+var _ common.RawWriter = (*RowBlockWriter)(nil)

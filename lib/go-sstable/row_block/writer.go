@@ -18,6 +18,7 @@ type RowBlockWriter struct {
 	comparer              common.IComparer
 	filterWriter          filter.IWriter
 	compressors           compressorPerBlock
+	checksumer            common.IChecksum
 }
 
 func (rw *RowBlockWriter) Error() error {
@@ -75,11 +76,15 @@ func (rw *RowBlockWriter) doFlush(key common.InternalKey, dataLen int) error {
 		return nil
 	}
 
+	// Compute the physical format of the data block
+	physical := &common.PhysicalBlock{}
 	uncompressed := rw.dataBlock.Finish()
 	compressor := rw.compressors[common.BlockKindData]
 	compressed := compressor.Compress(nil, uncompressed)
+	checksum := rw.checksumer.Checksum(compressed, byte(compressor.GetType()))
+	physical.SetData(compressed)
+	physical.SetTrailer(byte(compressor.GetType()), checksum)
 
-	// TODO Checksum the compressed with its method
 	panic("finish implementing me")
 }
 
@@ -99,6 +104,7 @@ func NewRowBlockWriter(writable common.Writable, opts options.BlockWriteOpt) *Ro
 		filterWriter:          filter.NewFilterWriter(filter.BloomFilter), // Use bloom filter as a default method
 		dataBlockFlushDecider: common.NewFlushDecider(opts.BlockSize, opts.BlockSizeThreshold),
 		compressors:           c,
+		checksumer:            common.NewChecksumer(common.CRC32Checksum), // Use crc32 as a default checksum method
 	}
 }
 

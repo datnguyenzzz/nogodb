@@ -40,6 +40,16 @@ byte of the trailer (i.e. the block type), and is serialized as little-endian.
 The block type gives the per-block compression used; each block is compressed
 independently
 
+Illustration of a block trailer:
+```
++---------------------------+-------------------+
+| compression type (1-byte) | checksum (4-byte) |
++---------------------------+-------------------+
+
+The checksum is a CRC-32 computed using Castagnoli's polynomial. Compression 
+type also included in the checksum.
+```
+
 Footer formats. Note that much of the existing footer parsing code assumes that the version (for non-legacy formats) 
 and magic number are at the end.
 
@@ -54,7 +64,7 @@ table_magic_number (8 bytes)
 
 #### b. Data Block Format 
 
-Block is consist of one or more key/value entries and a block trailer. Block entry shares key prefix with its preceding 
+A Data Block is consist of one or more key/value entries and a block trailer. Block entry shares key prefix with its preceding 
 key until a restart point reached. A block should contains at least one restart point. First restart point are always zero.
 
 For example, if two adjacent keys are `"deck"` and `"dock"`, then the second key would be encoded as 
@@ -66,7 +76,7 @@ Every block has a restart interval I. Every I'th key/value entry in that block i
 Continuing the example above, if the key after `"dock"` was `"duck"`, but was part of a restart point, 
 then that key would be encoded as `{0, "duck"}` instead of `{1, "uck"}`.
 
-Illustration:
+Illustration of a typical data block:
 
 ```
   + restart point                  + restart point (depends on restart interval)
@@ -114,3 +124,14 @@ The block trailer will contains two restart points:
 | restart point 1 |       ....      | restart point n | restart points len (4-bytes) |
 +-----------------+-----------------+-----------------+------------------------------+
 ```
+
+#### c. Index block 
+
+An index block is a block with N key/value entries, and they share the similar format
+with the data block. The `i'th` value is the encoded block handle of the `i'th` data block.
+The `i'th` key is a string `>=` last key in that data block and `<` the first key in the 
+successive data block. The index block restart interval is `1`: every entry is a restart point.
+
+By default, we use a two-level index. It consists of a sequence of lower-level 
+index blocks with block handles for data blocks followed by a single top-level 
+index block with block handles for the lower-level index blocks.

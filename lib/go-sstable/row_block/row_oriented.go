@@ -16,11 +16,11 @@ const (
 	maximumRestartOffset = 1<<31 - 1
 )
 
-// A dataBlockBuf holds the buffer and all the state required to compress and write a data block to disk.
+// A rowBlockBuf holds the buffer and all the state required to compress and write a data block to disk.
 //
 // When the RowBlockWriter client adds keys to the SStable, it writes directly into a buffer until the block is full.
-// Once a dataBlockBuf's block is full, the dataBlockBuf will be passed to other goroutines for compression and file I/O.
-type dataBlockBuf struct {
+// Once a rowBlockBuf's block is full, the rowBlockBuf will be passed to other goroutines for compression and file I/O.
+type rowBlockBuf struct {
 	nEntries int
 	// curKey represents the serialised value of the current internal key
 	curKey []byte
@@ -35,16 +35,16 @@ type dataBlockBuf struct {
 	buf []byte
 }
 
-func (d *dataBlockBuf) EntryCount() int {
+func (d *rowBlockBuf) EntryCount() int {
 	return d.nEntries
 }
 
-func (d *dataBlockBuf) CurKey() *common.InternalKey {
+func (d *rowBlockBuf) CurKey() *common.InternalKey {
 	return common.DeserializeKey(d.curKey)
 }
 
 // WriteToBuf write the key-value into the buffer block
-func (d *dataBlockBuf) WriteToBuf(key common.InternalKey, value []byte) error {
+func (d *rowBlockBuf) WriteToBuf(key common.InternalKey, value []byte) error {
 	d.prevKey = d.curKey
 
 	size := key.Size()
@@ -56,15 +56,15 @@ func (d *dataBlockBuf) WriteToBuf(key common.InternalKey, value []byte) error {
 	return d.writeToBuf(value)
 }
 
-func (d *dataBlockBuf) CleanUpForReuse() {
+func (d *rowBlockBuf) CleanUpForReuse() {
 	d.nEntries = 0
 	d.nextRestartEntry = 0
 	d.restartOffset = d.restartOffset[:0]
 	d.buf = d.buf[:0]
 }
 
-// Finish finalizes the data block, and returns the serialized data.
-func (d *dataBlockBuf) Finish() []byte {
+// Finish finalizes the row block, and returns the serialized data.
+func (d *rowBlockBuf) Finish() []byte {
 	// write the trailer
 	//+-- 4-bytes --+
 	///               \
@@ -94,7 +94,7 @@ func (d *dataBlockBuf) Finish() []byte {
 	return res
 }
 
-func (d *dataBlockBuf) writeToBuf(value []byte) error {
+func (d *rowBlockBuf) writeToBuf(value []byte) error {
 	if len(d.buf) > maximumRestartOffset {
 		return common.ClientInvalidRequestError
 	}
@@ -160,9 +160,9 @@ func (d *dataBlockBuf) writeToBuf(value []byte) error {
 	return nil
 }
 
-// ShouldFlush returns true if we should flush the current data block, because
+// ShouldFlush returns true if we should flush the current row block, because
 // adding a new K/V would breach the configured threshold
-func (d *dataBlockBuf) ShouldFlush(
+func (d *rowBlockBuf) ShouldFlush(
 	pendingKeyLen int,
 	pendingValueLen int,
 	decider common.IFlushDecider,
@@ -183,7 +183,7 @@ func (d *dataBlockBuf) ShouldFlush(
 	return decider.ShouldFlush(estCurrentSize, estNewSize)
 }
 
-func (d *dataBlockBuf) EstimateSize() int {
+func (d *rowBlockBuf) EstimateSize() int {
 	// buffer + 4 bytes for each entry offset + reserved 4-byte space for the restarts len
 	return len(d.buf) + 4*len(d.restartOffset) + 4
 }
@@ -197,13 +197,13 @@ func uvarintLen(v uint32) int {
 	return i + 1
 }
 
-func closeDataBlock(d *dataBlockBuf) {
+func closeRowBlock(d *rowBlockBuf) {
 	go_bytesbufferpool.Put(d.buf)
-	*d = dataBlockBuf{}
+	*d = rowBlockBuf{}
 }
 
-func newDataBlock(restartInterval int) *dataBlockBuf {
-	d := &dataBlockBuf{
+func newDataBlock(restartInterval int) *rowBlockBuf {
+	d := &rowBlockBuf{
 		buf: go_bytesbufferpool.Get(maximumRestartOffset),
 	}
 	d.restartInterval = restartInterval

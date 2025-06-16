@@ -11,9 +11,18 @@ import (
 
 type compressorPerBlock map[common.BlockKind]compression.ICompression
 
+type dataBlockBuf struct {
+	rowBlockBuf
+}
+
+type indexBlockBuf struct {
+	rowBlockBuf
+}
+
 // RowBlockWriter is an implementation of common.RawWriter, which writes SSTables with row-oriented blocks
 type RowBlockWriter struct {
 	dataBlock             *dataBlockBuf
+	indexBlock            *indexBlockBuf
 	dataBlockFlushDecider common.IFlushDecider
 	comparer              common.IComparer
 	filterWriter          filter.IWriter
@@ -85,6 +94,9 @@ func (rw *RowBlockWriter) doFlush(key common.InternalKey, dataLen int) error {
 	physical.SetData(compressed)
 	physical.SetTrailer(byte(compressor.GetType()), checksum)
 
+	// TODO Should flush the index block ? --> Build a new index block / add index key
+	//  To learn: Index block format, What is index block ?
+
 	panic("finish implementing me")
 }
 
@@ -99,7 +111,13 @@ func NewRowBlockWriter(writable common.Writable, opts options.BlockWriteOpt) *Ro
 		c[blockKind] = compression.NewCompressor(opts.Compression[blockKind])
 	}
 	return &RowBlockWriter{
-		dataBlock:             newDataBlock(opts.BlockRestartInterval),
+		dataBlock: &dataBlockBuf{
+			rowBlockBuf: *newDataBlock(opts.BlockRestartInterval),
+		},
+		indexBlock: &indexBlockBuf{
+			// The index block restart interval is 1: every entry is a restart point.
+			rowBlockBuf: *newDataBlock(1),
+		},
 		comparer:              common.NewComparer(),
 		filterWriter:          filter.NewFilterWriter(filter.BloomFilter), // Use bloom filter as a default method
 		dataBlockFlushDecider: common.NewFlushDecider(opts.BlockSize, opts.BlockSizeThreshold),

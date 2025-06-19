@@ -6,7 +6,7 @@ import (
 )
 
 const (
-	maximumPoolCnt = 18
+	maximumPoolCnt = 24
 )
 
 // pools contains pools for slices of byte of various capacities.
@@ -17,7 +17,7 @@ const (
 //	...
 //	pools[n] is for capacities from 2^(n+7)+1 to 2^(n+8)
 //
-// Limit the maximum capacity to 2^18, since there are no performance benefits
+// Limit the maximum capacity to 2^24, since there are no performance benefits
 // in caching byte slices with bigger capacities.
 var pools [maximumPoolCnt]sync.Pool
 

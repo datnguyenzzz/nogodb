@@ -7,27 +7,24 @@ import (
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common/compression"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/filter"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/options"
+	"github.com/datnguyenzzz/nogodb/lib/go-sstable/queue"
+	"github.com/datnguyenzzz/nogodb/lib/go-sstable/storage"
 )
 
 type compressorPerBlock map[common.BlockKind]compression.ICompression
 
-type dataBlockBuf struct {
-	rowBlockBuf
-}
-
-type indexBlockBuf struct {
-	rowBlockBuf
-}
-
 // RowBlockWriter is an implementation of common.RawWriter, which writes SSTables with row-oriented blocks
 type RowBlockWriter struct {
-	dataBlock             *dataBlockBuf
-	indexBlock            *indexBlockBuf
+	opts                  options.BlockWriteOpt
+	storageWriter         storage.IWriter
+	dataBlock             *rowBlockBuf
+	indexBlock            *rowBlockBuf
 	dataBlockFlushDecider common.IFlushDecider
 	comparer              common.IComparer
 	filterWriter          filter.IWriter
 	compressors           compressorPerBlock
 	checksumer            common.IChecksum
+	taskQueue             queue.IQueue
 }
 
 func (rw *RowBlockWriter) Error() error {
@@ -78,29 +75,42 @@ func (rw *RowBlockWriter) validateKey(key common.InternalKey) error {
 	return nil
 }
 
-// doFlush validate if required or not, if yes then flush the data to the stable storage
+// doFlush validate if required or not, if yes then flush (and compression) the data to the stable storage
 func (rw *RowBlockWriter) doFlush(key common.InternalKey, dataLen int) error {
 	// Skip if the data block is not ready to flush
 	if !rw.dataBlock.ShouldFlush(key.Size(), dataLen, rw.dataBlockFlushDecider) {
 		return nil
 	}
 
-	// Compute the physical format of the data block
-	physical := &common.PhysicalBlock{}
-	uncompressed := rw.dataBlock.Finish()
+	// 1. Finish the data block
+	rw.dataBlock.Finish()
+
+	// 2. Get the task from the pool and compute the physical format
+	// of the data block to prepare the needed input for the task
+	task := spawnNewTask()
+	task.storageWriter = rw.storageWriter
+	task.physical = &common.PhysicalBlock{}
 	compressor := rw.compressors[common.BlockKindData]
-	compressed := compressor.Compress(nil, uncompressed)
+	compressed := compressor.Compress(nil, rw.dataBlock.uncompressed)
 	checksum := rw.checksumer.Checksum(compressed, byte(compressor.GetType()))
-	physical.SetData(compressed)
-	physical.SetTrailer(byte(compressor.GetType()), checksum)
+	task.physical.SetData(compressed)
+	task.physical.SetTrailer(byte(compressor.GetType()), checksum)
 
-	// TODO Should flush the index block ? --> Build a new index block / add index key
-	//  To learn: Index block format, What is index block ?
+	// 3. Release the dataBlock buffer for re-using
+	rw.dataBlock.Release()
+	rw.dataBlock = nil
 
-	panic("finish implementing me")
+	// 4. Put the task into queue that is running on another go-routine
+	// for execution
+	rw.taskQueue.Put(task)
+
+	// 5. After flushing to the disk, Create a blank new data block for
+	// the next subsequences writes
+	rw.dataBlock = newDataBlock(rw.opts.BlockRestartInterval)
+	return nil
 }
 
-func NewRowBlockWriter(writable common.Writable, opts options.BlockWriteOpt) *RowBlockWriter {
+func NewRowBlockWriter(writable storage.Writable, opts options.BlockWriteOpt) *RowBlockWriter {
 	c := compressorPerBlock{}
 	for blockKind, _ := range common.BlockKindStrings {
 		if _, ok := opts.Compression[blockKind]; !ok {
@@ -111,18 +121,18 @@ func NewRowBlockWriter(writable common.Writable, opts options.BlockWriteOpt) *Ro
 		c[blockKind] = compression.NewCompressor(opts.Compression[blockKind])
 	}
 	return &RowBlockWriter{
-		dataBlock: &dataBlockBuf{
-			rowBlockBuf: *newDataBlock(opts.BlockRestartInterval),
-		},
-		indexBlock: &indexBlockBuf{
-			// The index block restart interval is 1: every entry is a restart point.
-			rowBlockBuf: *newDataBlock(1),
-		},
+		opts:          opts,
+		storageWriter: storage.NewWriter(writable),
+		dataBlock:     newDataBlock(opts.BlockRestartInterval),
+		// The index block also use the row oriented layout.
+		// And its restart interval is 1, aka every entry is a restart point.
+		indexBlock:            newDataBlock(1),
 		comparer:              common.NewComparer(),
 		filterWriter:          filter.NewFilterWriter(filter.BloomFilter), // Use bloom filter as a default method
 		dataBlockFlushDecider: common.NewFlushDecider(opts.BlockSize, opts.BlockSizeThreshold),
 		compressors:           c,
 		checksumer:            common.NewChecksumer(common.CRC32Checksum), // Use crc32 as a default checksum method
+		taskQueue:             queue.NewQueue(0, false),
 	}
 }
 

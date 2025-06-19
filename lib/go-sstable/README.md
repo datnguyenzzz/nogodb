@@ -6,7 +6,7 @@ from based on their specific use cases.
 
 ## Table Formats 
 
-### 1. BlockedBasedTable Format 
+### 1. Row Oriented BlockedBasedTable Format 
 
 _Inspired by [LevelDB file format](https://github.com/google/leveldb/blob/main/doc/table_format.md)_
 
@@ -40,7 +40,7 @@ byte of the trailer (i.e. the block type), and is serialized as little-endian.
 The block type gives the per-block compression used; each block is compressed
 independently
 
-Illustration of a block trailer:
+Illustration of a physical block trailer:
 ```
 +---------------------------+-------------------+
 | compression type (1-byte) | checksum (4-byte) |

@@ -16,7 +16,7 @@ const (
 	maximumRestartOffset = 1<<31 - 1
 )
 
-// A rowBlockBuf holds the buffer and all the state required to compress and write a data block to disk.
+// A rowBlockBuf holds the buffer and all the state required to compress and write a block to disk.
 //
 // When the RowBlockWriter client adds keys to the SStable, it writes directly into a buffer until the block is full.
 // Once a rowBlockBuf's block is full, the rowBlockBuf will be passed to other goroutines for compression and file I/O.
@@ -32,7 +32,8 @@ type rowBlockBuf struct {
 	nextRestartEntry int
 	restartOffset    []uint32
 
-	buf []byte
+	buf          []byte
+	uncompressed []byte
 }
 
 func (d *rowBlockBuf) EntryCount() int {
@@ -64,7 +65,7 @@ func (d *rowBlockBuf) CleanUpForReuse() {
 }
 
 // Finish finalizes the row block, and returns the serialized data.
-func (d *rowBlockBuf) Finish() []byte {
+func (d *rowBlockBuf) Finish() {
 	// write the trailer
 	//+-- 4-bytes --+
 	///               \
@@ -91,7 +92,7 @@ func (d *rowBlockBuf) Finish() []byte {
 	res := d.buf
 
 	d.CleanUpForReuse()
-	return res
+	d.uncompressed = res
 }
 
 func (d *rowBlockBuf) writeToBuf(value []byte) error {
@@ -197,14 +198,15 @@ func uvarintLen(v uint32) int {
 	return i + 1
 }
 
-func closeRowBlock(d *rowBlockBuf) {
+func (d *rowBlockBuf) Release() {
 	go_bytesbufferpool.Put(d.buf)
-	*d = rowBlockBuf{}
+	go_bytesbufferpool.Put(d.uncompressed)
 }
 
 func newDataBlock(restartInterval int) *rowBlockBuf {
 	d := &rowBlockBuf{
-		buf: go_bytesbufferpool.Get(maximumRestartOffset),
+		buf:          go_bytesbufferpool.Get(maximumRestartOffset),
+		uncompressed: go_bytesbufferpool.Get(maximumRestartOffset),
 	}
 	d.restartInterval = restartInterval
 	return d

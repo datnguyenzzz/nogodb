@@ -24,3 +24,11 @@ func (p *PhysicalBlock) SetTrailer(auxiliary byte, checksum uint32) {
 
 	p.trailer = trailer
 }
+
+// BlockHandle is the file offset and length of a block.
+type BlockHandle struct {
+	// Offset identifies the offset of the block within the file.
+	Offset uint64
+	// Length is the length of the block data (excludes the trailer).
+	Length uint64
+}

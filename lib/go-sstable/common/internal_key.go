@@ -11,12 +11,18 @@ const (
 	KeyKindDelete
 	KeyKindSet
 	KeyKindMerge
+	KeyKindSeparator
 )
 
 // SeqNum is a sequence number defining precedence among identical keys. A key
 // with a higher sequence number takes precedence over a key with an equal user
 // key of a lower sequence number.
 type SeqNum uint64
+
+const (
+	// SeqNumMax is the largest valid sequence number.
+	SeqNumMax SeqNum = 1<<56 - 1
+)
 
 // InternalKeyTrailer encodes a [SeqNum (7) + InternalKeyKind (1)].
 type InternalKeyTrailer uint64
@@ -42,6 +48,24 @@ func (k *InternalKey) Size() int {
 func (k *InternalKey) SerializeTo(buf []byte) {
 	i := copy(buf, k.UserKey)
 	binary.LittleEndian.PutUint64(buf[i:], uint64(k.Trailer))
+}
+
+func (k *InternalKey) Separator(comparer IComparer, other *InternalKey) *InternalKey {
+	sep := comparer.Separator(nil, k.UserKey, other.UserKey)
+	if len(sep) <= len(k.UserKey) && comparer.Compare(k.UserKey, sep) < 0 {
+		nk := MakeKey(sep, SeqNumMax, KeyKindSeparator)
+		return &nk
+	}
+	return k
+}
+
+func (k *InternalKey) Successor(comparer IComparer) *InternalKey {
+	succ := comparer.Successor(nil, k.UserKey)
+	if len(succ) <= len(k.UserKey) && comparer.Compare(k.UserKey, succ) < 0 {
+		nk := MakeKey(succ, SeqNumMax, KeyKindSeparator)
+		return &nk
+	}
+	return k
 }
 
 func DeserializeKey(key []byte) *InternalKey {

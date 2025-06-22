@@ -44,8 +44,8 @@ func (d *rowBlockBuf) CurKey() *common.InternalKey {
 	return common.DeserializeKey(d.curKey)
 }
 
-// WriteToBuf write the key-value into the buffer block
-func (d *rowBlockBuf) WriteToBuf(key common.InternalKey, value []byte) error {
+// WriteEntry write the key-value into the buffer block
+func (d *rowBlockBuf) WriteEntry(key common.InternalKey, value []byte) error {
 	d.prevKey = d.curKey
 
 	size := key.Size()

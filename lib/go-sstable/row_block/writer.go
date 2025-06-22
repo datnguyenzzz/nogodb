@@ -18,7 +18,7 @@ type RowBlockWriter struct {
 	opts                  options.BlockWriteOpt
 	storageWriter         storage.IWriter
 	dataBlock             *rowBlockBuf
-	indexBlock            *rowBlockBuf
+	indexWriter           *indexWriter
 	dataBlockFlushDecider common.IFlushDecider
 	comparer              common.IComparer
 	filterWriter          filter.IWriter
@@ -54,7 +54,7 @@ func (rw *RowBlockWriter) add(key common.InternalKey, value []byte) error {
 		rw.filterWriter.Add(key.UserKey)
 	}
 
-	if err := rw.dataBlock.WriteToBuf(key, value); err != nil {
+	if err := rw.dataBlock.WriteEntry(key, value); err != nil {
 		return err
 	}
 
@@ -95,6 +95,10 @@ func (rw *RowBlockWriter) doFlush(key common.InternalKey, dataLen int) error {
 	checksum := rw.checksumer.Checksum(compressed, byte(compressor.GetType()))
 	task.physical.SetData(compressed)
 	task.physical.SetTrailer(byte(compressor.GetType()), checksum)
+	// inputs for index writer
+	prevKey := rw.dataBlock.CurKey()
+	task.indexKey = rw.indexWriter.createKey(prevKey, &key)
+	task.indexWriter = rw.indexWriter
 
 	// 3. Release the dataBlock buffer for re-using
 	rw.dataBlock.Release()
@@ -120,14 +124,13 @@ func NewRowBlockWriter(writable storage.Writable, opts options.BlockWriteOpt) *R
 
 		c[blockKind] = compression.NewCompressor(opts.Compression[blockKind])
 	}
+	comparer := common.NewComparer()
 	return &RowBlockWriter{
-		opts:          opts,
-		storageWriter: storage.NewWriter(writable),
-		dataBlock:     newDataBlock(opts.BlockRestartInterval),
-		// The index block also use the row oriented layout.
-		// And its restart interval is 1, aka every entry is a restart point.
-		indexBlock:            newDataBlock(1),
-		comparer:              common.NewComparer(),
+		opts:                  opts,
+		storageWriter:         storage.NewWriter(writable),
+		dataBlock:             newDataBlock(opts.BlockRestartInterval),
+		indexWriter:           newIndexWriter(comparer),
+		comparer:              comparer,
 		filterWriter:          filter.NewFilterWriter(filter.BloomFilter), // Use bloom filter as a default method
 		dataBlockFlushDecider: common.NewFlushDecider(opts.BlockSize, opts.BlockSizeThreshold),
 		compressors:           c,

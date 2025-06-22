@@ -11,6 +11,8 @@ import (
 type task struct {
 	physical      *common.PhysicalBlock
 	storageWriter storage.IWriter
+	indexKey      *common.InternalKey
+	indexWriter   *indexWriter
 }
 
 var taskPool = sync.Pool{
@@ -26,6 +28,8 @@ func (t *task) Execute() error {
 		return err
 	}
 	//2. write new index block (includes compute index KV, flush, ....)
+	err = t.indexWriter.add(t.indexKey, &bh)
+	return err
 }
 
 func (t *task) Release() {

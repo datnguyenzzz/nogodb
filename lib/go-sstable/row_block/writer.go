@@ -3,6 +3,7 @@ package row_block
 import (
 	"fmt"
 
+	go_bytesbufferpool "github.com/datnguyenzzz/nogodb/lib/go-bytesbufferpool"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common/compression"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/filter"
@@ -82,8 +83,9 @@ func (rw *RowBlockWriter) mightFlush(key common.InternalKey, dataLen int) error 
 		return nil
 	}
 
-	// 1. Finish the data block
-	rw.dataBlock.Finish()
+	// 1. Finish the data block, write the serialised data into the buffer
+	uncompressed := go_bytesbufferpool.Get(rw.dataBlock.EstimateSize())
+	rw.dataBlock.Finish(uncompressed)
 
 	// 2. Get the task from the pool and compute the physical format
 	// of the data block to prepare the needed input for the task
@@ -91,7 +93,7 @@ func (rw *RowBlockWriter) mightFlush(key common.InternalKey, dataLen int) error 
 	task.storageWriter = rw.storageWriter
 	task.physical = &common.PhysicalBlock{}
 	compressor := rw.compressors[common.BlockKindData]
-	compressed := compressor.Compress(nil, rw.dataBlock.uncompressed)
+	compressed := compressor.Compress(nil, uncompressed)
 	checksum := rw.checksumer.Checksum(compressed, byte(compressor.GetType()))
 	task.physical.SetData(compressed)
 	task.physical.SetTrailer(byte(compressor.GetType()), checksum)
@@ -100,17 +102,12 @@ func (rw *RowBlockWriter) mightFlush(key common.InternalKey, dataLen int) error 
 	task.indexKey = rw.indexWriter.createKey(prevKey, &key)
 	task.indexWriter = rw.indexWriter
 
-	// 3. Release the dataBlock buffer for re-using
-	rw.dataBlock.Release()
-	rw.dataBlock = nil
-
-	// 4. Put the task into queue that is running on another go-routine
+	// 3. Put the task into queue that is running on another go-routine
 	// for execution
 	rw.taskQueue.Put(task)
 
-	// 5. After flushing to the disk, Create a blank new data block for
-	// the next subsequences writes
-	rw.dataBlock = newBlock(rw.opts.BlockRestartInterval)
+	// 4. Put the uncompressed buffer back to the bytes buffer pool
+	go_bytesbufferpool.Put(uncompressed)
 	return nil
 }
 

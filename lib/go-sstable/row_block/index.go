@@ -3,6 +3,7 @@ package row_block
 import (
 	"encoding/binary"
 
+	go_bytesbufferpool "github.com/datnguyenzzz/nogodb/lib/go-bytesbufferpool"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
 )
 
@@ -70,15 +71,11 @@ func (w *indexWriter) mightFlush(key *common.InternalKey) error {
 	idx := &topLevelIndex{
 		entries: w.indexBlock.EntryCount(),
 	}
-	w.indexBlock.Finish()
-	idx.finishedBlock = w.indexBlock.uncompressed
+	uncompressed := go_bytesbufferpool.Get(w.indexBlock.EstimateSize())
+	w.indexBlock.Finish(uncompressed)
+	idx.finishedBlock = uncompressed
 	w.topLevelIndices = append(w.topLevelIndices, idx)
-
-	// Release the block buffer for re-using
-	w.indexBlock.Release()
-	w.indexBlock = nil
-	w.indexBlock = newBlock(1)
-
+	go_bytesbufferpool.Put(uncompressed)
 	return nil
 }
 

@@ -25,15 +25,15 @@ type rowBlockBuf struct {
 	// curKey represents the serialised value of the current internal key
 	curKey []byte
 	// prevKey represents the serialised value of the previous internal key
-	prevKey []byte
+	prevKey   []byte
+	currValue []byte
 
 	restartInterval int
 	// Note: The first restart always at 0
 	nextRestartEntry int
 	restartOffset    []uint32
 
-	buf          []byte
-	uncompressed []byte
+	buf []byte
 }
 
 func (d *rowBlockBuf) EntryCount() int {
@@ -46,7 +46,8 @@ func (d *rowBlockBuf) CurKey() *common.InternalKey {
 
 // WriteEntry write the key-value into the buffer block
 func (d *rowBlockBuf) WriteEntry(key common.InternalKey, value []byte) error {
-	d.prevKey = d.curKey
+	d.prevKey = make([]byte, len(d.curKey))
+	copy(d.prevKey, d.curKey)
 
 	size := key.Size()
 	if cap(d.curKey) < size {
@@ -54,18 +55,27 @@ func (d *rowBlockBuf) WriteEntry(key common.InternalKey, value []byte) error {
 	}
 	d.curKey = d.curKey[:size]
 	key.SerializeTo(d.curKey)
-	return d.writeToBuf(value)
+	err := d.writeToBuf(value)
+	if err == nil {
+		d.nEntries += 1
+	}
+	return err
 }
 
 func (d *rowBlockBuf) CleanUpForReuse() {
 	d.nEntries = 0
 	d.nextRestartEntry = 0
 	d.restartOffset = d.restartOffset[:0]
+	d.curKey = d.curKey[:0]
+	d.prevKey = d.prevKey[:0]
+	d.currValue = d.currValue[:0]
 	d.buf = d.buf[:0]
 }
 
-// Finish finalizes the row block, and returns the serialized data.
-func (d *rowBlockBuf) Finish() {
+// Finish finalizes the row block, then write serialized data into the given buffer
+// Caller need to ensure the buf has enough spaces to hold the data
+// by using EstimateSize() function
+func (d *rowBlockBuf) Finish(buf []byte) {
 	// write the trailer
 	//+-- 4-bytes --+
 	///               \
@@ -89,10 +99,9 @@ func (d *rowBlockBuf) Finish() {
 	binary.LittleEndian.PutUint32(tmp[:], uint32(len(d.restartOffset)))
 	d.buf = append(d.buf, tmp[:]...)
 
-	res := d.buf
+	copy(buf, d.buf)
 
 	d.CleanUpForReuse()
-	d.uncompressed = res
 }
 
 func (d *rowBlockBuf) writeToBuf(value []byte) error {
@@ -106,20 +115,20 @@ func (d *rowBlockBuf) writeToBuf(value []byte) error {
 		d.nextRestartEntry = d.nEntries + d.restartInterval
 		d.restartOffset = append(d.restartOffset, uint32(len(d.buf)))
 	} else {
-		// Iterate 8 bytes at once
-		comparePrefix := func(idx int) bool {
-			curKeyPref := binary.LittleEndian.Uint64(d.curKey[shared:])
-			prevKeyPref := binary.LittleEndian.Uint64(d.prevKey[shared:])
+		compare8Byte := func(idx int) bool {
+			curKeyPref := binary.LittleEndian.Uint64(d.curKey[idx:])
+			prevKeyPref := binary.LittleEndian.Uint64(d.prevKey[idx:])
 			return curKeyPref == prevKeyPref
 		}
 		for ; shared < min(len(d.curKey), len(d.prevKey)); shared += 8 {
-			if !comparePrefix(shared) {
+			// Iterate 8 bytes at once
+			if !compare8Byte(shared) {
 				break
 			}
 		}
 
 		for ; shared < min(len(d.curKey), len(d.prevKey)); shared++ {
-			if !comparePrefix(shared) {
+			if d.curKey[shared] != d.prevKey[shared] {
 				break
 			}
 		}
@@ -138,7 +147,7 @@ func (d *rowBlockBuf) writeToBuf(value []byte) error {
 			newCap = 1024 // minimum of 1KB
 		}
 		for newCap < n+needed {
-			newCap <<= 1
+			newCap *= 2
 		}
 		tmp := make([]byte, n, newCap)
 		copy(tmp, d.buf)
@@ -147,17 +156,18 @@ func (d *rowBlockBuf) writeToBuf(value []byte) error {
 
 	d.buf = d.buf[:n+needed]
 	// shared key len
-	n = binary.PutUvarint(d.buf[n:], uint64(shared))
+	n += binary.PutUvarint(d.buf[n:], uint64(shared))
 	// non shared key len
-	n = binary.PutUvarint(d.buf[n:], uint64(len(d.curKey)-shared))
+	n += binary.PutUvarint(d.buf[n:], uint64(len(d.curKey)-shared))
 	// value len
-	n = binary.PutUvarint(d.buf[n:], uint64(len(value)))
+	n += binary.PutUvarint(d.buf[n:], uint64(len(value)))
 	// key without the shared prefix
 	n += copy(d.buf[n:], d.curKey[shared:])
 	// value
 	n += copy(d.buf[n:], value)
 
 	d.buf = d.buf[:n]
+	d.currValue = d.buf[n-len(value) : n]
 	return nil
 }
 
@@ -200,13 +210,11 @@ func uvarintLen(v uint32) int {
 
 func (d *rowBlockBuf) Release() {
 	go_bytesbufferpool.Put(d.buf)
-	go_bytesbufferpool.Put(d.uncompressed)
 }
 
 func newBlock(restartInterval int) *rowBlockBuf {
 	d := &rowBlockBuf{
-		buf:          go_bytesbufferpool.Get(maximumRestartOffset),
-		uncompressed: go_bytesbufferpool.Get(maximumRestartOffset),
+		buf: go_bytesbufferpool.Get(maximumRestartOffset),
 	}
 	d.restartInterval = restartInterval
 	return d

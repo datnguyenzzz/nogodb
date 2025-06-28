@@ -32,3 +32,9 @@ type BlockHandle struct {
 	// Length is the length of the block data (excludes the trailer).
 	Length uint64
 }
+
+func (bh *BlockHandle) EncodeInto(buf []byte) int {
+	n := binary.PutUvarint(buf, bh.Offset)
+	m := binary.PutUvarint(buf[n:], bh.Length)
+	return n + m
+}

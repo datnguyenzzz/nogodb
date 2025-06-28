@@ -15,16 +15,16 @@ type compressorPerBlock map[common.BlockKind]compression.ICompression
 
 // RowBlockWriter is an implementation of common.RawWriter, which writes SSTables with row-oriented blocks
 type RowBlockWriter struct {
-	opts                  options.BlockWriteOpt
-	storageWriter         storage.IWriter
-	dataBlock             *rowBlockBuf
-	indexWriter           *indexWriter
-	dataBlockFlushDecider common.IFlushDecider
-	comparer              common.IComparer
-	filterWriter          filter.IWriter
-	compressors           compressorPerBlock
-	checksumer            common.IChecksum
-	taskQueue             queue.IQueue
+	opts          options.BlockWriteOpt
+	storageWriter storage.IWriter
+	dataBlock     *rowBlockBuf
+	indexWriter   *indexWriter
+	flushDecider  common.IFlushDecider
+	comparer      common.IComparer
+	filterWriter  filter.IWriter
+	compressors   compressorPerBlock
+	checksumer    common.IChecksum
+	taskQueue     queue.IQueue
 }
 
 func (rw *RowBlockWriter) Error() error {
@@ -46,7 +46,7 @@ func (rw *RowBlockWriter) add(key common.InternalKey, value []byte) error {
 		return err
 	}
 
-	if err := rw.doFlush(key, len(value)); err != nil {
+	if err := rw.mightFlush(key, len(value)); err != nil {
 		return err
 	}
 
@@ -75,10 +75,10 @@ func (rw *RowBlockWriter) validateKey(key common.InternalKey) error {
 	return nil
 }
 
-// doFlush validate if required or not, if yes then flush (and compression) the data to the stable storage
-func (rw *RowBlockWriter) doFlush(key common.InternalKey, dataLen int) error {
+// mightFlush validate if required or not, if yes then flush (and compression) the data to the stable storage
+func (rw *RowBlockWriter) mightFlush(key common.InternalKey, dataLen int) error {
 	// Skip if the data block is not ready to flush
-	if !rw.dataBlock.ShouldFlush(key.Size(), dataLen, rw.dataBlockFlushDecider) {
+	if !rw.dataBlock.ShouldFlush(key.Size(), dataLen, rw.flushDecider) {
 		return nil
 	}
 
@@ -110,7 +110,7 @@ func (rw *RowBlockWriter) doFlush(key common.InternalKey, dataLen int) error {
 
 	// 5. After flushing to the disk, Create a blank new data block for
 	// the next subsequences writes
-	rw.dataBlock = newDataBlock(rw.opts.BlockRestartInterval)
+	rw.dataBlock = newBlock(rw.opts.BlockRestartInterval)
 	return nil
 }
 
@@ -125,17 +125,18 @@ func NewRowBlockWriter(writable storage.Writable, opts options.BlockWriteOpt) *R
 		c[blockKind] = compression.NewCompressor(opts.Compression[blockKind])
 	}
 	comparer := common.NewComparer()
+	flushDecider := common.NewFlushDecider(opts.BlockSize, opts.BlockSizeThreshold)
 	return &RowBlockWriter{
-		opts:                  opts,
-		storageWriter:         storage.NewWriter(writable),
-		dataBlock:             newDataBlock(opts.BlockRestartInterval),
-		indexWriter:           newIndexWriter(comparer),
-		comparer:              comparer,
-		filterWriter:          filter.NewFilterWriter(filter.BloomFilter), // Use bloom filter as a default method
-		dataBlockFlushDecider: common.NewFlushDecider(opts.BlockSize, opts.BlockSizeThreshold),
-		compressors:           c,
-		checksumer:            common.NewChecksumer(common.CRC32Checksum), // Use crc32 as a default checksum method
-		taskQueue:             queue.NewQueue(0, false),
+		opts:          opts,
+		storageWriter: storage.NewWriter(writable),
+		dataBlock:     newBlock(opts.BlockRestartInterval),
+		indexWriter:   newIndexWriter(comparer, flushDecider),
+		comparer:      comparer,
+		filterWriter:  filter.NewFilterWriter(filter.BloomFilter), // Use bloom filter as a default method
+		flushDecider:  flushDecider,
+		compressors:   c,
+		checksumer:    common.NewChecksumer(common.CRC32Checksum), // Use crc32 as a default checksum method
+		taskQueue:     queue.NewQueue(0, false),
 	}
 }
 

@@ -203,7 +203,7 @@ func (d *rowBlockBuf) Release() {
 	go_bytesbufferpool.Put(d.uncompressed)
 }
 
-func newDataBlock(restartInterval int) *rowBlockBuf {
+func newBlock(restartInterval int) *rowBlockBuf {
 	d := &rowBlockBuf{
 		buf:          go_bytesbufferpool.Get(maximumRestartOffset),
 		uncompressed: go_bytesbufferpool.Get(maximumRestartOffset),

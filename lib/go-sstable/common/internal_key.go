@@ -1,6 +1,9 @@
 package common
 
-import "encoding/binary"
+import (
+	"cmp"
+	"encoding/binary"
+)
 
 // KeyKind enumerates the kind of key: a deletion tombstone, a set
 // value, a merged value, etc.
@@ -57,6 +60,15 @@ func (k *InternalKey) Separator(comparer IComparer, other *InternalKey) *Interna
 		return &nk
 	}
 	return k
+}
+
+func (k *InternalKey) Compare(comparer IComparer, other *InternalKey) int {
+	if c := comparer.Compare(k.UserKey, other.UserKey); c != 0 {
+		return c
+	}
+	// A key with a higher sequence number takes precedence over a key
+	// with an equal user key of a lower sequence number.
+	return cmp.Compare(other.Trailer, k.Trailer)
 }
 
 func (k *InternalKey) Successor(comparer IComparer) *InternalKey {

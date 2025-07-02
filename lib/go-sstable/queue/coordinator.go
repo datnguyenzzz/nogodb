@@ -38,6 +38,7 @@ func (c *coordinator) Close() error {
 		return c.err
 	}
 	close(c.ch)
+	// Ensure all tasks are running to finish wholly
 	c.wg.Wait()
 	c.closed = true
 	return c.err

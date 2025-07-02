@@ -137,4 +137,14 @@ interval is `1`: every entry is a restart point.
 
 By default, we use a two-level index. It consists of a sequence of lower-level 
 index blocks with block handles for data blocks followed by a single top-level 
-index block with block handles for the lower-level index blocks.
+index block with block handles for the lower-level index blocks. Value of the 
+top-level index block is the encoded block handle of the lower-level blocks,
+
+```
+2 Level Block format when stored in the stable storage:
+[index block - 1st level]
+[index block - 1st level]
+...
+[index block - 1st level]
+[index block - 2nd level]
+```

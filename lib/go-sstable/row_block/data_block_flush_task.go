@@ -23,7 +23,7 @@ var taskPool = sync.Pool{
 
 func (t *task) Execute() error {
 	//1. write the physical data to the durable storage
-	bh, err := t.storageWriter.WritePrecompressedPhysicalBlock(*t.physical)
+	bh, err := t.storageWriter.WritePhysicalBlock(*t.physical)
 	if err != nil {
 		return err
 	}

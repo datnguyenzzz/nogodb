@@ -4,6 +4,7 @@ import (
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/options"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/row_block"
+	"github.com/datnguyenzzz/nogodb/lib/go-sstable/storage"
 )
 
 type Writer struct {
@@ -16,11 +17,6 @@ func (w *Writer) DeleteRange(start, end []byte) error {
 	panic("implement me")
 }
 
-func (w *Writer) Merge(key, value []byte) error {
-	//TODO implement me
-	panic("implement me")
-}
-
 func (w *Writer) Set(key, value []byte) error {
 	return w.rw.Add(common.MakeKey(key, 0, common.KeyKindSet), value)
 }
@@ -29,12 +25,13 @@ func (w *Writer) Delete(key []byte) error {
 	return w.rw.Add(common.MakeKey(key, 0, common.KeyKindDelete), nil)
 }
 
+// Close finishes writing the table and closes the underlying file that the
+// table was written to.
 func (w *Writer) Close() error {
-	//TODO implement me
-	panic("implement me")
+	return w.rw.Close()
 }
 
-func NewWriter(writable common.Writable, opts ...WriteOptFn) *Writer {
+func NewWriter(writable storage.Writable, opts ...WriteOptFn) *Writer {
 	w := &Writer{
 		datablockOpts: DefaultWriteOpt,
 	}

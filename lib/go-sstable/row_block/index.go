@@ -5,13 +5,16 @@ import (
 
 	go_bytesbufferpool "github.com/datnguyenzzz/nogodb/lib/go-bytesbufferpool"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
+	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common/compression"
+	"github.com/datnguyenzzz/nogodb/lib/go-sstable/storage"
 )
 
 const (
 	estimateNumberOfTopLevelBlocks = 128
 )
 
-type topLevelIndex struct {
+type firstLevelIndex struct {
+	key           *common.InternalKey
 	entries       int
 	finishedBlock []byte
 }
@@ -24,10 +27,14 @@ type topLevelIndex struct {
 // index blocks with block handles for data blocks followed by a single top-level
 // index block with block handles for the lower-level index blocks.
 type indexWriter struct {
-	indexBlock      *rowBlockBuf
-	comparer        common.IComparer
-	flushDecider    common.IFlushDecider
-	topLevelIndices []*topLevelIndex
+	firstLevelBlock   *rowBlockBuf
+	secondLevelBlock  *rowBlockBuf
+	comparer          common.IComparer
+	compressor        compression.ICompression
+	checksumer        common.IChecksum
+	flushDecider      common.IFlushDecider
+	storageWriter     storage.IWriter
+	firstLevelIndices []*firstLevelIndex
 }
 
 func (w *indexWriter) createKey(prevKey, key *common.InternalKey) *common.InternalKey {
@@ -51,12 +58,12 @@ func (w *indexWriter) add(key *common.InternalKey, bh *common.BlockHandle) error
 	var encoded []byte
 	n := bh.EncodeInto(encoded)
 	encoded = encoded[:n]
-	return w.indexBlock.WriteEntry(*key, encoded)
+	return w.firstLevelBlock.WriteEntry(*key, encoded)
 }
 
 func (w *indexWriter) mightFlush(key *common.InternalKey) error {
 	estimatedBHSize := binary.MaxVarintLen64 * 2
-	if !w.indexBlock.ShouldFlush(key.Size(), estimatedBHSize, w.flushDecider) {
+	if !w.firstLevelBlock.ShouldFlush(key.Size(), estimatedBHSize, w.flushDecider) {
 		return nil
 	}
 
@@ -68,24 +75,75 @@ func (w *indexWriter) mightFlush(key *common.InternalKey) error {
 	// (which is classified as meta block) once the table is finished.
 	// TODO: Open questions:
 	//   1. How to recover the indices if the machine crash ?
-	idx := &topLevelIndex{
-		entries: w.indexBlock.EntryCount(),
-	}
-	uncompressed := go_bytesbufferpool.Get(w.indexBlock.EstimateSize())
-	w.indexBlock.Finish(uncompressed)
-	idx.finishedBlock = uncompressed
-	w.topLevelIndices = append(w.topLevelIndices, idx)
-	go_bytesbufferpool.Put(uncompressed)
+	w.buildFirstLevelIndices(key)
 	return nil
 }
 
-func newIndexWriter(comparer common.IComparer, flushDecider common.IFlushDecider) *indexWriter {
+func (w *indexWriter) buildFirstLevelIndices(key *common.InternalKey) {
+	idx := &firstLevelIndex{
+		key:     key,
+		entries: w.firstLevelBlock.EntryCount(),
+	}
+	uncompressed := go_bytesbufferpool.Get(w.firstLevelBlock.EstimateSize())
+	w.firstLevelBlock.Finish(uncompressed)
+	idx.finishedBlock = uncompressed
+	w.firstLevelIndices = append(w.firstLevelIndices, idx)
+	go_bytesbufferpool.Put(uncompressed)
+}
+
+func (w *indexWriter) buildIndex() error {
+	// build all of pending/un-finished 1-level indices
+	w.buildFirstLevelIndices(w.firstLevelBlock.CurKey())
+	for _, idx := range w.firstLevelIndices {
+		// 1. Write the compressed first level index to the storage
+		pb := w.compressToPhysicalBlock(idx.finishedBlock)
+		bh, err := w.storageWriter.WritePhysicalBlock(*pb)
+		if err != nil {
+			return err
+		}
+		// 2. Write the encoded value of the 1-level index block handle
+		// into buffer
+		var encodedBH []byte
+		_ = bh.EncodeInto(encodedBH)
+		if err := w.secondLevelBlock.WriteEntry(*idx.key, encodedBH); err != nil {
+			return err
+		}
+	}
+
+	// 3. Find and Write the 2-level index buffer to the storage
+	uncompressed := go_bytesbufferpool.Get(w.secondLevelBlock.EstimateSize())
+	w.secondLevelBlock.Finish(uncompressed)
+	pb := w.compressToPhysicalBlock(uncompressed)
+	_, err := w.storageWriter.WritePhysicalBlock(*pb)
+	go_bytesbufferpool.Put(uncompressed)
+	return err
+}
+
+func (w *indexWriter) compressToPhysicalBlock(uncompressed []byte) *common.PhysicalBlock {
+	pb := &common.PhysicalBlock{}
+	compressed := w.compressor.Compress(nil, uncompressed)
+	checksum := w.checksumer.Checksum(compressed, byte(w.compressor.GetType()))
+	pb.SetData(compressed)
+	pb.SetTrailer(byte(w.compressor.GetType()), checksum)
+	return pb
+}
+
+func newIndexWriter(
+	comparer common.IComparer,
+	compressor compression.ICompression,
+	checksumer common.IChecksum,
+	flushDecider common.IFlushDecider,
+	storageWriter storage.IWriter,
+) *indexWriter {
 	return &indexWriter{
 		// The index block also use the row oriented layout.
 		// And its restart interval is 1, aka every entry is a restart point.
-		indexBlock:      newBlock(1),
-		comparer:        comparer,
-		flushDecider:    flushDecider,
-		topLevelIndices: make([]*topLevelIndex, 0, estimateNumberOfTopLevelBlocks),
+		firstLevelBlock:   newBlock(1),
+		comparer:          comparer,
+		compressor:        compressor,
+		checksumer:        checksumer,
+		flushDecider:      flushDecider,
+		storageWriter:     storageWriter,
+		firstLevelIndices: make([]*firstLevelIndex, 0, estimateNumberOfTopLevelBlocks),
 	}
 }

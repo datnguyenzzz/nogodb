@@ -7,13 +7,20 @@ type writer struct {
 }
 
 type IWriter interface {
-	WritePrecompressedPhysicalBlock(b common.PhysicalBlock) (common.BlockHandle, error)
+	WritePhysicalBlock(b common.PhysicalBlock) (common.BlockHandle, error)
+	// Abort aborts writing the table, aborting the underlying writable too.
+	Abort()
 }
 
 // -- Implementations -- \\
 
-func (w writer) WritePrecompressedPhysicalBlock(pb common.PhysicalBlock) (common.BlockHandle, error) {
+func (w *writer) WritePhysicalBlock(pb common.PhysicalBlock) (common.BlockHandle, error) {
 	//TODO implement me
+	panic("implement me")
+}
+
+func (w *writer) Abort() {
+	// TODO implement me
 	panic("implement me")
 }
 

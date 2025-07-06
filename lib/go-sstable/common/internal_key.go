@@ -15,6 +15,7 @@ const (
 	KeyKindSet
 	KeyKindMerge
 	KeyKindSeparator
+	KeyKindMetaIndex
 )
 
 // SeqNum is a sequence number defining precedence among identical keys. A key

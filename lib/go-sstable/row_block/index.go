@@ -7,6 +7,7 @@ import (
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common/compression"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/storage"
+	"go.uber.org/zap"
 )
 
 const (
@@ -35,6 +36,7 @@ type indexWriter struct {
 	flushDecider      common.IFlushDecider
 	storageWriter     storage.IWriter
 	firstLevelIndices []*firstLevelIndex
+	metaIndexBlock    *rowBlockBuf
 }
 
 func (w *indexWriter) createKey(prevKey, key *common.InternalKey) *common.InternalKey {
@@ -52,7 +54,7 @@ func (w *indexWriter) add(key *common.InternalKey, bh *common.BlockHandle) error
 	if bh.Length == 0 {
 		return nil
 	}
-	if err := w.mightFlush(key); err != nil {
+	if err := w.mightFlushToMem(key); err != nil {
 		return err
 	}
 	var encoded []byte
@@ -61,7 +63,7 @@ func (w *indexWriter) add(key *common.InternalKey, bh *common.BlockHandle) error
 	return w.firstLevelBlock.WriteEntry(*key, encoded)
 }
 
-func (w *indexWriter) mightFlush(key *common.InternalKey) error {
+func (w *indexWriter) mightFlushToMem(key *common.InternalKey) error {
 	estimatedBHSize := binary.MaxVarintLen64 * 2
 	if !w.firstLevelBlock.ShouldFlush(key.Size(), estimatedBHSize, w.flushDecider) {
 		return nil
@@ -71,15 +73,18 @@ func (w *indexWriter) mightFlush(key *common.InternalKey) error {
 	// As this function will only be triggered as a part of the DataBlock.Flush()
 	// Therefore we can always assure that they are no other concurrent attempts
 
-	// Store the top level indices into the memory, we will only write the index blocks
-	// (which is classified as meta block) once the table is finished.
+	// Instead of flushing directly to the storage, we store the top level indices
+	// into the memory, we will only write the index blocks (which is classified as meta block)
+	// once the table is finished. We do it because based on the design, the index
+	// blocks are only written after all of data blocks are flushed, and the table is
+	// about closing
 	// TODO: Open questions:
 	//   1. How to recover the indices if the machine crash ?
-	w.buildFirstLevelIndices(key)
+	w.flushFirstLevelIndexToMem(key)
 	return nil
 }
 
-func (w *indexWriter) buildFirstLevelIndices(key *common.InternalKey) {
+func (w *indexWriter) flushFirstLevelIndexToMem(key *common.InternalKey) {
 	idx := &firstLevelIndex{
 		key:     key,
 		entries: w.firstLevelBlock.EntryCount(),
@@ -92,11 +97,11 @@ func (w *indexWriter) buildFirstLevelIndices(key *common.InternalKey) {
 }
 
 func (w *indexWriter) buildIndex() error {
-	// build all of pending/un-finished 1-level indices
-	w.buildFirstLevelIndices(w.firstLevelBlock.CurKey())
+	// flush all of pending/un-finished 1-level indices to mem
+	w.flushFirstLevelIndexToMem(w.firstLevelBlock.CurKey())
 	for _, idx := range w.firstLevelIndices {
 		// 1. Write the compressed first level index to the storage
-		pb := w.compressToPhysicalBlock(idx.finishedBlock)
+		pb := compressToPb(w.compressor, w.checksumer, idx.finishedBlock)
 		bh, err := w.storageWriter.WritePhysicalBlock(*pb)
 		if err != nil {
 			return err
@@ -113,19 +118,30 @@ func (w *indexWriter) buildIndex() error {
 	// 3. Find and Write the 2-level index buffer to the storage
 	uncompressed := go_bytesbufferpool.Get(w.secondLevelBlock.EstimateSize())
 	w.secondLevelBlock.Finish(uncompressed)
-	pb := w.compressToPhysicalBlock(uncompressed)
-	_, err := w.storageWriter.WritePhysicalBlock(*pb)
+	pb := compressToPb(w.compressor, w.checksumer, uncompressed)
+	bh, err := w.storageWriter.WritePhysicalBlock(*pb)
+	if err != nil {
+		// save the block location of the 2-level index to the index
+		// key - 1 byte indicate block kind , value - varint encoded of the block handle
+		var encodedBH []byte
+		_ = bh.EncodeInto(encodedBH)
+		err := w.metaIndexBlock.WriteEntry(
+			common.MakeKey([]byte(byte(common.BlockKindIndex)), 0, common.KeyKindMetaIndex),
+			encodedBH,
+		)
+		if err != nil {
+			zap.L().Error("failed to write the 2-level index block to the meta index", zap.Error(err))
+		}
+	}
+
 	go_bytesbufferpool.Put(uncompressed)
 	return err
 }
 
-func (w *indexWriter) compressToPhysicalBlock(uncompressed []byte) *common.PhysicalBlock {
-	pb := &common.PhysicalBlock{}
-	compressed := w.compressor.Compress(nil, uncompressed)
-	checksum := w.checksumer.Checksum(compressed, byte(w.compressor.GetType()))
-	pb.SetData(compressed)
-	pb.SetTrailer(byte(w.compressor.GetType()), checksum)
-	return pb
+func (w *indexWriter) Release() {
+	w.firstLevelBlock.CleanUpForReuse()
+	w.firstLevelBlock.Release()
+	clear(w.firstLevelIndices)
 }
 
 func newIndexWriter(
@@ -134,6 +150,7 @@ func newIndexWriter(
 	checksumer common.IChecksum,
 	flushDecider common.IFlushDecider,
 	storageWriter storage.IWriter,
+	metaIndexBlock *rowBlockBuf,
 ) *indexWriter {
 	return &indexWriter{
 		// The index block also use the row oriented layout.
@@ -145,5 +162,6 @@ func newIndexWriter(
 		flushDecider:      flushDecider,
 		storageWriter:     storageWriter,
 		firstLevelIndices: make([]*firstLevelIndex, 0, estimateNumberOfTopLevelBlocks),
+		metaIndexBlock:    metaIndexBlock,
 	}
 }

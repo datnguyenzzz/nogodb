@@ -10,22 +10,25 @@ import (
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/options"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/queue"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/storage"
+	"go.uber.org/zap"
 )
 
 type compressorPerBlock map[common.BlockKind]compression.ICompression
 
 // RowBlockWriter is an implementation of common.RawWriter, which writes SSTables with row-oriented blocks
 type RowBlockWriter struct {
-	opts          options.BlockWriteOpt
-	storageWriter storage.IWriter
-	dataBlock     *rowBlockBuf
-	indexWriter   *indexWriter
-	flushDecider  common.IFlushDecider
-	comparer      common.IComparer
-	filterWriter  filter.IWriter
-	compressors   compressorPerBlock
-	checksumer    common.IChecksum
-	taskQueue     queue.IQueue
+	opts           options.BlockWriteOpt
+	storageWriter  storage.IWriter
+	dataBlock      *rowBlockBuf
+	metaIndexBlock *rowBlockBuf
+	indexWriter    *indexWriter
+	flushDecider   common.IFlushDecider
+	comparer       common.IComparer
+	filterWriter   filter.IWriter
+	compressors    compressorPerBlock
+	checksumer     common.IChecksum
+	taskQueue      queue.IQueue
+	tableVersion   common.TableVersion
 }
 
 func (rw *RowBlockWriter) Add(key common.InternalKey, value []byte) error {
@@ -71,27 +74,69 @@ func (rw *RowBlockWriter) Close() error {
 		var rawData []byte
 		rw.filterWriter.Build(&rawData)
 		// compress and checksum
-		pb := &common.PhysicalBlock{}
 		compressor := rw.compressors[common.BlockKindFilter]
-		compressed := compressor.Compress(nil, rawData)
-		checksum := rw.checksumer.Checksum(compressed, byte(compressor.GetType()))
-		pb.SetData(compressed)
-		pb.SetTrailer(byte(compressor.GetType()), checksum)
+		pb := compressToPb(compressor, rw.checksumer, rawData)
 		// write to the stable storage
-		if _, err := rw.storageWriter.WritePhysicalBlock(*pb); err != nil {
+		bh, err := rw.storageWriter.WritePhysicalBlock(*pb)
+		if err != nil {
+			zap.L().Error("failed to write filter to the storage", zap.Error(err))
+			return err
+		}
+		// save the filter block location to the meta index block
+		var encodedBH []byte
+		_ = bh.EncodeInto(encodedBH)
+		err = rw.metaIndexBlock.WriteEntry(
+			common.MakeKey([]byte(byte(common.BlockKindFilter)), 0, common.KeyKindMetaIndex),
+			encodedBH)
+		if err != nil {
+			zap.L().Error("failed to write filter to the metaIndexBlock", zap.Error(err))
 			return err
 		}
 	}
-	// Build and Flush index block
+	// Build and Flush index block to the stable storage
 	if err := rw.indexWriter.buildIndex(); err != nil {
+		zap.L().Error("failed to build/finish the index", zap.Error(err))
+		return err
+	}
+	// write the meta index block
+	metaIndexRaw := go_bytesbufferpool.Get(rw.metaIndexBlock.EstimateSize())
+	rw.metaIndexBlock.Finish(metaIndexRaw)
+	compressor := rw.compressors[common.BlockKindIndex]
+	pb := compressToPb(compressor, rw.checksumer, metaIndexRaw)
+	bh, err := rw.storageWriter.WritePhysicalBlock(*pb)
+	if err != nil {
+		zap.L().Error("failed to write meta index to the storage", zap.Error(err))
+		return err
+	}
+	go_bytesbufferpool.Put(metaIndexRaw)
+
+	// write footer
+	footer := &footer{
+		version:     rw.tableVersion,
+		metaIndexBH: bh,
+	}
+	footerRaw := footer.Serialise()
+	if err := rw.storageWriter.WriteRawBytes(footerRaw); err != nil {
+		zap.L().Error("failed to write footer to the storage", zap.Error(err))
 		return err
 	}
 
-	// TODO: research on what we need to do here ?
-	//   - Write footer
-	//   - Reset all buffers
+	// Reset all buffers and close the writable file
+	if err := rw.storageWriter.Finish(); err != nil {
+		zap.L().Error("failed to finish the storage writer", zap.Error(err))
+		return err
+	}
 
-	panic("implement me")
+	rw.dataBlock.CleanUpForReuse()
+	rw.dataBlock.Release()
+	rw.dataBlock = nil
+	rw.metaIndexBlock.CleanUpForReuse()
+	rw.metaIndexBlock.Release()
+	rw.metaIndexBlock = nil
+	rw.indexWriter.Release()
+	rw.indexWriter = nil
+
+	return nil
 }
 
 // validateKey ensure the key is added in the asc order.
@@ -148,7 +193,7 @@ func (rw *RowBlockWriter) doFlush(key common.InternalKey) error {
 	return nil
 }
 
-func NewRowBlockWriter(writable storage.Writable, opts options.BlockWriteOpt) *RowBlockWriter {
+func NewRowBlockWriter(writable storage.Writable, opts options.BlockWriteOpt, version common.TableVersion) *RowBlockWriter {
 	c := compressorPerBlock{}
 	for blockKind, _ := range common.BlockKindStrings {
 		if _, ok := opts.Compression[blockKind]; !ok {
@@ -162,16 +207,19 @@ func NewRowBlockWriter(writable storage.Writable, opts options.BlockWriteOpt) *R
 	comparer := common.NewComparer()
 	flushDecider := common.NewFlushDecider(opts.BlockSize, opts.BlockSizeThreshold)
 	storageWriter := storage.NewWriter(writable)
+	metaIndexBlock := newBlock(1)
 	return &RowBlockWriter{
-		opts:          opts,
-		storageWriter: storageWriter,
-		dataBlock:     newBlock(opts.BlockRestartInterval),
+		opts:           opts,
+		storageWriter:  storageWriter,
+		dataBlock:      newBlock(opts.BlockRestartInterval),
+		metaIndexBlock: metaIndexBlock,
 		indexWriter: newIndexWriter(
 			comparer,
 			c[common.BlockKindIndex],
 			crc32Checksum,
 			flushDecider,
 			storageWriter,
+			metaIndexBlock,
 		),
 		comparer:     comparer,
 		filterWriter: filter.NewFilterWriter(filter.BloomFilter), // Use bloom filter as a default method
@@ -179,6 +227,7 @@ func NewRowBlockWriter(writable storage.Writable, opts options.BlockWriteOpt) *R
 		compressors:  c,
 		checksumer:   crc32Checksum,
 		taskQueue:    queue.NewQueue(0, false),
+		tableVersion: version,
 	}
 }
 

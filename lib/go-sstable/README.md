@@ -20,7 +20,6 @@ _Inspired by [LevelDB file format](https://github.com/google/leveldb/blob/main/d
 [data block N]
 [meta block 1: filter block]                  
 [meta block 2: index block]     
-[meta block 3: stats block]             
 ...
 [meta block K: future extended block]  
 [metaindex block]
@@ -33,6 +32,9 @@ The file contains internal pointers, called `BlockHandles`, containing the follo
 offset: int64
 size:   int64
 ```
+
+A `metaindex` block contains one entry for every meta block, where the key is the name of the meta block 
+and the value is a BlockHandle pointing to that meta block.
 
 Each block consists of some data and a 5 byte trailer: a 1 byte block type and a
 4 byte checksum. The checksum is computed over the compressed data and the first

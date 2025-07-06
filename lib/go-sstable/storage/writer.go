@@ -8,8 +8,10 @@ type writer struct {
 
 type IWriter interface {
 	WritePhysicalBlock(b common.PhysicalBlock) (common.BlockHandle, error)
+	WriteRawBytes(b []byte) error
 	// Abort aborts writing the table, aborting the underlying writable too.
 	Abort()
+	Finish() error
 }
 
 // -- Implementations -- \\
@@ -19,9 +21,16 @@ func (w *writer) WritePhysicalBlock(pb common.PhysicalBlock) (common.BlockHandle
 	panic("implement me")
 }
 
-func (w *writer) Abort() {
-	// TODO implement me
+func (w *writer) WriteRawBytes(b []byte) error {
 	panic("implement me")
+}
+
+func (w *writer) Abort() {
+	w.objWritable.Abort()
+}
+
+func (w *writer) Finish() error {
+	return w.objWritable.Finish()
 }
 
 func NewWriter(w Writable) IWriter {

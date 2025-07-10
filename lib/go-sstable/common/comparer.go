@@ -11,56 +11,54 @@ type IComparer interface {
 	// the prefixes are equal and a's suffix is less than b's suffix
 	Compare(a, b []byte) int
 
-	// Separator appends a sequence of bytes x to dst such that a <= x && x < b,
+	// Separator returns a sequence of bytes x such that a <= x && x < b,
 	// where 'less than' is consistent with Compare.
-	Separator(dst, a, b []byte) []byte
+	// Trivial implementation is just simply returns "a", however we try to return
+	// a shorter "x" to reduce the SSTable size
+	Separator(a, b []byte) []byte
 
-	// Successor appends a sequence of bytes x to dst such that x >= b, where
-	// 'less than' is consistent with Compare. An implementation should return
-	// nil if x equal to b.
-	Successor(dst, b []byte) []byte
+	// Successor returns a sequence of bytes x such that x >= b, where
+	// 'less than' is consistent with Compare.
+	// Trivial implementation is just simply return "b", however we try to return
+	// a shorter "x" to reduce the SSTable size
+	Successor(b []byte) []byte
 }
 
 type comparer struct{}
 
-func (c comparer) Separator(dst, a, b []byte) []byte {
+func (c comparer) Separator(a, b []byte) []byte {
 	var prefixLen int
 	n := min(len(a), len(b))
 	for prefixLen = 0; prefixLen < n && a[prefixLen] == b[prefixLen]; prefixLen++ {
 	}
 	if prefixLen >= n || a[prefixLen] >= b[prefixLen] {
-		return append(dst, a...)
+		return a
 	} else {
-		if a[prefixLen]+1 < b[prefixLen] {
-			dst = append(dst, a[:prefixLen+1]...)
+		// If the LCP == len(b)-1 --> a[LCP]+1 < b[LCP]
+		// Else just require a[LCP] +1 <= b[LCP]
+		isLess := (prefixLen == len(b)-1 && a[prefixLen]+1 < b[prefixLen]) ||
+			(prefixLen < len(b)-1 && a[prefixLen]+1 <= b[prefixLen])
+		if a[prefixLen] < 0xff && isLess {
+			dst := make([]byte, prefixLen+1)
+			copy(dst, a[:prefixLen+1])
 			dst[len(dst)-1]++
 			return dst
 		}
-		// At this point, a[prefixLen]+1 == b[prefixLen]
-		// So just need to increase the byte after prefixLen-th is sufficient
-		for ; prefixLen < len(a); prefixLen++ {
-			if a[prefixLen] != 0xff {
-				dst = append(dst, a[:prefixLen+1]...)
-				dst[len(dst)-1]++
-				return dst
-			}
-		}
+		return a
 	}
-
-	return append(dst, a...)
 }
 
-func (c comparer) Successor(dst, b []byte) []byte {
+func (c comparer) Successor(b []byte) []byte {
 	for i, v := range b {
 		// get first byte i'th that < 255 --> append [b[0] ... b[i]+1] to dst
 		if v < 0xff {
-			dst = append(dst, b[:i+1]...)
+			dst := make([]byte, i+1)
+			copy(dst, b[:i+1])
 			dst[len(dst)-1]++
 			return dst
 		}
 	}
-	// if a is full of 0xff, then do nothing
-	return append(dst, b...)
+	return b
 }
 
 func (c comparer) Compare(a, b []byte) int {

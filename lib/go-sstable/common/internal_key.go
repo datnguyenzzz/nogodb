@@ -55,7 +55,7 @@ func (k *InternalKey) SerializeTo(buf []byte) {
 }
 
 func (k *InternalKey) Separator(comparer IComparer, other *InternalKey) *InternalKey {
-	sep := comparer.Separator(nil, k.UserKey, other.UserKey)
+	sep := comparer.Separator(k.UserKey, other.UserKey)
 	if len(sep) <= len(k.UserKey) && comparer.Compare(k.UserKey, sep) < 0 {
 		nk := MakeKey(sep, SeqNumMax, KeyKindSeparator)
 		return &nk
@@ -73,7 +73,7 @@ func (k *InternalKey) Compare(comparer IComparer, other *InternalKey) int {
 }
 
 func (k *InternalKey) Successor(comparer IComparer) *InternalKey {
-	succ := comparer.Successor(nil, k.UserKey)
+	succ := comparer.Successor(k.UserKey)
 	if len(succ) <= len(k.UserKey) && comparer.Compare(k.UserKey, succ) < 0 {
 		nk := MakeKey(succ, SeqNumMax, KeyKindSeparator)
 		return &nk

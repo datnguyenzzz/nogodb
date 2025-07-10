@@ -7,14 +7,18 @@ const TrailerLen = 5
 // PhysicalBlock represents a block  as it is stored
 // physically on disk, including its trailer.
 type PhysicalBlock struct {
-	data []byte
+	Data []byte
 	// Trailer is the trailer at the end of a block, encoding the block type
 	// (compression) and a checksum.
-	trailer [TrailerLen]byte
+	Trailer [TrailerLen]byte
 }
 
 func (p *PhysicalBlock) SetData(data []byte) {
-	p.data = data
+	p.Data = data
+}
+
+func (p *PhysicalBlock) Size() uint64 {
+	return uint64(len(p.Data)) + TrailerLen
 }
 
 func (p *PhysicalBlock) SetTrailer(auxiliary byte, checksum uint32) {
@@ -22,7 +26,7 @@ func (p *PhysicalBlock) SetTrailer(auxiliary byte, checksum uint32) {
 	trailer[0] = auxiliary
 	binary.LittleEndian.PutUint32(trailer[1:], checksum)
 
-	p.trailer = trailer
+	p.Trailer = trailer
 }
 
 // BlockHandle is the file offset and length of a block.

@@ -117,7 +117,7 @@ func (rw *RowBlockWriter) Close() error {
 		metaIndexBH: bh,
 	}
 	footerRaw := footer.Serialise()
-	if err := rw.storageWriter.WriteRawBytes(footerRaw); err != nil {
+	if _, err := rw.storageWriter.WriteRawBytes(footerRaw); err != nil {
 		zap.L().Error("failed to write footer to the storage", zap.Error(err))
 		return err
 	}
@@ -174,12 +174,7 @@ func (rw *RowBlockWriter) doFlush(key common.InternalKey) error {
 	// of the data block to prepare the needed input for the task
 	task := spawnNewTask()
 	task.storageWriter = rw.storageWriter
-	task.physical = &common.PhysicalBlock{}
-	compressor := rw.compressors[common.BlockKindData]
-	compressed := compressor.Compress(nil, uncompressed)
-	checksum := rw.checksumer.Checksum(compressed, byte(compressor.GetType()))
-	task.physical.SetData(compressed)
-	task.physical.SetTrailer(byte(compressor.GetType()), checksum)
+	task.physical = compressToPb(rw.compressors[common.BlockKindData], rw.checksumer, uncompressed)
 	// inputs for index writer
 	task.indexKey = rw.indexWriter.createKey(prevKey, &key)
 	task.indexWriter = rw.indexWriter

@@ -8,6 +8,4 @@ type RawWriter interface {
 	Add(key InternalKey, value []byte) error
 	// Close finishes writing the table and closes the underlying file that the table was written to.
 	Close() error
-
-	// TODO add more ...
 }

@@ -27,5 +27,5 @@ type IReader interface {
 	// if the table does not contain the key.
 	Get(key []byte) ([]byte, error)
 
-	// TODO implement iterator through the blocks
+	// TODO(med) implement iterator through the blocks
 }

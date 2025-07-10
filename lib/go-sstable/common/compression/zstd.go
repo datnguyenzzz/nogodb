@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	// TODO make this configurable
+	// TODO(low) make this configurable
 	defaultLevel = 3
 )
 

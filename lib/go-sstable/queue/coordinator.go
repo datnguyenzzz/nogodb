@@ -48,6 +48,7 @@ func NewQueue(queueLen int, ignoreErr bool) IQueue {
 	c := &coordinator{
 		ch:        make(chan ITask, queueLen),
 		ignoreErr: ignoreErr,
+		wg:        &sync.WaitGroup{},
 	}
 	c.wg.Add(1)
 	go c.drainTask()

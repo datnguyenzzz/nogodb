@@ -20,7 +20,7 @@ type decider struct {
 //	If block size is smaller than blockSizeThreshold percent of the target
 //	we flush right after the target block size is exceeded.
 //
-// TODO - Room for optimisation
+// TODO(low) - Room for optimisation
 //
 //	We should flush as nearest the boundaries [lowWatermark, highWatermark) as possible to
 //	minimize wasted memory space in the block cache

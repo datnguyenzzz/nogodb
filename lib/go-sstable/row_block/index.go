@@ -78,7 +78,7 @@ func (w *indexWriter) mightFlushToMem(key *common.InternalKey) error {
 	// once the table is finished. We do it because based on the design, the index
 	// blocks are only written after all of data blocks are flushed, and the table is
 	// about closing
-	// TODO: Open questions:
+	// TODO (low): Open questions:
 	//   1. How to recover the indices if the machine crash ?
 	w.flushFirstLevelIndexToMem(key)
 	return nil

@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	go_bytesbufferpool "github.com/datnguyenzzz/nogodb/lib/go-bytesbufferpool"
+	go_fs "github.com/datnguyenzzz/nogodb/lib/go-fs"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common/compression"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/filter"
@@ -18,7 +19,7 @@ type compressorPerBlock map[common.BlockKind]compression.ICompression
 // RowBlockWriter is an implementation of common.RawWriter, which writes SSTables with row-oriented blocks
 type RowBlockWriter struct {
 	opts           options.BlockWriteOpt
-	storageWriter  storage.IWriter
+	storageWriter  storage.ILayoutWriter
 	dataBlock      *rowBlockBuf
 	metaIndexBlock *rowBlockBuf
 	indexWriter    *indexWriter
@@ -86,7 +87,7 @@ func (rw *RowBlockWriter) Close() error {
 		var encodedBH []byte
 		_ = bh.EncodeInto(encodedBH)
 		err = rw.metaIndexBlock.WriteEntry(
-			common.MakeKey([]byte(byte(common.BlockKindFilter)), 0, common.KeyKindMetaIndex),
+			common.MakeKey([]byte{byte(common.BlockKindFilter)}, 0, common.KeyKindMetaIndex),
 			encodedBH)
 		if err != nil {
 			zap.L().Error("failed to write filter to the metaIndexBlock", zap.Error(err))
@@ -193,7 +194,7 @@ func (rw *RowBlockWriter) doFlush(key common.InternalKey) error {
 	return nil
 }
 
-func NewRowBlockWriter(writable storage.Writable, opts options.BlockWriteOpt, version common.TableVersion) *RowBlockWriter {
+func NewRowBlockWriter(w go_fs.Writable, opts options.BlockWriteOpt, version common.TableVersion) *RowBlockWriter {
 	c := compressorPerBlock{}
 	for blockKind, _ := range common.BlockKindStrings {
 		if _, ok := opts.Compression[blockKind]; !ok {
@@ -206,7 +207,7 @@ func NewRowBlockWriter(writable storage.Writable, opts options.BlockWriteOpt, ve
 	crc32Checksum := common.NewChecksumer(common.CRC32Checksum)
 	comparer := common.NewComparer()
 	flushDecider := common.NewFlushDecider(opts.BlockSize, opts.BlockSizeThreshold)
-	storageWriter := storage.NewWriter(writable)
+	storageWriter := storage.NewLayoutWriter(w)
 	metaIndexBlock := newBlock(1)
 	return &RowBlockWriter{
 		opts:           opts,

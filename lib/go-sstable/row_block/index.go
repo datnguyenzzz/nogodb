@@ -34,7 +34,7 @@ type indexWriter struct {
 	compressor        compression.ICompression
 	checksumer        common.IChecksum
 	flushDecider      common.IFlushDecider
-	storageWriter     storage.IWriter
+	storageWriter     storage.ILayoutWriter
 	firstLevelIndices []*firstLevelIndex
 	metaIndexBlock    *rowBlockBuf
 }
@@ -126,7 +126,7 @@ func (w *indexWriter) buildIndex() error {
 		var encodedBH []byte
 		_ = bh.EncodeInto(encodedBH)
 		err := w.metaIndexBlock.WriteEntry(
-			common.MakeKey([]byte(byte(common.BlockKindIndex)), 0, common.KeyKindMetaIndex),
+			common.MakeKey([]byte{byte(common.BlockKindIndex)}, 0, common.KeyKindMetaIndex),
 			encodedBH,
 		)
 		if err != nil {
@@ -149,7 +149,7 @@ func newIndexWriter(
 	compressor compression.ICompression,
 	checksumer common.IChecksum,
 	flushDecider common.IFlushDecider,
-	storageWriter storage.IWriter,
+	storageWriter storage.ILayoutWriter,
 	metaIndexBlock *rowBlockBuf,
 ) *indexWriter {
 	return &indexWriter{

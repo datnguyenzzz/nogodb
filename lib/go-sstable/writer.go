@@ -1,10 +1,10 @@
 package go_sstable
 
 import (
+	go_fs "github.com/datnguyenzzz/nogodb/lib/go-fs"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/options"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/row_block"
-	"github.com/datnguyenzzz/nogodb/lib/go-sstable/storage"
 )
 
 type Writer struct {
@@ -31,7 +31,7 @@ func (w *Writer) Close() error {
 	return w.rw.Close()
 }
 
-func NewWriter(writable storage.Writable, opts ...WriteOptFn) *Writer {
+func NewWriter(writable go_fs.Writable, tableVersion common.TableVersion, opts ...WriteOptFn) *Writer {
 	w := &Writer{
 		datablockOpts: DefaultWriteOpt,
 	}
@@ -45,7 +45,7 @@ func NewWriter(writable storage.Writable, opts ...WriteOptFn) *Writer {
 		panic("invalid table format")
 	}
 
-	w.rw = row_block.NewRowBlockWriter(writable, *w.datablockOpts)
+	w.rw = row_block.NewRowBlockWriter(writable, *w.datablockOpts, tableVersion)
 
 	return w
 }

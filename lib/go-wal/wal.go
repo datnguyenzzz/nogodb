@@ -12,6 +12,8 @@ import (
 	"go.uber.org/zap"
 )
 
+// TODO refactor to use the shared go-fs instead of using os.FS
+
 func New(opts ...OptionFn) *WAL {
 	wal := &WAL{
 		opts:       defaultOptions,

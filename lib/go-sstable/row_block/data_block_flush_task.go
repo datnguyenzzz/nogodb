@@ -10,7 +10,7 @@ import (
 
 type task struct {
 	physical      *common.PhysicalBlock
-	storageWriter storage.IWriter
+	storageWriter storage.ILayoutWriter
 	indexKey      *common.InternalKey
 	indexWriter   *indexWriter
 }

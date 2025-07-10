@@ -1,4 +1,4 @@
-package storage
+package go_fs
 
 // Writable is the handle for an storage object that is open for writing.
 type Writable interface {

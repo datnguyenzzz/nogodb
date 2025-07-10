@@ -2,6 +2,10 @@ package common
 
 import "encoding/binary"
 
+const (
+	MagicNumber = "\x6e\x6f\x67\x6f\x64\x62\x6b\x76"
+)
+
 type TableFormat byte
 
 const (

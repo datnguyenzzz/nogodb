@@ -1,79 +1,141 @@
-# The Adaptive Radix Tree Implementation In Golang
+# Adaptive Radix Tree Implementation in Go
 
-This library provides an implementation of a radix tree with adaptive nodes and type-safe generics.
-It is also compatible with the interfaces of the popular immutable radix tree library:
-https://github.com/hashicorp/go-immutable-radix
+A high-performance, memory-efficient implementation of the Adaptive Radix Tree (ART) data structure with Go generics and concurrent access support.
 
-Additionally, the tree implementation utilizes context-aware locking to ensure that exactly 1 thread can modify 
-the tree during write operations, such as `Insert()` or `Delete()`.
+## Overview
 
-## Supported functions 
+This library provides a space-optimized, cache-friendly implementation of the Adaptive Radix Tree with the following features:
+
+- **Adaptive Node Sizing**: Uses four different node types (4, 16, 48, and 256 children) to minimize memory footprint
+- **Type Safety**: Full Go generics support for any value type
+- **Concurrent Access**: Context-aware locking ensures thread safety during operations
+- **Path Compression**: Efficiently stores common key prefixes to reduce memory usage
+- **Compatible API**: Implements interfaces compatible with the popular [hashicorp/go-immutable-radix](https://github.com/hashicorp/go-immutable-radix) library
+
+## What is an Adaptive Radix Tree?
+
+An Adaptive Radix Tree (ART) is an optimized data structure that combines the advantages of radix trees and tries:
+
+- **Space Efficiency**: Adaptively uses different node sizes based on actual child count
+- **Cache Locality**: Compact node structure improves CPU cache utilization
+- **Fast Operations**: O(k) complexity for lookups, insertions, and deletions (where k is key length)
+- **Path Compression**: Stores common prefixes only once, reducing memory usage
+
+## Node Types
+
+The implementation uses four different node types, each optimized for a specific number of children:
+
+1. **Node4**: Stores up to 4 children using simple arrays
+2. **Node16**: Stores up to 16 children with slightly more complex structure
+3. **Node48**: Stores up to 48 children with an optimized layout
+4. **Node256**: Stores up to 256 children (one for each possible byte value)
+
+Nodes automatically grow or shrink as needed, maintaining optimal memory usage at all times.
+
+## Usage
+
 ```go
-// WalkFn is used when walking the tree. Takes a key and value, returning if iteration should be terminated.
-type WalkFn[V any] func(ctx context.Context, k InternalKey, v V) error
+import (
+    "context"
+    art "github.com/datnguyenzzz/nogodb/lib/go-adaptive-radix-tree"
+)
 
-type ITree[V any] interface {
-    // Insert is used to add or update a given key. The return provides the previous value and a bool indicating if any was set.
-    Insert(ctx context.Context, key InternalKey, value V) (V, error)
-    // Delete is used to delete a given key. Returns the old value if any, and a bool indicating if the key was set.
-    Delete(ctx context.Context, key InternalKey) (V, error)
-    // Get is used to lookup a specific key, returning the value and if it was found
-    Get(ctx context.Context, key InternalKey) (V, error)
-    // Minimum is used to return the minimum value in the tree
-    Minimum(ctx context.Context) (InternalKey, V, bool)
-    // Maximum is used to return the maximum value in the tree
-    Maximum(ctx context.Context) (InternalKey, V, bool)
-    // Walk is used to walk the tree
-    Walk(ctx context.Context, fn WalkFn[V])
-    // WalkBackwards is used to walk the tree in reverse order
-    WalkBackwards(ctx context.Context, fn WalkFn[V])
-    // TO BE ADDED
+func main() {
+    // Create a new tree with string values
+    ctx := context.Background()
+    tree := art.NewTree[string](ctx)
+    
+    // Insert key-value pairs
+    key1 := []byte("hello")
+    tree.Insert(ctx, key1, "world")
+    
+    // Retrieve values
+    value, err := tree.Get(ctx, key1)
+    if err == nil {
+        fmt.Println(value) // Outputs: world
+    }
+    
+    // Delete entries
+    oldValue, err := tree.Delete(ctx, key1)
+    
+    // Walk the tree in order
+    tree.Walk(ctx, func(ctx context.Context, key []byte, value string) error {
+        fmt.Printf("Key: %s, Value: %s\n", key, value)
+        return nil
+    })
 }
 ```
 
-## Performance result 
+## API Reference
 
-Benchmark the library's performance for the Insert() and Get() functions using datasets containing 
-100,000, 250,000, 500,000, and 1,000,000 randomly generated sentences of various length between [30, 50], 
-created with the [go-faker-v4](https://pkg.go.dev/github.com/go-faker/faker/v4) library.
+The tree implements the following interface:
 
-```text
-goos: darwin
-goarch: arm64
-pkg: github.com/datnguyenzzz/nogodb/lib/go-adaptive-radix-tree
-cpu: Apple M1 Pro
-Testcase                               #          Average Time          Bytes per operation   Allocs per operation
-BenchmarkInsert_100000-10     	      43	  28591934 ns/op	14767752 B/op	      340001 allocs/op
-BenchmarkInsert_250000-10     	      18	  71634674 ns/op	37092440 B/op	      850001 allocs/op
-BenchmarkInsert_500000-10     	       8	 142106344 ns/op	74294568 B/op	     1700001 allocs/op
-BenchmarkInsert_1000000-10    	       4	 278329469 ns/op	148703752 B/op	     3400001 allocs/op
-BenchmarkGet_100000-10        	     135	   8818765 ns/op	       0 B/op	           0 allocs/op
-BenchmarkGet_250000-10        	      50	  24875808 ns/op	       0 B/op	           0 allocs/op
-BenchmarkGet_500000-10        	      24	  49266505 ns/op	       0 B/op	           0 allocs/op
-BenchmarkGet_1000000-10       	      10	 100743017 ns/op	       0 B/op	           0 allocs/op
+```go
+type ITree[V any] interface {
+    // Insert adds or updates a key-value pair, returning previous value if any
+    Insert(ctx context.Context, key InternalKey, value V) (V, error)
+    
+    // Delete removes a key and returns the previous value if found
+    Delete(ctx context.Context, key InternalKey) (V, error)
+    
+    // Get retrieves a value by key
+    Get(ctx context.Context, key InternalKey) (V, error)
+    
+    // Minimum returns the smallest key-value pair in the tree
+    Minimum(ctx context.Context) (InternalKey, V, bool)
+    
+    // Maximum returns the largest key-value pair in the tree
+    Maximum(ctx context.Context) (InternalKey, V, bool)
+    
+    // Walk traverses the tree in order
+    Walk(ctx context.Context, fn WalkFn[V])
+    
+    // WalkBackwards traverses the tree in reverse order
+    WalkBackwards(ctx context.Context, fn WalkFn[V])
+}
 ```
 
-## Next releases / TODO 
+## Performance
 
-- [ ] Implement Swizzlable Pointers onto `Tree[V any]`
-  - Currently, the struct Tree[V Any] only supports in-memory storage because it relies on pointers to nodes.
-  Each node, in turn, contains multiple pointers to its children, forming the tree structure.
-  Due to this design, we cannot persist this structure to disk.
-  - While we could add additional fields to the struct, e.g
-      ```go
-      type Tree[V any] struct {
-        root internal.INode[V] // memory address - pointer to the root node
-        block_id uint32 // for unswizzling
-        offset uint32 // for unswizzling
-        lock gocontextawarelock.ICtxLock
-      }
-      ```
-    this approach might introduce unnecessary resource overhead (it requires extra 8 bytes per Node). Therefore, we need to enhance the current object `Tree[V]` to Swizzlable Pointers 
-  - Implements plan:
-    - Serialization:
-       When saving the data structure to disk, the pointers are "unswizzled," often by converting them into
-       some form of identifier, such as an index or a unique ID, that is independent of memory addresses.
-    - Deserialization:
-       When loading the data structure back into memory, the identifiers are used to locate the corresponding
-       data objects, and the pointers are "swizzled" by replacing the identifiers with the actual memory
-       addresses of the loaded objects.
+Benchmark results on Apple M1 Pro:
+
+| Operation | Dataset Size | Ops/sec | Avg Time (ns/op) | Memory Usage (B/op) |
+|-----------|--------------|---------|-----------------|-------------------|
+| Insert    | 100,000      | 43      | 28,591,934      | 14,767,752        |
+| Insert    | 250,000      | 18      | 71,634,674      | 37,092,440        |
+| Insert    | 500,000      | 8       | 142,106,344     | 74,294,568        |
+| Insert    | 1,000,000    | 4       | 278,329,469     | 148,703,752       |
+| Get       | 100,000      | 135     | 8,818,765       | 0                 |
+| Get       | 250,000      | 50      | 24,875,808      | 0                 |
+| Get       | 500,000      | 24      | 49,266,505      | 0                 |
+| Get       | 1,000,000    | 10      | 100,743,017     | 0                 |
+
+## Use Cases
+
+Adaptive Radix Trees excel in the following scenarios:
+
+- **In-Memory Databases**: Efficient storage and retrieval of large datasets
+- **Key-Value Stores**: Fast lookups with minimal memory overhead
+- **String Dictionaries**: Compact storage of string keys with common prefixes
+- **IP Routing Tables**: Efficient storage and lookup of network routes
+- **Auto-Completion Systems**: Quick prefix-based searches
+- **Time-Series Data**: Ordered access to time-based records
+
+## Future Enhancements
+
+- [ ] **Swizzlable Pointers**: Enable persistence to disk by converting memory pointers to disk offsets
+  - **Serialization**: Convert in-memory pointers to stable identifiers for storage
+  - **Deserialization**: Restore pointers when loading from disk
+
+## References
+
+- ["The Adaptive Radix Tree: ARTful Indexing for Main-Memory Databases"](https://db.in.tum.de/~leis/papers/ART.pdf) by Viktor Leis, et al.
+- [Hashicorp's Immutable Radix Tree](https://github.com/hashicorp/go-immutable-radix)
+
+## License
+
+See the project's LICENSE file for license information.
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.

@@ -3,7 +3,7 @@ module github.com/datnguyenzzz/nogodb/lib/go-sstable
 go 1.24.3
 
 replace github.com/datnguyenzzz/nogodb/lib/go-blocked-bloom-filter => ../go-blocked-bloom-filter
-
+replace github.com/datnguyenzzz/nogodb/lib/go-bytesbufferpool => ../go-bytesbufferpool
 replace github.com/datnguyenzzz/nogodb/lib/go-fs => ../go-fs
 
 require (

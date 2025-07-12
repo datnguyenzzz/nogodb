@@ -3,7 +3,7 @@ package row_block
 import (
 	"fmt"
 
-	go_bytesbufferpool "github.com/datnguyenzzz/nogodb/lib/go-bytesbufferpool"
+	"github.com/datnguyenzzz/nogodb/lib/go-bytesbufferpool/predictable_size"
 	go_fs "github.com/datnguyenzzz/nogodb/lib/go-fs"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common/compression"
@@ -18,18 +18,19 @@ type compressorPerBlock map[common.BlockKind]compression.ICompression
 
 // RowBlockWriter is an implementation of common.InternalWriter, which writes SSTables with row-oriented blocks
 type RowBlockWriter struct {
-	opts           options.BlockWriteOpt
-	storageWriter  storage.ILayoutWriter
-	dataBlock      *rowBlockBuf
-	metaIndexBlock *rowBlockBuf
-	indexWriter    *indexWriter
-	flushDecider   common.IFlushDecider
-	comparer       common.IComparer
-	filterWriter   filter.IWriter
-	compressors    compressorPerBlock
-	checksumer     common.IChecksum
-	taskQueue      queue.IQueue
-	tableVersion   common.TableVersion
+	opts            options.BlockWriteOpt
+	storageWriter   storage.ILayoutWriter
+	dataBlock       *rowBlockBuf
+	metaIndexBlock  *rowBlockBuf
+	indexWriter     *indexWriter
+	flushDecider    common.IFlushDecider
+	comparer        common.IComparer
+	filterWriter    filter.IWriter
+	compressors     compressorPerBlock
+	checksumer      common.IChecksum
+	taskQueue       queue.IQueue
+	tableVersion    common.TableVersion
+	bytesBufferPool *predictable_size.PredictablePool
 }
 
 func (rw *RowBlockWriter) Add(key common.InternalKey, value []byte) error {
@@ -100,7 +101,7 @@ func (rw *RowBlockWriter) Close() error {
 		return err
 	}
 	// write the meta index block
-	metaIndexRaw := go_bytesbufferpool.Get(rw.metaIndexBlock.EstimateSize())
+	metaIndexRaw := rw.bytesBufferPool.Get(rw.metaIndexBlock.EstimateSize())
 	rw.metaIndexBlock.Finish(metaIndexRaw)
 	compressor := rw.compressors[common.BlockKindIndex]
 	pb := compressToPb(compressor, rw.checksumer, metaIndexRaw)
@@ -109,7 +110,7 @@ func (rw *RowBlockWriter) Close() error {
 		zap.L().Error("failed to write meta index to the storage", zap.Error(err))
 		return err
 	}
-	go_bytesbufferpool.Put(metaIndexRaw)
+	rw.bytesBufferPool.Put(metaIndexRaw)
 
 	// write footer
 	footer := &footer{
@@ -167,7 +168,7 @@ func (rw *RowBlockWriter) mightFlush(key common.InternalKey, dataLen int) error 
 func (rw *RowBlockWriter) doFlush(key common.InternalKey) error {
 	prevKey := rw.dataBlock.CurKey()
 	// 1. Finish the data block, write the serialised data into the buffer
-	uncompressed := go_bytesbufferpool.Get(rw.dataBlock.EstimateSize())
+	uncompressed := rw.bytesBufferPool.Get(rw.dataBlock.EstimateSize())
 	rw.dataBlock.Finish(uncompressed)
 
 	// 2. Get the task from the pool and compute the physical format
@@ -184,7 +185,7 @@ func (rw *RowBlockWriter) doFlush(key common.InternalKey) error {
 	rw.taskQueue.Put(task)
 
 	// 4. Put the uncompressed buffer back to the bytes buffer pool
-	go_bytesbufferpool.Put(uncompressed)
+	rw.bytesBufferPool.Put(uncompressed)
 
 	return nil
 }
@@ -203,11 +204,12 @@ func NewRowBlockWriter(w go_fs.Writable, opts options.BlockWriteOpt, version com
 	comparer := common.NewComparer()
 	flushDecider := common.NewFlushDecider(opts.BlockSize, opts.BlockSizeThreshold)
 	storageWriter := storage.NewLayoutWriter(w)
-	metaIndexBlock := newBlock(1)
+	bp := predictable_size.NewPredictablePool()
+	metaIndexBlock := newBlock(1, bp)
 	return &RowBlockWriter{
 		opts:           opts,
 		storageWriter:  storageWriter,
-		dataBlock:      newBlock(opts.BlockRestartInterval),
+		dataBlock:      newBlock(opts.BlockRestartInterval, bp),
 		metaIndexBlock: metaIndexBlock,
 		indexWriter: newIndexWriter(
 			comparer,
@@ -216,14 +218,16 @@ func NewRowBlockWriter(w go_fs.Writable, opts options.BlockWriteOpt, version com
 			flushDecider,
 			storageWriter,
 			metaIndexBlock,
+			bp,
 		),
-		comparer:     comparer,
-		filterWriter: filter.NewFilterWriter(filter.BloomFilter), // Use bloom filter as a default method
-		flushDecider: flushDecider,
-		compressors:  c,
-		checksumer:   crc32Checksum,
-		taskQueue:    queue.NewQueue(0, false),
-		tableVersion: version,
+		comparer:        comparer,
+		filterWriter:    filter.NewFilterWriter(filter.BloomFilter), // Use bloom filter as a default method
+		flushDecider:    flushDecider,
+		compressors:     c,
+		checksumer:      crc32Checksum,
+		taskQueue:       queue.NewQueue(0, false),
+		tableVersion:    version,
+		bytesBufferPool: bp,
 	}
 }
 

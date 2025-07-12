@@ -3,7 +3,7 @@ package row_block
 import (
 	"encoding/binary"
 
-	go_bytesbufferpool "github.com/datnguyenzzz/nogodb/lib/go-bytesbufferpool"
+	"github.com/datnguyenzzz/nogodb/lib/go-bytesbufferpool/predictable_size"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
 )
 
@@ -33,7 +33,8 @@ type rowBlockBuf struct {
 	nextRestartEntry int
 	restartOffset    []uint32
 
-	buf []byte
+	buf        []byte
+	bufferPool *predictable_size.PredictablePool
 }
 
 func (d *rowBlockBuf) EntryCount() int {
@@ -209,12 +210,13 @@ func uvarintLen(v uint32) int {
 }
 
 func (d *rowBlockBuf) Release() {
-	go_bytesbufferpool.Put(d.buf)
+	d.bufferPool.Put(d.buf)
 }
 
-func newBlock(restartInterval int) *rowBlockBuf {
+func newBlock(restartInterval int, bufferPool *predictable_size.PredictablePool) *rowBlockBuf {
 	d := &rowBlockBuf{
-		buf: go_bytesbufferpool.Get(maximumRestartOffset),
+		buf:        bufferPool.Get(maximumRestartOffset),
+		bufferPool: bufferPool,
 	}
 	d.restartInterval = restartInterval
 	return d

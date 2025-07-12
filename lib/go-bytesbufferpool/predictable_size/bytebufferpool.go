@@ -6,21 +6,29 @@ import (
 )
 
 const (
-	maximumPoolCnt = 64 // 64 bytes fit into 1 CPU cache line
+	maximumPoolCnt = 32
 )
 
-// pools contains pools for slices of byte of various capacities.
-//
-//	pools[0] is for capacities from 0 upto 256
-//	pools[1] is for capacities from 257 upto 512
-//	pools[2] is for capacities from 513 upto 1024
-//	...
-//	pools[n] is for capacities from 2^(n+7)+1 to 2^(n+8)
-var pools [maximumPoolCnt]sync.Pool
+type PredictablePool struct {
+	// pools contains pools for slices of byte of various capacities.
+	//
+	//	pools[0] is for capacities from 0 upto 256
+	//	pools[1] is for capacities from 257 upto 512
+	//	pools[2] is for capacities from 513 upto 1024
+	//	...
+	//	pools[n] is for capacities from 2^(n+7)+1 to 2^(n+8)
+	pools [maximumPoolCnt]sync.Pool
+}
 
-func Get(dataLen int) []byte {
+func NewPredictablePool() *PredictablePool {
+	return &PredictablePool{
+		pools: [maximumPoolCnt]sync.Pool{},
+	}
+}
+
+func (p *PredictablePool) Get(dataLen int) []byte {
 	id, poolCap := getPoolIDAndCapacity(dataLen)
-	if b := pools[id].Get(); b != nil {
+	if b := p.pools[id].Get(); b != nil {
 		return b.([]byte)
 	}
 
@@ -28,7 +36,7 @@ func Get(dataLen int) []byte {
 	return make([]byte, 0, poolCap)
 }
 
-func Put(buf []byte) {
+func (p *PredictablePool) Put(buf []byte) {
 	capacity := cap(buf)
 	id, poolCap := getPoolIDAndCapacity(capacity)
 	if capacity > poolCap {
@@ -38,7 +46,7 @@ func Put(buf []byte) {
 
 	//reset the buffer and remains the capacity, and put into the pool
 	buf = buf[:0]
-	pools[id].Put(buf)
+	p.pools[id].Put(buf)
 }
 
 // getPoolIDAndCapacity predict the poolId from given data size

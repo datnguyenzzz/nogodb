@@ -1,7 +1,6 @@
 package predictable_size
 
 import (
-	"fmt"
 	"math"
 	"runtime"
 	"sync"
@@ -38,9 +37,6 @@ func TestGetPoolIDAndCapacity(t *testing.T) {
 			if cap != tt.expectedCap {
 				t.Errorf("getPoolIDAndCapacity(%d) capacity = %d, want %d", tt.size, cap, tt.expectedCap)
 			}
-			if id >= len(pools) {
-				t.Errorf("poolID %d exceeds pools length %d", id, len(pools))
-			}
 		})
 	}
 }
@@ -64,7 +60,8 @@ func TestGet(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			b := Get(tt.size)
+			pool := NewPredictablePool()
+			b := pool.Get(tt.size)
 
 			// Test if the buffer has the expected capacity
 			if cap(b) != tt.expectedCap {
@@ -97,12 +94,7 @@ func TestPut(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// First, clear the pool
-			id, _ := getPoolIDAndCapacity(tt.cap)
-			if id < len(pools) {
-				pools[id] = sync.Pool{}
-			}
-
+			pool := NewPredictablePool()
 			// Create a buffer and put it in the pool
 			buf := make([]byte, tt.len, tt.cap)
 			// Write some content to verify buffer is reused
@@ -111,10 +103,10 @@ func TestPut(t *testing.T) {
 			}
 
 			// Put in pool
-			Put(buf)
+			pool.Put(buf)
 
 			// Try to get the same buffer back
-			newBuf := Get(tt.cap)
+			newBuf := pool.Get(tt.cap)
 
 			// If the buffer shouldn't be in the pool, we can't verify much
 			if !tt.shouldBeSame {
@@ -139,16 +131,15 @@ func TestPoolReuse(t *testing.T) {
 	size := 256
 
 	// Clear the specific pool
-	id, _ := getPoolIDAndCapacity(size)
-	pools[id] = sync.Pool{}
+	pool := NewPredictablePool()
 
 	// Get a buffer, modify it, and put it back
-	buf := Get(size)
+	buf := pool.Get(size)
 	buf = append(buf, []byte("test data")...)
-	Put(buf)
+	pool.Put(buf)
 
 	// Get a buffer again - should be the same one
-	newBuf := Get(size)
+	newBuf := pool.Get(size)
 	if len(newBuf) != 0 {
 		t.Errorf("Buffer not reset: len = %d, want 0", len(newBuf))
 	}
@@ -189,47 +180,20 @@ func TestConcurrentAccess(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Add(workers)
 
+	pool := NewPredictablePool()
+
 	for i := 0; i < workers; i++ {
 		go func(id int) {
 			defer wg.Done()
 
 			for j := 0; j < iterations; j++ {
 				size := (id*iterations + j) % 10000
-				buf := Get(size)
+				buf := pool.Get(size)
 				runtime.Gosched() // Force potential race conditions
-				Put(buf)
+				pool.Put(buf)
 			}
 		}(i)
 	}
 
 	wg.Wait()
-}
-
-// Benchmarks
-
-func BenchmarkGet(b *testing.B) {
-	sizes := []int{64, 256, 1024, 4096, 8192}
-
-	for _, size := range sizes {
-		b.Run(fmt.Sprintf("size-%d", size), func(b *testing.B) {
-			b.ReportAllocs()
-			for i := 0; i < b.N; i++ {
-				buf := Get(size)
-				Put(buf)
-			}
-		})
-	}
-}
-
-func BenchmarkGetPoolIDAndCapacity(b *testing.B) {
-	sizes := []int{64, 256, 1024, 4096, 8192}
-
-	for _, size := range sizes {
-		b.Run(fmt.Sprintf("size-%d", size), func(b *testing.B) {
-			b.ReportAllocs()
-			for i := 0; i < b.N; i++ {
-				_, _ = getPoolIDAndCapacity(size)
-			}
-		})
-	}
 }

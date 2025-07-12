@@ -38,11 +38,13 @@ var readBufferPool = sync.Pool{
 // allocation of a fixed 32KB buffer wasteful.
 //
 // A Non-optimised implementation for the writeBufferPool
-//var writeBufferPool = sync.Pool{
+//var writeBufferPool = sync.PredictablePool{
 //	New: func() interface{} {
 //		return make([]byte, blockSize)
 //	},
 //}
+
+var writeBufferPool = go_bytesbufferpool.NewPredictablePool()
 
 func (p *Page) Delete(ctx context.Context) error {
 	return os.Remove(p.F.Name())
@@ -142,10 +144,10 @@ func (p *Page) Write(ctx context.Context, data []byte) (*Position, int64, error)
 		// need spaces for padded bytes
 		neededSpaces += int(defaultBlockSize - p.LastBlockSize)
 	}
-	wBuf := go_bytesbufferpool.Get(neededSpaces)
+	wBuf := writeBufferPool.Get(neededSpaces)
 
 	// put back (and reset) when finish using the buffer
-	defer go_bytesbufferpool.Put(wBuf)
+	defer writeBufferPool.Put(wBuf)
 
 	// 1. Manage to write the data onto the already allocated buffer
 	rec, size, err := p.writeToMemBuffer(ctx, data, &wBuf)

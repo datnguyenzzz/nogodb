@@ -4,10 +4,10 @@ An implementation of a pool of byte buffers with enhancements to avoid unnecessa
 
 ## Takeaway notes 
 
-- `sync.Pool` is a builtin Golang library, that is intended to store temporary, fungible objects for reuse to relieve pressure on the garbage collector
+- `sync.PredictablePool` is a builtin Golang library, that is intended to store temporary, fungible objects for reuse to relieve pressure on the garbage collector
 
 ```go
-var pool = sync.Pool{
+var pool = sync.PredictablePool{
     New: func() interface{} {
         return make([]byte, 1024)
     },

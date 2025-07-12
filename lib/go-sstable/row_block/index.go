@@ -3,7 +3,7 @@ package row_block
 import (
 	"encoding/binary"
 
-	go_bytesbufferpool "github.com/datnguyenzzz/nogodb/lib/go-bytesbufferpool"
+	"github.com/datnguyenzzz/nogodb/lib/go-bytesbufferpool/predictable_size"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common/compression"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/storage"
@@ -37,6 +37,7 @@ type indexWriter struct {
 	storageWriter     storage.ILayoutWriter
 	firstLevelIndices []*firstLevelIndex
 	metaIndexBlock    *rowBlockBuf
+	bytesBufferPool   *predictable_size.PredictablePool
 }
 
 func (w *indexWriter) createKey(prevKey, key *common.InternalKey) *common.InternalKey {
@@ -89,11 +90,11 @@ func (w *indexWriter) flushFirstLevelIndexToMem(key *common.InternalKey) {
 		key:     key,
 		entries: w.firstLevelBlock.EntryCount(),
 	}
-	uncompressed := go_bytesbufferpool.Get(w.firstLevelBlock.EstimateSize())
+	uncompressed := w.bytesBufferPool.Get(w.firstLevelBlock.EstimateSize())
 	w.firstLevelBlock.Finish(uncompressed)
 	idx.finishedBlock = uncompressed
 	w.firstLevelIndices = append(w.firstLevelIndices, idx)
-	go_bytesbufferpool.Put(uncompressed)
+	w.bytesBufferPool.Put(uncompressed)
 }
 
 func (w *indexWriter) buildIndex() error {
@@ -116,7 +117,7 @@ func (w *indexWriter) buildIndex() error {
 	}
 
 	// 3. Find and Write the 2-level index buffer to the storage
-	uncompressed := go_bytesbufferpool.Get(w.secondLevelBlock.EstimateSize())
+	uncompressed := w.bytesBufferPool.Get(w.secondLevelBlock.EstimateSize())
 	w.secondLevelBlock.Finish(uncompressed)
 	pb := compressToPb(w.compressor, w.checksumer, uncompressed)
 	bh, err := w.storageWriter.WritePhysicalBlock(*pb)
@@ -134,7 +135,7 @@ func (w *indexWriter) buildIndex() error {
 		}
 	}
 
-	go_bytesbufferpool.Put(uncompressed)
+	w.bytesBufferPool.Put(uncompressed)
 	return err
 }
 
@@ -151,11 +152,12 @@ func newIndexWriter(
 	flushDecider common.IFlushDecider,
 	storageWriter storage.ILayoutWriter,
 	metaIndexBlock *rowBlockBuf,
+	bufferPool *predictable_size.PredictablePool,
 ) *indexWriter {
 	return &indexWriter{
 		// The index block also use the row oriented layout.
 		// And its restart interval is 1, aka every entry is a restart point.
-		firstLevelBlock:   newBlock(1),
+		firstLevelBlock:   newBlock(1, bufferPool),
 		comparer:          comparer,
 		compressor:        compressor,
 		checksumer:        checksumer,
@@ -163,5 +165,6 @@ func newIndexWriter(
 		storageWriter:     storageWriter,
 		firstLevelIndices: make([]*firstLevelIndex, 0, estimateNumberOfTopLevelBlocks),
 		metaIndexBlock:    metaIndexBlock,
+		bytesBufferPool:   bufferPool,
 	}
 }

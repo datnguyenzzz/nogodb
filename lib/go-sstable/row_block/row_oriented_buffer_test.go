@@ -3,6 +3,7 @@ package row_block
 import (
 	"testing"
 
+	"github.com/datnguyenzzz/nogodb/lib/go-bytesbufferpool/predictable_size"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
 	"github.com/stretchr/testify/assert"
 )
@@ -28,7 +29,8 @@ func Test_WriteEntry_Then_Finish(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.desc, func(t *testing.T) {
-			blk := newBlock(2)
+			bp := predictable_size.NewPredictablePool()
+			blk := newBlock(2, bp)
 			n := len(tc.inputUserKeys)
 			for i := 0; i < n; i++ {
 				key := makeKey(tc.inputUserKeys[i])

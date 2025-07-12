@@ -1,6 +1,10 @@
 package go_sstable
 
+import "github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
+
 // IWriter represent an interface of writer for downstream client to the SSTable
+// The data written layout is controlled internally, which caller of this function
+// shouldn't worry much about it
 type IWriter interface {
 	// Set appends key/value pair to the table. It is safe to modify the contents of the arguments after Append returns.
 	Set(key, value []byte) error
@@ -12,8 +16,9 @@ type IWriter interface {
 	// TODO(med): support range query (delete, ...)
 }
 
-// IIterator iterates over a DB's key/value pairs in key order
-type IIterator interface{}
+type IIterator interface {
+	common.InternalIterator
+}
 
 // TODO(med): Support functions can be exposed as a reader IReader,
 //  given that most of the cases the outsider caller only use iterator

@@ -3,7 +3,9 @@ module github.com/datnguyenzzz/nogodb/lib/go-sstable
 go 1.24.3
 
 replace github.com/datnguyenzzz/nogodb/lib/go-blocked-bloom-filter => ../go-blocked-bloom-filter
+
 replace github.com/datnguyenzzz/nogodb/lib/go-bytesbufferpool => ../go-bytesbufferpool
+
 replace github.com/datnguyenzzz/nogodb/lib/go-fs => ../go-fs
 
 require (
@@ -19,6 +21,7 @@ require (
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
+	github.com/stretchr/objx v0.5.2 // indirect
 	go.uber.org/multierr v1.10.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

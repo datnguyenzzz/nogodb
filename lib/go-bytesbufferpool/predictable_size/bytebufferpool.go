@@ -28,8 +28,14 @@ func NewPredictablePool() *PredictablePool {
 
 func (p *PredictablePool) Get(dataLen int) []byte {
 	id, poolCap := getPoolIDAndCapacity(dataLen)
-	if b := p.pools[id].Get(); b != nil {
-		return b.([]byte)
+	for i := 0; i < 1; i++ {
+		if id >= len(p.pools) {
+			break
+		}
+		if b := p.pools[id].Get(); b != nil {
+			return b.([]byte)
+		}
+		id++
 	}
 
 	// if the pool is empty, then allocate new poolCap bytes

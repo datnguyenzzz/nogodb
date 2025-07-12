@@ -1,4 +1,4 @@
-package go_bytesbufferpool
+package predictable_size
 
 import (
 	"math/bits"
@@ -6,7 +6,7 @@ import (
 )
 
 const (
-	maximumPoolCnt = 24
+	maximumPoolCnt = 64 // 64 bytes fit into 1 CPU cache line
 )
 
 // pools contains pools for slices of byte of various capacities.
@@ -16,9 +16,6 @@ const (
 //	pools[2] is for capacities from 513 upto 1024
 //	...
 //	pools[n] is for capacities from 2^(n+7)+1 to 2^(n+8)
-//
-// Limit the maximum capacity to 2^24, since there are no performance benefits
-// in caching byte slices with bigger capacities.
 var pools [maximumPoolCnt]sync.Pool
 
 func Get(dataLen int) []byte {

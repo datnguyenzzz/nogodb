@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	go_bytesbufferpool "github.com/datnguyenzzz/nogodb/lib/go-bytesbufferpool"
+	go_bytesbufferpool "github.com/datnguyenzzz/nogodb/lib/go-bytesbufferpool/predictable_size"
 	"go.uber.org/zap"
 )
 

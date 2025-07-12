@@ -6,7 +6,7 @@ import (
 )
 
 const (
-	maximumPoolCnt = 32
+	maximumPoolCnt = 24
 )
 
 type PredictablePool struct {
@@ -40,7 +40,8 @@ func (p *PredictablePool) Put(buf []byte) {
 	capacity := cap(buf)
 	id, poolCap := getPoolIDAndCapacity(capacity)
 	if capacity > poolCap {
-		// there is no available pool that can handle this size
+		// if the cap of the buf is greater than the maximum threshold, 2^32 ~ 8MB
+		// there are no point to cache it by putting back to the pool
 		return
 	}
 

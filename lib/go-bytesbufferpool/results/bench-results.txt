@@ -2,8 +2,8 @@ goos: darwin
 goarch: arm64
 pkg: github.com/datnguyenzzz/nogodb/lib/go-bytesbufferpool
 cpu: Apple M1 Pro
-Benchmark_Generic_Buffer-10             	     375	   2832051 ns/op	93855990 B/op	      11 allocs/op
-Benchmark_SyncPool_Buffer-10            	     532	   2207879 ns/op	75803072 B/op	      16 allocs/op
-Benchmark_Predictable_Size_Buffer-10    	     705	   1503226 ns/op	22112464 B/op	      13 allocs/op
+Benchmark_Generic_Buffer-10             	     370	   3513505 ns/op	108314881 B/op	      17 allocs/op
+Benchmark_SyncPool_Buffer-10            	     796	   1331586 ns/op	18057212 B/op	      16 allocs/op
+Benchmark_Predictable_Size_Buffer-10    	     662	   1517757 ns/op	15810650 B/op	      17 allocs/op
 PASS
-ok  	github.com/datnguyenzzz/nogodb/lib/go-bytesbufferpool	5.442s
+ok  	github.com/datnguyenzzz/nogodb/lib/go-bytesbufferpool	4.742s

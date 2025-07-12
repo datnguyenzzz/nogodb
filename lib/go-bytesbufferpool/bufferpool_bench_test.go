@@ -9,11 +9,14 @@ import (
 
 var (
 	bufs = [][]byte{ // Total: 26MB
-		makeDummyBuffer(1024 * 1024),      // 1 MB
-		makeDummyBuffer(4 * 1024 * 1024),  // 4 MB
-		makeDummyBuffer(16 * 1024 * 1024), // 16 MB
-		makeDummyBuffer(4 * 1024 * 1024),  // 4 MB
-		makeDummyBuffer(1024 * 1024),      // 1 MB
+		makeDummyBuffer(1 * 1024 * 1024), // 1 MB
+		makeDummyBuffer(4 * 1024 * 1024), // 4 MB
+		makeDummyBuffer(2 * 1024 * 1024), // 2 MB
+		makeDummyBuffer(8 * 1024 * 1024), // 8 MB
+		makeDummyBuffer(8 * 1024 * 1024), // 8 MB
+		makeDummyBuffer(2 * 1024 * 1024), // 2 MB
+		makeDummyBuffer(4 * 1024 * 1024), // 4 MB
+		makeDummyBuffer(1 * 1024 * 1024), // 1 MB
 	}
 )
 
@@ -26,7 +29,6 @@ func makeDummyBuffer(size int) []byte {
 }
 
 // TODO:
-//   Write the profile to file
 //   Benchmark the Unpredictable size
 
 func Benchmark_Generic_Buffer(b *testing.B) {
@@ -41,6 +43,7 @@ func Benchmark_Generic_Buffer(b *testing.B) {
 
 func Benchmark_SyncPool_Buffer(b *testing.B) {
 	b.ResetTimer()
+
 	for i := 0; i < b.N; i++ {
 		sPool := sync.Pool{
 			New: func() interface{} {

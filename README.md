@@ -1,4 +1,8 @@
-### TODO: _I will find another time to add more words about it_
+### Disclaimer: The project is under development
 
-# High level architecture 
-![high_level_architecture_sketch.png](docs/high_level_architecture_sketch.png)
+### Development Progress Tracker
+- [x] [Adaptive radix tree](lib/go-adaptive-radix-tree/README.md)
+- [x] [Blocked Bloom Filter with bit pattern](lib/go-blocked-bloom-filter/README.md)
+- [x] [Write Ahead Log](lib/go-wal/README.md)
+- [] [Sort String Table](lib/go-sstable/README.md)
+- [] [Virtual File System](lib/go-fs)

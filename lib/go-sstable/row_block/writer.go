@@ -16,7 +16,7 @@ import (
 
 type compressorPerBlock map[common.BlockKind]compression.ICompression
 
-// RowBlockWriter is an implementation of common.RawWriter, which writes SSTables with row-oriented blocks
+// RowBlockWriter is an implementation of common.InternalWriter, which writes SSTables with row-oriented blocks
 type RowBlockWriter struct {
 	opts           options.BlockWriteOpt
 	storageWriter  storage.ILayoutWriter
@@ -227,4 +227,4 @@ func NewRowBlockWriter(w go_fs.Writable, opts options.BlockWriteOpt, version com
 	}
 }
 
-var _ common.RawWriter = (*RowBlockWriter)(nil)
+var _ common.InternalWriter = (*RowBlockWriter)(nil)

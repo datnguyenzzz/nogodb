@@ -9,12 +9,7 @@ import (
 
 type Writer struct {
 	datablockOpts *options.BlockWriteOpt
-	rw            common.RawWriter
-}
-
-func (w *Writer) DeleteRange(start, end []byte) error {
-	//TODO implement me
-	panic("implement me")
+	rw            common.InternalWriter
 }
 
 func (w *Writer) Set(key, value []byte) error {

@@ -6,26 +6,14 @@ type IWriter interface {
 	Set(key, value []byte) error
 	// Delete a key within a table
 	Delete(key []byte) error
-	// DeleteRange deletes all the keys (and values) in the range [start,end)
-	// (inclusive on start, exclusive on end).
-	DeleteRange(start, end []byte) error
 	// Close will finalize the table. Calling Append is not possible after Close
 	Close() error
+	// TODO(med): support merge operation (read-modify-write loop)
+	// TODO(med): support range query (delete, ...)
 }
 
-// IReader represent reader to the SSTable
-type IReader interface {
-	//FindGE finds key/value pair whose key is greater than or equal to the
-	// given key. It returns ErrNotFound if the table doesn't contain
-	// such pair.
-	// If filtered is true then the nearest 'block' will be checked against
-	// 'filter data' (if present) and will immediately return ErrNotFound if
-	// 'filter data' indicates that such pair doesn't exist.
-	FindGE(key []byte, filtered bool) ([]byte, []byte, error)
+// IIterator iterates over a DB's key/value pairs in key order
+type IIterator interface{}
 
-	// Get gets the value for the given key. It returns errors.ErrNotFound
-	// if the table does not contain the key.
-	Get(key []byte) ([]byte, error)
-
-	// TODO(med) implement iterator through the blocks
-}
+// TODO(med): Support functions can be exposed as a reader IReader,
+//  given that most of the cases the outsider caller only use iterator

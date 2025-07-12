@@ -12,8 +12,12 @@ var DefaultWriteOpt = &options.BlockWriteOpt{
 	BlockRestartInterval: 16,
 	BlockSize:            4 * 1024,
 	BlockSizeThreshold:   0.9,
-	Compression:          compression.SnappyCompression,
-	TableFormat:          common.RowBlockedBaseTableFormat,
+	Compression: map[common.BlockKind]compression.CompressionType{
+		common.BlockKindData:   compression.SnappyCompression,
+		common.BlockKindIndex:  compression.SnappyCompression,
+		common.BlockKindFilter: compression.SnappyCompression,
+	},
+	TableFormat: common.RowBlockedBaseTableFormat,
 }
 
 func WithBlockRestartInterval(interval int) WriteOptFn {
@@ -34,11 +38,11 @@ func WithBlockSizeThreshold(blockSizeThreshold float32) WriteOptFn {
 	}
 }
 
-func WithCompression(compression compression.CompressionType) WriteOptFn {
-	return func(w *Writer) {
-		w.datablockOpts.Compression = compression
-	}
-}
+//func WithCompression(compression compression.CompressionType) WriteOptFn {
+//	return func(w *Writer) {
+//		w.datablockOpts.Compression = compression
+//	}
+//}
 
 func WithTableFormat(tableFormat common.TableFormat) WriteOptFn {
 	return func(w *Writer) {

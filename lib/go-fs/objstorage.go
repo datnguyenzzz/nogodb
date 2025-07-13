@@ -1,6 +1,8 @@
 package go_fs
 
-// Writable is the handle for an storage object that is open for writing.
+import "context"
+
+// Writable is the handle for a storage object that is open for writing.
 type Writable interface {
 	// Write writes len(p) bytes from p to the underlying object. The data is not
 	// guaranteed to be durable until Finish is called.
@@ -18,4 +20,16 @@ type Writable interface {
 	// the object exists after calling Abort.
 	// No further calls are allowed after calling Abort.
 	Abort()
+}
+
+// Readable is the handle for a storage object that is open for reading.
+type Readable interface {
+	// ReadAt reads len(p) bytes into p starting at offset off.
+	//
+	// Does not return partial results; if off + len(p) is past the end of the
+	// object, an error is returned.
+	ReadAt(ctx context.Context, p []byte, off int64) error
+	Close() error
+
+	// TODO (med): Support read ahead optimisation
 }

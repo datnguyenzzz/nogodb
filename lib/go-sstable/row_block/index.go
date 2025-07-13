@@ -97,6 +97,7 @@ func (w *indexWriter) flushFirstLevelIndexToMem(key *common.InternalKey) {
 	w.bytesBufferPool.Put(uncompressed)
 }
 
+// buildIndex build the 2-level index for the SST
 func (w *indexWriter) buildIndex() error {
 	// flush all of pending/un-finished 1-level indices to mem
 	w.flushFirstLevelIndexToMem(w.firstLevelBlock.CurKey())
@@ -116,7 +117,7 @@ func (w *indexWriter) buildIndex() error {
 		}
 	}
 
-	// 3. Find and Write the 2-level index buffer to the storage
+	// 3. Build and Write the 2-level index buffer to the storage
 	uncompressed := w.bytesBufferPool.Get(w.secondLevelBlock.EstimateSize())
 	w.secondLevelBlock.Finish(uncompressed)
 	pb := compressToPb(w.compressor, w.checksumer, uncompressed)

@@ -9,6 +9,8 @@ type InternalWriter interface {
 	Add(key InternalKey, value []byte) error
 	// Close finishes writing the table and closes the underlying file that the table was written to.
 	Close() error
+	// TODO(med): support merge operation (read-modify-write loop)
+	// TODO(med): support range query (delete, ...)
 }
 
 // InternalIterator iterates over a DB's key/value pairs in key order. Implementations may vary
@@ -31,4 +33,8 @@ type InternalIterator interface {
 
 	// Prev moves the iterator to the previous key/value pair.
 	Prev() *InternalKV
+
+	// Close closes the iterator and returns any accumulated error. Exhausting
+	// all the key/value pairs in a table is not considered to be an error.
+	Close() error
 }

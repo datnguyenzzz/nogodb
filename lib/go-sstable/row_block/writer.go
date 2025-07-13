@@ -186,6 +186,10 @@ func (rw *RowBlockWriter) doFlush(key common.InternalKey) error {
 
 	// 4. Put the uncompressed buffer back to the bytes buffer pool
 	rw.bytesBufferPool.Put(uncompressed)
+	// 5. Reset the current data block for the next subsequent writes
+	rw.dataBlock.CleanUpForReuse()
+	rw.dataBlock.Release()
+	rw.dataBlock = newBlock(rw.opts.BlockRestartInterval, rw.bytesBufferPool)
 
 	return nil
 }

@@ -34,7 +34,11 @@ size:   int64
 ```
 
 A `metaindex` block contains one entry for every meta block, where the key is the name of the meta block 
-and the value is a BlockHandle pointing to that meta block.
+and the value is a BlockHandle pointing to that meta block. 
+```
+filterKey        : BlockHandle(FilterBlock)
+2ndLevelIndexKey : BlockHandle(2ndLevelIndex)
+```
 
 Each block consists of some data and a 5 byte trailer: a 1 byte block type and a
 4 byte checksum. The checksum is computed over the compressed data and the first

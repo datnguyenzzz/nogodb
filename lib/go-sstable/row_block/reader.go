@@ -10,6 +10,6 @@ type RowBlockReader struct {
 
 func NewRowBlockReader(fr storage.ILayoutReader) *RowBlockReader {
 	return &RowBlockReader{
-		storageReader: storage.NewLayoutReader(fr),
+		storageReader: fr,
 	}
 }

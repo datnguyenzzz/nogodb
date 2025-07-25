@@ -56,15 +56,15 @@ The checksum is a CRC-32 computed using Castagnoli's polynomial. Compression
 type also included in the checksum.
 ```
 
-Footer formats. Note that much of the existing footer parsing code assumes that the version (for non-legacy formats) 
+Footer formats. Note that much of the existing Footer parsing code assumes that the version (for non-legacy formats) 
 and magic number are at the end.
 
 ```
 metaindex handle (varint64 offset, varint64 size)
 index handle     (varint64 offset, varint64 size)
 <padding> to make the total size 2 * BlockHandle::kMaxEncodedLength + 1
-checksum: CRC over footer data (4 bytes)
-footer version (4 bytes)
+checksum: CRC over Footer data (4 bytes)
+Footer version (4 bytes)
 table_magic_number (8 bytes)
 ```
 

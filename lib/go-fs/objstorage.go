@@ -31,5 +31,5 @@ type Readable interface {
 	ReadAt(ctx context.Context, p []byte, off int64) error
 	Close() error
 
-	// TODO (med): Support read ahead optimisation
+	Size() uint64
 }

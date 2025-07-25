@@ -6,6 +6,7 @@ import (
 	go_fs "github.com/datnguyenzzz/nogodb/lib/go-fs"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/options"
+	"github.com/datnguyenzzz/nogodb/lib/go-sstable/storage"
 )
 
 // SecondLevelIterator reads the 2nd-level index block and creates and
@@ -55,15 +56,26 @@ func (t *SecondLevelIterator) Close() error {
 	panic("implement me")
 }
 
-func NewSecondLevelIterator(r go_fs.Readable, opts *options.IteratorOpts) *SecondLevelIterator {
+func NewSecondLevelIterator(fr go_fs.Readable, opts *options.IteratorOpts) (*SecondLevelIterator, error) {
 	iter := secondLevelIteratorPool.Get().(*SecondLevelIterator)
 
 	// TODO
-	//  1. Init block reader
-	//  2. Read metaindex blockHandle from footer
+	//  1. Read metaindex's blockHandle from Footer --> metaindex info
+	//  2. Init block reader
 	//  3. Read 2nd level index / filter block from metaindex block
 
-	return iter
+	reader := storage.NewLayoutReader(fr)
+	defer func() {
+		_ = reader.Close()
+	}()
+
+	fullSize := fr.Size()
+	footer, err := ReadFooter(reader, fullSize)
+	if err != nil {
+		return nil, err
+	}
+
+	return iter, nil
 }
 
 var _ common.InternalIterator = (*SecondLevelIterator)(nil)

@@ -42,3 +42,18 @@ func (bh *BlockHandle) EncodeInto(buf []byte) int {
 	m := binary.PutUvarint(buf[n:], bh.Length)
 	return n + m
 }
+
+func (bh *BlockHandle) DecodeFrom(buf []byte) int {
+	offset, n := binary.Uvarint(buf)
+	if n <= 0 {
+		return 0
+	}
+	length, m := binary.Uvarint(buf[n:])
+	if m <= 0 {
+		return 0
+	}
+
+	bh.Offset = offset
+	bh.Length = length
+	return n + m
+}

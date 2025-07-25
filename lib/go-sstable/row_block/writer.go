@@ -112,14 +112,14 @@ func (rw *RowBlockWriter) Close() error {
 	}
 	rw.bytesBufferPool.Put(metaIndexRaw)
 
-	// write footer
-	footer := &footer{
+	// write Footer
+	footer := &Footer{
 		version:     rw.tableVersion,
 		metaIndexBH: bh,
 	}
 	footerRaw := footer.Serialise()
 	if _, err := rw.storageWriter.WriteRawBytes(footerRaw); err != nil {
-		zap.L().Error("failed to write footer to the storage", zap.Error(err))
+		zap.L().Error("failed to write Footer to the storage", zap.Error(err))
 		return err
 	}
 

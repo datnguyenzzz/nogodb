@@ -70,7 +70,7 @@ func NewSecondLevelIterator(fr go_fs.Readable, opts *options.IteratorOpts) (*Sec
 	}()
 
 	fullSize := fr.Size()
-	footer, err := ReadFooter(reader, fullSize)
+	_, err := ReadFooter(reader, fullSize)
 	if err != nil {
 		return nil, err
 	}

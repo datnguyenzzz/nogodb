@@ -1,11 +1,12 @@
 package options
 
 import (
+	"github.com/datnguyenzzz/nogodb/lib/go-sstable/block"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
-	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common/compression"
+	"github.com/datnguyenzzz/nogodb/lib/go-sstable/compression"
 )
 
-type CompressionOpts map[common.BlockKind]compression.CompressionType
+type CompressionOpts map[block.BlockKind]compression.CompressionType
 
 type BlockWriteOpt struct {
 	// BlockRestartInterval is the number of keys between restart points for delta encoding of keys.

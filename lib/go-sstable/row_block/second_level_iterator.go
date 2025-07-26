@@ -4,6 +4,7 @@ import (
 	"sync"
 
 	go_fs "github.com/datnguyenzzz/nogodb/lib/go-fs"
+	"github.com/datnguyenzzz/nogodb/lib/go-sstable/block"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/options"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/storage"
@@ -13,6 +14,8 @@ import (
 // initializes an iterator over the 1st-level index, by which subsequently
 // iterate over the datablock within the requested boundary [lower_bound, upper_bound]
 type SecondLevelIterator struct {
+	rowBlockReader *RowBlockReader
+	metaIndexBH    *block.BlockHandle
 }
 
 var secondLevelIteratorPool sync.Pool = sync.Pool{
@@ -60,8 +63,6 @@ func NewSecondLevelIterator(fr go_fs.Readable, opts *options.IteratorOpts) (*Sec
 	iter := secondLevelIteratorPool.Get().(*SecondLevelIterator)
 
 	// TODO
-	//  1. Read metaindex's blockHandle from Footer --> metaindex info
-	//  2. Init block reader
 	//  3. Read 2nd level index / filter block from metaindex block
 
 	reader := storage.NewLayoutReader(fr)
@@ -70,10 +71,17 @@ func NewSecondLevelIterator(fr go_fs.Readable, opts *options.IteratorOpts) (*Sec
 	}()
 
 	fullSize := fr.Size()
-	_, err := ReadFooter(reader, fullSize)
+	footer, err := ReadFooter(reader, fullSize)
 	if err != nil {
 		return nil, err
 	}
+
+	if iter.rowBlockReader == nil {
+		iter.rowBlockReader = &RowBlockReader{}
+	}
+
+	iter.rowBlockReader.Init(reader)
+	iter.metaIndexBH = &footer.metaIndexBH
 
 	return iter, nil
 }

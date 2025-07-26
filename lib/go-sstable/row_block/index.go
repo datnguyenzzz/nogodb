@@ -4,8 +4,9 @@ import (
 	"encoding/binary"
 
 	"github.com/datnguyenzzz/nogodb/lib/go-bytesbufferpool/predictable_size"
+	"github.com/datnguyenzzz/nogodb/lib/go-sstable/block"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
-	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common/compression"
+	"github.com/datnguyenzzz/nogodb/lib/go-sstable/compression"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/storage"
 	"go.uber.org/zap"
 )
@@ -51,7 +52,7 @@ func (w *indexWriter) createKey(prevKey, key *common.InternalKey) *common.Intern
 	return sep
 }
 
-func (w *indexWriter) add(key *common.InternalKey, bh *common.BlockHandle) error {
+func (w *indexWriter) add(key *common.InternalKey, bh *block.BlockHandle) error {
 	if bh.Length == 0 {
 		return nil
 	}
@@ -128,7 +129,7 @@ func (w *indexWriter) buildIndex() error {
 		var encodedBH []byte
 		_ = bh.EncodeInto(encodedBH)
 		err := w.metaIndexBlock.WriteEntry(
-			common.MakeKey([]byte{byte(common.BlockKindIndex)}, 0, common.KeyKindMetaIndex),
+			common.MakeKey([]byte{byte(block.BlockKindIndex)}, 0, common.KeyKindMetaIndex),
 			encodedBH,
 		)
 		if err != nil {

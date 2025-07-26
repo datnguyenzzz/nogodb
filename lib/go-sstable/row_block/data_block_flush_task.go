@@ -3,13 +3,14 @@ package row_block
 import (
 	"sync"
 
+	"github.com/datnguyenzzz/nogodb/lib/go-sstable/block"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/queue"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/storage"
 )
 
 type task struct {
-	physical      *common.PhysicalBlock
+	physical      *block.PhysicalBlock
 	storageWriter storage.ILayoutWriter
 	indexKey      *common.InternalKey
 	indexWriter   *indexWriter
@@ -33,7 +34,7 @@ func (t *task) Execute() error {
 }
 
 func (t *task) Release() {
-	t.physical = &common.PhysicalBlock{}
+	t.physical = &block.PhysicalBlock{}
 	t.storageWriter = nil
 	taskPool.Put(t)
 }

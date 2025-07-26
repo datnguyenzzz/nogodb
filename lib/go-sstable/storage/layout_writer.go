@@ -2,7 +2,7 @@ package storage
 
 import (
 	go_fs "github.com/datnguyenzzz/nogodb/lib/go-fs"
-	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
+	"github.com/datnguyenzzz/nogodb/lib/go-sstable/block"
 )
 
 type layoutWriter struct {
@@ -14,8 +14,8 @@ type layoutWriter struct {
 type ILayoutWriter interface {
 	// WritePhysicalBlock write a physicalBlock to the file system, and return BlockHandle
 	// which contains the offset before writing, and data length
-	WritePhysicalBlock(b common.PhysicalBlock) (common.BlockHandle, error)
-	WriteRawBytes(b []byte) (common.BlockHandle, error)
+	WritePhysicalBlock(b block.PhysicalBlock) (block.BlockHandle, error)
+	WriteRawBytes(b []byte) (block.BlockHandle, error)
 	// Abort aborts writing the table, aborting the underlying writable too.
 	Abort()
 	Finish() error
@@ -25,15 +25,15 @@ var _ ILayoutWriter = (*layoutWriter)(nil)
 
 // -- Implementations -- \\
 
-func (w *layoutWriter) WritePhysicalBlock(pb common.PhysicalBlock) (common.BlockHandle, error) {
+func (w *layoutWriter) WritePhysicalBlock(pb block.PhysicalBlock) (block.BlockHandle, error) {
 	if err := w.fsWritable.Write(pb.Data); err != nil {
-		return common.BlockHandle{}, err
+		return block.BlockHandle{}, err
 	}
 	if err := w.fsWritable.Write(pb.Trailer[:]); err != nil {
-		return common.BlockHandle{}, err
+		return block.BlockHandle{}, err
 	}
 
-	bh := common.BlockHandle{
+	bh := block.BlockHandle{
 		Offset: w.offset,
 		Length: pb.Size(),
 	}
@@ -43,12 +43,12 @@ func (w *layoutWriter) WritePhysicalBlock(pb common.PhysicalBlock) (common.Block
 	return bh, nil
 }
 
-func (w *layoutWriter) WriteRawBytes(b []byte) (common.BlockHandle, error) {
+func (w *layoutWriter) WriteRawBytes(b []byte) (block.BlockHandle, error) {
 	if err := w.fsWritable.Write(b); err != nil {
-		return common.BlockHandle{}, err
+		return block.BlockHandle{}, err
 	}
 
-	bh := common.BlockHandle{
+	bh := block.BlockHandle{
 		Offset: w.offset,
 		Length: uint64(len(b)),
 	}

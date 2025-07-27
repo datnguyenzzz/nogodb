@@ -14,15 +14,15 @@ _Inspired by [LevelDB file format](https://github.com/google/leveldb/blob/main/d
 
 ```
 <beginning_of_file>
-[data blockData 1]
-[data blockData 2]
+[data block 1]
+[data block 2]
 ...
-[data blockData N]
-[meta blockData 1: filter blockData]                  
-[meta blockData 2: index blockData]     
+[data block N]
+[meta block 1: filter block]                  
+[meta block 2: index block]     
 ...
-[meta blockData K: future extended blockData]  
-[metaindex blockData]
+[meta block K: future extended block]  
+[metaindex block]
 [Footer]                               (fixed size; starts at file_size - sizeof(Footer))
 <end_of_file>
 ```
@@ -33,20 +33,20 @@ offset: int64
 size:   int64
 ```
 
-A `metaindex` blockData contains one entry for every meta blockData, where the key is the name of the meta blockData 
-and the value is a BlockHandle pointing to that meta blockData. 
+A `metaindex` block contains one entry for every meta block, where the key is the name of the meta block 
+and the value is a BlockHandle pointing to that meta block. 
 ```
 filterKey        : BlockHandle(FilterBlock)
 2ndLevelIndexKey : BlockHandle(2ndLevelIndex)
 ```
 
-Each blockData consists of some data and a 5 byte trailer: a 1 byte blockData type and a
+Each block consists of some data and a 5 byte trailer: a 1 byte block type and a
 4 byte checksum. The checksum is computed over the compressed data and the first
-byte of the trailer (i.e. the blockData type), and is serialized as little-endian.
-The blockData type gives the per-blockData compression used; each blockData is compressed
+byte of the trailer (i.e. the block type), and is serialized as little-endian.
+The block type gives the per-block compression used; each block is compressed
 independently
 
-Illustration of a physical blockData trailer:
+Illustration of a physical block trailer:
 ```
 +---------------------------+-------------------+
 | compression type (1-byte) | checksum (4-byte) |
@@ -70,25 +70,25 @@ table_magic_number (8 bytes)
 
 #### b. Data Block Format 
 
-A Data Block is consist of one or more key/value entries and a blockData trailer. Block entry shares key prefix with its preceding 
-key until a restart point reached. A blockData should contains at least one restart point. First restart point are always zero.
+A Data Block is consist of one or more key/value entries and a block trailer. Block entry shares key prefix with its preceding 
+key until a restart point reached. A block should contains at least one restart point. First restart point are always zero.
 
 For example, if two adjacent keys are `"deck"` and `"dock"`, then the second key would be encoded as 
 `{1,"ock"}`. The shared prefix length is varint encoded. The remainder string and the value are encoded as a varint-encoded length 
 followed by the literal contents. To continue the example, suppose that the key `"dock"` mapped to the value
 `"v2"`. The encoded key/value entry would be: `"\x01\x03\x02dockv2"`.
 
-Every blockData has a restart interval I. Every I'th key/value entry in that blockData is called a restart point, and shares no key prefix with the previous entry.
+Every block has a restart interval I. Every I'th key/value entry in that block is called a restart point, and shares no key prefix with the previous entry.
 Continuing the example above, if the key after `"dock"` was `"duck"`, but was part of a restart point, 
 then that key would be encoded as `{0, "duck"}` instead of `{1, "uck"}`.
 
-Illustration of a typical data blockData:
+Illustration of a typical data block:
 
 ```
   + restart point                  + restart point (depends on restart interval)
  /                                /
 +---------------+---------------+---------------+---------------+---------+
-| blockData entry 1 | blockData entry 2 |      ...      | blockData entry n | trailer |
+| block entry 1 | block entry 2 |      ...      | block entry n | trailer |
 +---------------+---------------+---------------+---------------+---------+
 ```
 
@@ -116,7 +116,7 @@ The entries will be encoded as follow:
   +----------- entry one -----------+   +----------- entry two ----------+   +---------- entry three ----------+
 ```
 ```
-The blockData trailer will contains two restart points:
+The block trailer will contains two restart points:
 
 +------------+-----------+--------+
 |     0      |    16     |   2    |
@@ -131,26 +131,26 @@ The blockData trailer will contains two restart points:
 +-----------------+-----------------+-----------------+------------------------------+
 ```
 
-#### c. Index blockData 
+#### c. Index block 
 
-An index blockData is a blockData with N key/value entries, and they share the similar format
-with the data blockData. It helps to faster locate the data blockData that might have a requested key
+An index block is a block with N key/value entries, and they share the similar format
+with the data block. It helps to faster locate the data block that might have a requested key
 
-The index blockData `i'th` value is the encoded blockData handle of the `i'th` data blockData.
-And the index blockData `i'th` key is a string `>=` last key in that data blockData 
-and `<` the first key in the successive data blockData. The index blockData restart 
+The index block `i'th` value is the encoded block handle of the `i'th` data block.
+And the index block `i'th` key is a string `>=` last key in that data block 
+and `<` the first key in the successive data block. The index block restart 
 interval is `1`: every entry is a restart point.
 
 By default, we use a two-level index. It consists of a sequence of lower-level 
-index blocks with blockData handles for data blocks followed by a single top-level 
-index blockData with blockData handles for the lower-level index blocks. Value of the 
-top-level index blockData is the encoded blockData handle of the lower-level blocks,
+index blocks with block handles for data blocks followed by a single top-level 
+index block with block handles for the lower-level index blocks. Value of the 
+top-level index block is the encoded block handle of the lower-level blocks,
 
 ```
 2 Level Block format when stored in the stable storage:
-[index blockData - 1st level]
-[index blockData - 1st level]
+[index block - 1st level]
+[index block - 1st level]
 ...
-[index blockData - 1st level]
-[index blockData - 2nd level]
+[index block - 1st level]
+[index block - 2nd level]
 ```

@@ -37,12 +37,6 @@ func (r *RowBlockReader) Read(
 		return nil, fmt.Errorf("blockData pool is nil")
 	}
 
-	// TODO
-	//  1. Get the pre-allocated []bytes from the pool
-	//  2. Read the data from the blockData handle
-	//  3. Validate checksum. Note assume we only use exactly 1 checksum method for whole project
-	//  4. Read compressor method --> Decompress the data
-
 	blockData := bpool.Get(int(bh.Length))
 	blockData = blockData[:bh.Length]
 	if err := r.storageReader.ReadAt(blockData, bh.Offset); err != nil {

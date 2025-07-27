@@ -47,18 +47,18 @@ isAbsent := bf.MayContain(filter, []byte("goodbye")) // false (likely)
 
 ### Block-Based Structure
 
-The implementation divides the bit array into small blocks that fit into CPU cache lines (64 bytes = 512 bits per block):
+The implementation divides the bit array into small blocks that fit into CPU cache lines (64 bytes = 512 bits per blockData):
 
 ```
 Bytes form: |  b1, b2, ..., bn |  b1, b2, ..., bn | ...
-            | block 1 64 bytes | block 2 64 bytes | ...
+            | blockData 1 64 bytes | blockData 2 64 bytes | ...
 Bits form:  |    000...0000    |    000...0000    | ...
-            | block 1 512 bits | block 2 512 bits | ...
+            | blockData 1 512 bits | blockData 2 512 bits | ...
 ```
 
 ### Two-Level Hashing
 
-1. **Block Selection**: The first hash determines which block to use
+1. **Block Selection**: The first hash determines which blockData to use
 2. **Bit Pattern**: The second hash generates a bit pattern (with exactly k bits set to 1)
 
 ### Implementation Details
@@ -66,7 +66,7 @@ Bits form:  |    000...0000    |    000...0000    | ...
 - **Block Size**: Fixed at 64 bytes (512 bits) to match CPU cache line size
 - **Default Configuration**: 10 bits per key, optimal for most use cases
 - **False Positive Rate**: Approximately 0.01 (1%) with default settings
-- **Storage Format**: Data blocks followed by metadata (probe count and block count)
+- **Storage Format**: Data blocks followed by metadata (probe count and blockData count)
 
 ## Performance Characteristics
 

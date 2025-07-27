@@ -17,6 +17,7 @@ func (p *PhysicalBlock) SetData(data []byte) {
 	p.Data = data
 }
 
+// Size of the physical block, includes its Trailer
 func (p *PhysicalBlock) Size() uint64 {
 	return uint64(len(p.Data)) + TrailerLen
 }
@@ -33,7 +34,7 @@ func (p *PhysicalBlock) SetTrailer(auxiliary byte, checksum uint32) {
 type BlockHandle struct {
 	// Offset identifies the offset of the block within the file.
 	Offset uint64
-	// Length is the length of the block data (excludes the trailer).
+	// Length is the length of the block data (INCLUDES the trailer).
 	Length uint64
 }
 

@@ -19,3 +19,8 @@ var InternalServerError = CustomError{
 	error: errors.New("internal server error"),
 	code:  500,
 }
+
+var MismatchedChecksumError = CustomError{
+	error: errors.New("mismatched checksum"),
+	code:  500,
+}

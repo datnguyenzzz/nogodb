@@ -90,7 +90,8 @@ func (rw *RowBlockWriter) Close() error {
 		_ = bh.EncodeInto(encodedBH)
 		err = rw.metaIndexBlock.WriteEntry(
 			common.MakeKey([]byte{byte(block.BlockKindFilter)}, 0, common.KeyKindMetaIndex),
-			encodedBH)
+			encodedBH,
+		)
 		if err != nil {
 			zap.L().Error("failed to write filter to the metaIndexBlock", zap.Error(err))
 			return err

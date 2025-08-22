@@ -9,6 +9,7 @@ import (
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/options"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/storage"
+	"go.uber.org/zap"
 )
 
 // SecondLevelIterator reads the 2nd-level index block and creates and
@@ -17,7 +18,6 @@ import (
 type SecondLevelIterator struct {
 	bpool          *predictable_size.PredictablePool
 	rowBlockReader *RowBlockReader
-	metaIndexBH    *block.BlockHandle
 }
 
 var secondLevelIteratorPool = sync.Pool{
@@ -82,9 +82,15 @@ func NewSecondLevelIterator(fr go_fs.Readable, opts *options.IteratorOpts) (*Sec
 	}
 
 	iter.rowBlockReader.Init(reader)
-	iter.metaIndexBH = &footer.metaIndexBH
 
 	// Read and decode the meta index block
+	metaIndexBuf, err := iter.rowBlockReader.Read(iter.bpool, &footer.metaIndexBH, block.BlockKindMetaIntex)
+	if err != nil {
+		zap.L().Error("failed to read metaIndexBlock", zap.Error(err))
+		return nil, err
+	}
+	// TODO (dat.ngthanh): Use the row blocker iter to read the block buffer DataBlockIterator
+	blkIter := NewDataBlockIterator(common.NewComparer(), metaIndexBuf.ToByte())
 
 	return iter, nil
 }

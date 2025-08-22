@@ -13,4 +13,8 @@ func MakeBufferRaw(buf []byte) *Buffer {
 	}
 }
 
+func (b *Buffer) ToByte() []byte {
+	return b.buf
+}
+
 type BlockCache struct{}

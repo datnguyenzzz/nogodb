@@ -35,11 +35,11 @@ func (i *DataBlockIterator) SeekLT(key []byte) *common.InternalKV {
 }
 
 func (i *DataBlockIterator) First() *common.InternalKV {
-	//TODO
-	//  read current entry
-	//  prepare nextOffset
-	//  return iKV
-	panic("implement me")
+	i.readEntry()
+	iKV := &common.InternalKV{}
+	iKV.K = *common.DeserializeKey(i.key)
+	iKV.SetValue(i.value)
+	return iKV
 }
 
 func (i *DataBlockIterator) Last() *common.InternalKV {

@@ -12,3 +12,7 @@ type InternalKV struct {
 func (ikv *InternalKV) Value() []byte {
 	return ikv.V
 }
+
+func (ikv *InternalKV) SetValue(value []byte) {
+	ikv.V = value
+}

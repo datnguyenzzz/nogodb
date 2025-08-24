@@ -184,3 +184,153 @@ func TestDataBlockIterator_readEntry(t *testing.T) {
 		})
 	}
 }
+
+func TestDataBlockIterator_First(t *testing.T) {
+	type testCase struct {
+		desc               string
+		inputUserKeys      []string
+		inputValues        []string
+		restartInterval    int
+		expectedFirstKey   string
+		expectedFirstValue string
+	}
+
+	tests := []testCase{
+		{
+			desc: "#1 - restart interval 2",
+			inputUserKeys: []string{
+				"apple", "apricot", "avocado", "avowed", "cherry", "mango",
+			},
+			inputValues: []string{
+				"red", "orange", "purple", "yellow", "red", "blue",
+			},
+			restartInterval:    2,
+			expectedFirstKey:   "apple",
+			expectedFirstValue: "red",
+		},
+		{
+			desc: "#2 - restart interval 1",
+			inputUserKeys: []string{
+				"banana", "berry", "blueberry",
+			},
+			inputValues: []string{
+				"yellow", "red", "blue",
+			},
+			restartInterval:    1,
+			expectedFirstKey:   "banana",
+			expectedFirstValue: "yellow",
+		},
+		{
+			desc: "#3 - restart interval 3",
+			inputUserKeys: []string{
+				"grape", "grapefruit", "guava", "kiwi", "lemon", "lime",
+			},
+			inputValues: []string{
+				"purple", "pink", "green", "brown", "yellow", "green",
+			},
+			restartInterval:    3,
+			expectedFirstKey:   "grape",
+			expectedFirstValue: "purple",
+		},
+		{
+			desc: "#4 - single entry",
+			inputUserKeys: []string{
+				"strawberry",
+			},
+			inputValues: []string{
+				"red",
+			},
+			restartInterval:    5,
+			expectedFirstKey:   "strawberry",
+			expectedFirstValue: "red",
+		},
+		{
+			desc: "#5 - large restart interval",
+			inputUserKeys: []string{
+				"orange", "papaya", "peach", "pear",
+			},
+			inputValues: []string{
+				"orange", "orange", "pink", "green",
+			},
+			restartInterval:    4,
+			expectedFirstKey:   "orange",
+			expectedFirstValue: "orange",
+		},
+		{
+			desc: "#6 - empty first value",
+			inputUserKeys: []string{
+				"key1", "key2", "key3",
+			},
+			inputValues: []string{
+				"", "value2", "value3",
+			},
+			restartInterval:    2,
+			expectedFirstKey:   "key1",
+			expectedFirstValue: "",
+		},
+		{
+			desc: "#7 - keys with common prefixes",
+			inputUserKeys: []string{
+				"prefix_key_001", "prefix_key_002", "prefix_key_003", "prefix_key_004",
+			},
+			inputValues: []string{
+				"value1", "value2", "value3", "value4",
+			},
+			restartInterval:    3,
+			expectedFirstKey:   "prefix_key_001",
+			expectedFirstValue: "value1",
+		},
+		{
+			desc: "#8 - very long first key and value",
+			inputUserKeys: []string{
+				"verylongkeyname1234567890abcdefghijklmnopqrstuvwxyz",
+				"short",
+				"medium_key",
+			},
+			inputValues: []string{
+				"verylongvaluecontent1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ",
+				"small",
+				"medium_value",
+			},
+			restartInterval:    2,
+			expectedFirstKey:   "verylongkeyname1234567890abcdefghijklmnopqrstuvwxyz",
+			expectedFirstValue: "verylongvaluecontent1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.desc, func(t *testing.T) {
+			// 1. Create block data using the existing writer
+			bp := predictable_size.NewPredictablePool()
+			blk := newBlock(tc.restartInterval, bp)
+
+			for i, userKey := range tc.inputUserKeys {
+				key := makeDummyKey(userKey)
+				value := []byte(tc.inputValues[i])
+				err := blk.WriteEntry(key, value)
+				assert.NoError(t, err, "should not have error writing entry")
+			}
+
+			blockData := make([]byte, blk.EstimateSize())
+			blk.Finish(blockData)
+
+			// 2. Create iterator and test First()
+			cmp := common.NewComparer()
+			iter := NewDataBlockIterator(cmp, blockData)
+
+			firstKV := iter.First()
+
+			assert.NotNil(t, firstKV, "First() should return non-nil InternalKV")
+			assert.Equal(t, tc.expectedFirstKey, string(firstKV.K.UserKey), "First() should return the first key")
+			assert.Equal(t, tc.expectedFirstValue, string(firstKV.V), "First() should return the first value")
+			assert.Equal(t, uint64(0), iter.offset, "iterator offset should be 0 after First()")
+			assert.Greater(t, iter.nextOffset, uint64(0), "nextOffset should be greater than 0 after First()")
+			assert.LessOrEqual(t, iter.nextOffset, iter.trailerOffset, "nextOffset should not exceed trailer offset")
+
+			// Verify iterator's internal key and value are set
+			actualIterKey := common.DeserializeKey(iter.key)
+			assert.Equal(t, tc.expectedFirstKey, string(actualIterKey.UserKey), "iterator's internal key should match first key")
+			assert.Equal(t, tc.expectedFirstValue, string(iter.value), "iterator's internal value should match first value")
+		})
+	}
+}

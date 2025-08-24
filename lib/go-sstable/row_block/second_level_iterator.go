@@ -68,13 +68,13 @@ func (t *SecondLevelIterator) Close() error {
 func NewSecondLevelIterator(fr go_fs.Readable, opts *options.IteratorOpts) (*SecondLevelIterator, error) {
 	iter := secondLevelIteratorPool.Get().(*SecondLevelIterator)
 
-	reader := storage.NewLayoutReader(fr)
+	layoutReader := storage.NewLayoutReader(fr)
 	defer func() {
-		_ = reader.Close()
+		_ = layoutReader.Close()
 	}()
 
 	fullSize := fr.Size()
-	footer, err := ReadFooter(reader, fullSize)
+	footer, err := ReadFooter(layoutReader, fullSize)
 	if err != nil {
 		return nil, err
 	}
@@ -84,7 +84,7 @@ func NewSecondLevelIterator(fr go_fs.Readable, opts *options.IteratorOpts) (*Sec
 	}
 	iter.metaIndex = make(map[block.BlockKind]*block.BlockHandle)
 
-	iter.rowBlockReader.Init(reader)
+	iter.rowBlockReader.Init(layoutReader)
 
 	// Read and decode the meta index block
 	metaIndexBuf, err := iter.rowBlockReader.Read(iter.bpool, &footer.metaIndexBH, block.BlockKindMetaIntex)

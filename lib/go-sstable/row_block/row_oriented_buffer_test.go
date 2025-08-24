@@ -11,30 +11,134 @@ import (
 
 func Test_WriteEntry_Then_Finish(t *testing.T) {
 	type param struct {
-		desc          string
-		inputUserKeys []string
-		inputValue    []string
+		desc            string
+		inputUserKeys   []string
+		inputValue      []string
+		restartInterval int
+		expectedBlkData []byte
 	}
 
 	tests := []param{
 		{
-			desc: "#1",
+			desc: "#1 - restart interval 2",
 			inputUserKeys: []string{
 				"apple", "apricot", "avocado", "avowed", "cherry", "mango",
 			},
 			inputValue: []string{
 				"red", "orange", "purple", "yellow", "red", "blue",
 			},
+			restartInterval: 2,
+			expectedBlkData: []byte(
+				"\x00\x0d\x03apple\x00\x00\x00\x00\x00\x00\x00\x00red" +
+					"\x02\x0d\x06ricot\x00\x00\x00\x00\x00\x00\x00\x00orange" +
+					"\x00\x0f\x06avocado\x00\x00\x00\x00\x00\x00\x00\x00purple" +
+					"\x03\x0b\x06wed\x00\x00\x00\x00\x00\x00\x00\x00yellow" +
+					"\x00\x0e\x03cherry\x00\x00\x00\x00\x00\x00\x00\x00red" +
+					"\x00\x0d\x04mango\x00\x00\x00\x00\x00\x00\x00\x00blue" +
+					// block trailer [0, 41, 85] 3, we use little endian
+					"\x00\x00\x00\x00\x29\x00\x00\x00\x55\x00\x00\x00\x03\x00\x00\x00",
+			),
+		},
+		{
+			desc: "#2 - restart interval 1",
+			inputUserKeys: []string{
+				"banana", "berry", "blueberry",
+			},
+			inputValue: []string{
+				"yellow", "red", "blue",
+			},
+			restartInterval: 1,
+			expectedBlkData: []byte(
+				"\x00\x0e\x06banana\x00\x00\x00\x00\x00\x00\x00\x00yellow" +
+					"\x00\x0d\x03berry\x00\x00\x00\x00\x00\x00\x00\x00red" +
+					"\x00\x11\x04blueberry\x00\x00\x00\x00\x00\x00\x00\x00blue" +
+					// block trailer [0, 23, 42] 3, we use little endian
+					"\x00\x00\x00\x00\x17\x00\x00\x00\x2a\x00\x00\x00\x03\x00\x00\x00"),
+		},
+		{
+			desc: "#3 - restart interval 3",
+			inputUserKeys: []string{
+				"grape", "grapefruit", "guava", "kiwi", "lemon", "lime",
+			},
+			inputValue: []string{
+				"purple", "pink", "green", "brown", "yellow", "green",
+			},
+			restartInterval: 3,
+			expectedBlkData: []byte(
+				"\x00\x0d\x06grape\x00\x00\x00\x00\x00\x00\x00\x00purple" +
+					"\x05\x0d\x04fruit\x00\x00\x00\x00\x00\x00\x00\x00pink" +
+					"\x01\x0c\x05uava\x00\x00\x00\x00\x00\x00\x00\x00green" +
+					"\x00\x0c\x05kiwi\x00\x00\x00\x00\x00\x00\x00\x00brown" +
+					"\x00\x0d\x06lemon\x00\x00\x00\x00\x00\x00\x00\x00yellow" +
+					"\x01\x0b\x05ime\x00\x00\x00\x00\x00\x00\x00\x00green" +
+					// block trailer [0, 62] 2, we use little endian
+					"\x00\x00\x00\x00\x3e\x00\x00\x00\x02\x00\x00\x00"),
+		},
+		{
+			desc: "#4 - restart interval 4",
+			inputUserKeys: []string{
+				"orange", "papaya", "peach", "pear",
+			},
+			inputValue: []string{
+				"orange", "orange", "pink", "green",
+			},
+			restartInterval: 4,
+			expectedBlkData: []byte(
+				"\x00\x0e\x06orange\x00\x00\x00\x00\x00\x00\x00\x00orange" +
+					"\x00\x0e\x06papaya\x00\x00\x00\x00\x00\x00\x00\x00orange" +
+					"\x01\x0c\x04each\x00\x00\x00\x00\x00\x00\x00\x00pink" +
+					"\x03\x09\x05r\x00\x00\x00\x00\x00\x00\x00\x00green" +
+					// block trailer [0] 1, we use little endian
+					"\x00\x00\x00\x00\x01\x00\x00\x00"),
+		},
+		{
+			desc: "#5 - restart interval 5 with single entry",
+			inputUserKeys: []string{
+				"strawberry",
+			},
+			inputValue: []string{
+				"red",
+			},
+			restartInterval: 5,
+			expectedBlkData: []byte(
+				"\x00\x12\x03strawberry\x00\x00\x00\x00\x00\x00\x00\x00red" +
+					// block trailer [0] 1, we use little endian
+					"\x00\x00\x00\x00\x01\x00\x00\x00"),
+		},
+		{
+			desc: "#6 - restart interval 6 with many entries",
+			inputUserKeys: []string{
+				"apricot", "avocado", "banana", "blueberry", "cherry", "grape", "kiwi", "lemon", "mango", "orange", "papaya", "peach",
+			},
+			inputValue: []string{
+				"orange", "green", "yellow", "blue", "red", "purple", "brown", "yellow", "orange", "orange", "orange", "pink",
+			},
+			restartInterval: 6,
+			expectedBlkData: []byte(
+				"\x00\x0f\x06apricot\x00\x00\x00\x00\x00\x00\x00\x00orange" +
+					"\x01\x0e\x05vocado\x00\x00\x00\x00\x00\x00\x00\x00green" +
+					"\x00\x0e\x06banana\x00\x00\x00\x00\x00\x00\x00\x00yellow" +
+					"\x01\x10\x04lueberry\x00\x00\x00\x00\x00\x00\x00\x00blue" +
+					"\x00\x0e\x03cherry\x00\x00\x00\x00\x00\x00\x00\x00red" +
+					"\x00\x0d\x06grape\x00\x00\x00\x00\x00\x00\x00\x00purple" +
+					"\x00\x0c\x05kiwi\x00\x00\x00\x00\x00\x00\x00\x00brown" +
+					"\x00\x0d\x06lemon\x00\x00\x00\x00\x00\x00\x00\x00yellow" +
+					"\x00\x0d\x06mango\x00\x00\x00\x00\x00\x00\x00\x00orange" +
+					"\x00\x0e\x06orange\x00\x00\x00\x00\x00\x00\x00\x00orange" +
+					"\x00\x0e\x06papaya\x00\x00\x00\x00\x00\x00\x00\x00orange" +
+					"\x01\x0c\x04each\x00\x00\x00\x00\x00\x00\x00\x00pink" +
+					// block trailer [0, 262] 2, we use little endian
+					"\x00\x00\x00\x00\x86\x00\x00\x00\x02\x00\x00\x00"),
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.desc, func(t *testing.T) {
 			bp := predictable_size.NewPredictablePool()
-			blk := newBlock(2, bp)
+			blk := newBlock(tc.restartInterval, bp)
 			n := len(tc.inputUserKeys)
 			for i := 0; i < n; i++ {
-				key := makeKey(tc.inputUserKeys[i])
+				key := makeDummyKey(tc.inputUserKeys[i])
 				value := []byte(tc.inputValue[i])
 				// 1. Write a new entry, expect there is no error
 				err := blk.WriteEntry(key, value)
@@ -64,23 +168,13 @@ func Test_WriteEntry_Then_Finish(t *testing.T) {
 			assert.Greater(t, cap(blk.currValue), 0)
 			assert.Greater(t, cap(blk.curKey), 0)
 
-			// 5. Assert the data block
-			expectedBlkData := []byte(
-				"\x00\x0d\x03apple\x00\x00\x00\x00\x00\x00\x00\x00red" +
-					"\x02\x0d\x06ricot\x00\x00\x00\x00\x00\x00\x00\x00orange" +
-					"\x00\x0f\x06avocado\x00\x00\x00\x00\x00\x00\x00\x00purple" +
-					"\x03\x0b\x06wed\x00\x00\x00\x00\x00\x00\x00\x00yellow" +
-					"\x00\x0e\x03cherry\x00\x00\x00\x00\x00\x00\x00\x00red" +
-					"\x00\x0d\x04mango\x00\x00\x00\x00\x00\x00\x00\x00blue" +
-					// block trailer [0, 41, 85] 3, we use little endian
-					"\x00\x00\x00\x00\x29\x00\x00\x00\x55\x00\x00\x00\x03\x00\x00\x00")
-
-			assert.Equal(t, expectedBlkData, blkData)
+			// 5. Assert the data block matches expected
+			assert.Equal(t, tc.expectedBlkData, blkData)
 		})
 	}
 }
 
-func makeKey(userKey string) common.InternalKey {
+func makeDummyKey(userKey string) common.InternalKey {
 	return common.MakeKey([]byte(userKey), 0, common.KeyKindUnknown)
 }
 
@@ -98,19 +192,19 @@ func Test_WriteEntry_Error(t *testing.T) {
 	// Setup
 	bp := predictable_size.NewPredictablePool()
 	blk := newBlock(2, bp)
-	
+
 	// 1. Modify the buffer to exceed the maximum offset allowed
 	// The maximumRestartOffset is 2^31 - 1, so we're making the buffer exceed that
 	blk.buf = make([]byte, maximumRestartOffset+1)
-	
+
 	// 2. Try to write a new entry
-	key := makeKey("test-key")
+	key := makeDummyKey("test-key")
 	value := []byte("test-value")
-	
+
 	// 3. Assert that an error is returned
 	err := blk.WriteEntry(key, value)
 	assert.Equal(t, common.ClientInvalidRequestError, err, "should return error when buffer exceeds maximum offset")
-	
+
 	// 4. Assert that entry count was not incremented
 	assert.Zero(t, blk.EntryCount(), "entry count should not be incremented when an error occurs")
 }
@@ -144,13 +238,13 @@ func (m *MockPredictablePool) Get(dataLen int) []byte {
 func Test_Release(t *testing.T) {
 	// Create a real buffer pool first
 	realBp := predictable_size.NewPredictablePool()
-	
+
 	// Create a test block
 	blk := newBlock(2, realBp)
-	
+
 	// Create a mock pool and modify the implementation to use it
 	mockPool := new(MockPredictablePool)
-	
+
 	// Create a temporary wrapper struct to substitute the mockPool
 	wrapper := struct {
 		*rowBlockBuf
@@ -159,20 +253,20 @@ func Test_Release(t *testing.T) {
 		rowBlockBuf: blk,
 		mockPool:    mockPool,
 	}
-	
+
 	// Create a custom Release function for our test
 	customRelease := func() {
 		// Use the mock pool instead of the real one
 		wrapper.mockPool.Put(wrapper.buf)
 	}
-	
+
 	// Setup test data and expectations
 	wrapper.buf = []byte{1, 2, 3, 4, 5}
 	mockPool.On("Put", wrapper.buf).Return()
-	
+
 	// Call our custom Release function that uses the mock
 	customRelease()
-	
+
 	// Verify the mock was called correctly
 	mockPool.AssertExpectations(t)
 }
@@ -181,15 +275,15 @@ func Test_CleanUpForReuse(t *testing.T) {
 	// Setup
 	bp := predictable_size.NewPredictablePool()
 	blk := newBlock(2, bp)
-	
+
 	// 1. Add data to the block
-	key := makeKey("test-key")
+	key := makeDummyKey("test-key")
 	value := []byte("test-value")
-	
+
 	// Write an entry to populate the block
 	err := blk.WriteEntry(key, value)
 	assert.NoError(t, err)
-	
+
 	// Verify the block has data
 	assert.Equal(t, 1, blk.EntryCount())
 	assert.NotEmpty(t, blk.curKey)
@@ -197,16 +291,16 @@ func Test_CleanUpForReuse(t *testing.T) {
 	assert.NotEmpty(t, blk.buf)
 	assert.NotZero(t, blk.nextRestartEntry)
 	assert.NotEmpty(t, blk.restartOffset)
-	
+
 	// Save capacities before cleanup
 	bufCap := cap(blk.buf)
 	keyCap := cap(blk.curKey)
 	valCap := cap(blk.currValue)
 	restartCap := cap(blk.restartOffset)
-	
+
 	// 2. Call CleanUpForReuse
 	blk.CleanUpForReuse()
-	
+
 	// 3. Verify all fields are reset
 	assert.Zero(t, blk.EntryCount())
 	assert.Zero(t, blk.nextRestartEntry)
@@ -215,7 +309,7 @@ func Test_CleanUpForReuse(t *testing.T) {
 	assert.Empty(t, blk.prevKey)
 	assert.Empty(t, blk.currValue)
 	assert.Empty(t, blk.buf)
-	
+
 	// 4. Verify capacities are maintained (buffers reused)
 	assert.Equal(t, bufCap, cap(blk.buf))
 	assert.Equal(t, keyCap, cap(blk.curKey))
@@ -322,7 +416,7 @@ func Test_ShouldFlush(t *testing.T) {
 		t.Run(tc.desc, func(t *testing.T) {
 			// Setup - create a mock block with custom EstimateSize implementation
 			bp := predictable_size.NewPredictablePool()
-			
+
 			// Create a test block with our mocked size
 			blk := &mockRowBlockBuf{
 				rowBlockBuf: rowBlockBuf{
@@ -336,7 +430,7 @@ func Test_ShouldFlush(t *testing.T) {
 
 			// Setup mock decider
 			mockDecider := new(MockFlushDecider)
-			
+
 			if tc.entryCount > 0 {
 				// Use mock.Anything matchers for the ShouldFlush call
 				mockDecider.On("ShouldFlush", mock.Anything, mock.Anything).Return(tc.mockReturn)

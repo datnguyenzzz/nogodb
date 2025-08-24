@@ -8,8 +8,13 @@ import (
 
 // DataBlockIterator is an iterator over a single row-based block of data.
 type DataBlockIterator struct {
+	// data represents entire data of the block
 	data []byte
-	// offset
+	// key represents key of the current entry
+	key []byte
+	// value represents value of the current entry
+	value []byte
+	// offsets
 	offset        uint64
 	nextOffset    uint64
 	trailerOffset uint64
@@ -19,17 +24,17 @@ type DataBlockIterator struct {
 	// TODO(high): Need exploring how to cache the data
 }
 
-func (d DataBlockIterator) SeekGTE(key []byte) *common.InternalKV {
+func (i *DataBlockIterator) SeekGTE(key []byte) *common.InternalKV {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (d DataBlockIterator) SeekLT(key []byte) *common.InternalKV {
+func (i *DataBlockIterator) SeekLT(key []byte) *common.InternalKV {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (d DataBlockIterator) First() *common.InternalKV {
+func (i *DataBlockIterator) First() *common.InternalKV {
 	//TODO
 	//  read current entry
 	//  prepare nextOffset
@@ -37,24 +42,47 @@ func (d DataBlockIterator) First() *common.InternalKV {
 	panic("implement me")
 }
 
-func (d DataBlockIterator) Last() *common.InternalKV {
+func (i *DataBlockIterator) Last() *common.InternalKV {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (d DataBlockIterator) Next() *common.InternalKV {
+func (i *DataBlockIterator) Next() *common.InternalKV {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (d DataBlockIterator) Prev() *common.InternalKV {
+func (i *DataBlockIterator) Prev() *common.InternalKV {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (d DataBlockIterator) Close() error {
+func (i *DataBlockIterator) Close() error {
 	//TODO implement me
 	panic("implement me")
+}
+
+// readEntry read key, value and nextOffset of the current entry where the iterator points at
+func (i *DataBlockIterator) readEntry() {
+	blkOffset := i.offset
+	sharedLen, e := binary.Uvarint(i.data[blkOffset:])
+	blkOffset += uint64(e)
+	unsharedLen, e := binary.Uvarint(i.data[blkOffset:])
+	blkOffset += uint64(e)
+	valueLen, e := binary.Uvarint(i.data[blkOffset:])
+	blkOffset += uint64(e)
+	if len(i.key) == 0 {
+		// the very first of the block
+		i.key = i.data[blkOffset : blkOffset+unsharedLen]
+	} else {
+		i.key = append(i.key[:sharedLen], i.data[blkOffset:blkOffset+unsharedLen]...)
+	}
+	i.key = i.key[:len(i.key):len(i.key)]
+	blkOffset += unsharedLen
+	i.value = i.data[blkOffset : blkOffset+valueLen]
+	i.value = i.value[:len(i.value):len(i.value)]
+	blkOffset += valueLen
+	i.nextOffset = blkOffset
 }
 
 func NewDataBlockIterator(

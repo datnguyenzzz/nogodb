@@ -129,7 +129,7 @@ func (w *indexWriter) buildIndex() error {
 		var encodedBH []byte
 		_ = bh.EncodeInto(encodedBH)
 		err := w.metaIndexBlock.WriteEntry(
-			common.MakeKey([]byte{byte(block.BlockKindIndex)}, 0, common.KeyKindMetaIndex),
+			common.MakeMetaIndexKey(block.BlockKindIndex),
 			encodedBH,
 		)
 		if err != nil {

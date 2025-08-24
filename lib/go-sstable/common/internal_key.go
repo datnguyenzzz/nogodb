@@ -3,6 +3,8 @@ package common
 import (
 	"cmp"
 	"encoding/binary"
+
+	"github.com/datnguyenzzz/nogodb/lib/go-sstable/block"
 )
 
 // KeyKind enumerates the kind of key: a deletion tombstone, a set
@@ -100,6 +102,13 @@ func MakeKey(userKey []byte, num SeqNum, kind KeyKind) InternalKey {
 	return InternalKey{
 		UserKey: userKey,
 		Trailer: trailer,
+	}
+}
+
+func MakeMetaIndexKey(blkKind block.BlockKind) InternalKey {
+	return InternalKey{
+		UserKey: []byte{byte(blkKind)},
+		Trailer: InternalKeyTrailer(blkKind),
 	}
 }
 

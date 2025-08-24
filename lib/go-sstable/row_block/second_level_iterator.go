@@ -1,6 +1,7 @@
 package row_block
 
 import (
+	"fmt"
 	"sync"
 
 	"github.com/datnguyenzzz/nogodb/lib/go-bytesbufferpool/predictable_size"
@@ -17,6 +18,7 @@ import (
 // iterate over the datablock within the requested boundary [lower_bound, upper_bound]
 type SecondLevelIterator struct {
 	bpool          *predictable_size.PredictablePool
+	metaIndex      map[block.BlockKind]*block.BlockHandle
 	rowBlockReader *RowBlockReader
 }
 
@@ -80,6 +82,7 @@ func NewSecondLevelIterator(fr go_fs.Readable, opts *options.IteratorOpts) (*Sec
 	if iter.rowBlockReader == nil {
 		iter.rowBlockReader = &RowBlockReader{}
 	}
+	iter.metaIndex = make(map[block.BlockKind]*block.BlockHandle)
 
 	iter.rowBlockReader.Init(reader)
 
@@ -89,8 +92,18 @@ func NewSecondLevelIterator(fr go_fs.Readable, opts *options.IteratorOpts) (*Sec
 		zap.L().Error("failed to read metaIndexBlock", zap.Error(err))
 		return nil, err
 	}
-	// TODO (dat.ngthanh): Use the row blocker iter to read the block buffer DataBlockIterator
 	blkIter := NewDataBlockIterator(common.NewComparer(), metaIndexBuf.ToByte())
+	for i := blkIter.First(); i != nil; i = blkIter.Next() {
+		val := i.Value()
+		bh := &block.BlockHandle{}
+		if sz := bh.DecodeFrom(val); sz != len(val) {
+			zap.L().Error("failed to decode block, corrupted size", zap.Any("block", i))
+			return nil, fmt.Errorf("failed to decode block, corrupted size. %w", common.InternalServerError)
+		}
+
+		// meta index store the block type at the 1-st byte of the userKey
+		iter.metaIndex[block.BlockKind(i.K.UserKey[0])] = bh
+	}
 
 	return iter, nil
 }

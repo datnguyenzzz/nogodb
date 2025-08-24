@@ -89,7 +89,7 @@ func (rw *RowBlockWriter) Close() error {
 		var encodedBH []byte
 		_ = bh.EncodeInto(encodedBH)
 		err = rw.metaIndexBlock.WriteEntry(
-			common.MakeKey([]byte{byte(block.BlockKindFilter)}, 0, common.KeyKindMetaIndex),
+			common.MakeMetaIndexKey(block.BlockKindFilter),
 			encodedBH,
 		)
 		if err != nil {

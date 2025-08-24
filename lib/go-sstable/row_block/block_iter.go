@@ -3,11 +3,13 @@ package row_block
 import (
 	"encoding/binary"
 
+	"github.com/datnguyenzzz/nogodb/lib/go-bytesbufferpool/predictable_size"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
 )
 
 // BlockIterator is an iterator over a single row-based block.
 type BlockIterator struct {
+	bpool *predictable_size.PredictablePool
 	// data represents entire data of the block
 	data []byte
 	// key represents key of the current entry
@@ -62,9 +64,9 @@ func (i *BlockIterator) Prev() *common.InternalKV {
 }
 
 func (i *BlockIterator) Close() error {
-	i.data = i.data[:0]
 	i.key = i.key[:0]
 	i.value = i.value[:0]
+	i.bpool.Put(i.data)
 	return nil
 }
 
@@ -92,12 +94,14 @@ func (i *BlockIterator) readEntry() {
 }
 
 func NewBlockIterator(
+	bpool *predictable_size.PredictablePool,
 	cmp common.IComparer,
 	block []byte,
 ) *BlockIterator {
 	// refer to the README to understand the data layout
 	numRestarts := int32(binary.LittleEndian.Uint32(block[len(block)-4:]))
 	i := &BlockIterator{
+		bpool:         bpool,
 		cmp:           cmp,
 		data:          block,
 		numRestarts:   numRestarts,

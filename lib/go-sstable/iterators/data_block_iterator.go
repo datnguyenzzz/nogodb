@@ -75,12 +75,12 @@ func (i *DataBlockIterator) Close() error {
 
 func (i *DataBlockIterator) readMetaIndexBlock(footer *row_block.Footer) error {
 	// Read and decode the meta index block
-	metaIndexBuf, err := i.blockReader.Read(i.bpool, footer.GetMetaIndex(), block_common.BlockKindMetaIntex)
+	metaIndexBuf, err := i.blockReader.Read(footer.GetMetaIndex(), block_common.BlockKindMetaIntex)
 	if err != nil {
 		zap.L().Error("failed to read metaIndexBlock", zap.Error(err))
 		return err
 	}
-	blkIter := row_block.NewBlockIterator(common.NewComparer(), metaIndexBuf.ToByte())
+	blkIter := row_block.NewBlockIterator(i.bpool, common.NewComparer(), metaIndexBuf.ToByte())
 	for iter := blkIter.First(); iter != nil; iter = blkIter.Next() {
 		val := iter.Value()
 		bh := &block_common.BlockHandle{}
@@ -97,12 +97,12 @@ func (i *DataBlockIterator) readMetaIndexBlock(footer *row_block.Footer) error {
 }
 
 func (i *DataBlockIterator) init2ndLevelIndexBlockIterator() error {
-	secondLevelIndexBuf, err := i.blockReader.Read(i.bpool, i.metaIndex[block_common.BlockKindIndex], block_common.BlockKindIndex)
+	secondLevelIndexBuf, err := i.blockReader.Read(i.metaIndex[block_common.BlockKindIndex], block_common.BlockKindIndex)
 	if err != nil {
 		zap.L().Error("failed to read secondLevelIndexBlock", zap.Error(err))
 		return err
 	}
-	i.secondLevelIndexIter = row_block.NewBlockIterator(common.NewComparer(), secondLevelIndexBuf.ToByte())
+	i.secondLevelIndexIter = row_block.NewBlockIterator(i.bpool, common.NewComparer(), secondLevelIndexBuf.ToByte())
 	return nil
 }
 
@@ -129,7 +129,7 @@ func NewDataBlockIterator(fr go_fs.Readable, opts *options.IteratorOpts) (*DataB
 		iter.blockReader = &row_block.RowBlockReader{}
 	}
 	iter.metaIndex = make(map[block_common.BlockKind]*block_common.BlockHandle)
-	iter.blockReader.Init(layoutReader)
+	iter.blockReader.Init(iter.bpool, layoutReader)
 
 	// read meta index
 	if err = iter.readMetaIndexBlock(footer); err != nil {

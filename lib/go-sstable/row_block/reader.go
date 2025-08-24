@@ -14,15 +14,16 @@ import (
 // RowBlockReader reads row-based blocks from a single file, handling caching,
 // checksum validation and decompression.
 type RowBlockReader struct {
+	bpool         *predictable_size.PredictablePool
 	storageReader storage.ILayoutReader
 }
 
-func (r *RowBlockReader) Init(fr storage.ILayoutReader) {
+func (r *RowBlockReader) Init(bpool *predictable_size.PredictablePool, fr storage.ILayoutReader) {
+	r.bpool = bpool
 	r.storageReader = fr
 }
 
 func (r *RowBlockReader) Read(
-	bpool *predictable_size.PredictablePool,
 	bh *block_common.BlockHandle,
 	kind block_common.BlockKind,
 ) (*block_common.Buffer, error) {
@@ -33,20 +34,20 @@ func (r *RowBlockReader) Read(
 	//  the blockData , aka BlockCache (key: File ID + BlockHandle --> value: []byte)
 	//  Research on how to implement an efficient Block's Cache
 
-	if bpool == nil {
+	if r.bpool == nil {
 		return nil, fmt.Errorf("blockData pool is nil")
 	}
 
-	blockData := bpool.Get(int(bh.Length))
+	blockData := r.bpool.Get(int(bh.Length))
 	blockData = blockData[:bh.Length]
 	if err := r.storageReader.ReadAt(blockData, bh.Offset); err != nil {
-		bpool.Put(blockData)
+		r.bpool.Put(blockData)
 		return nil, err
 	}
 
 	// Assume we would use CRC32 checksum method for every operation
 	if !r.validateChecksum(common.CRC32Checksum, blockData) {
-		bpool.Put(blockData)
+		r.bpool.Put(blockData)
 		return nil, common.MismatchedChecksumError
 	}
 
@@ -59,17 +60,17 @@ func (r *RowBlockReader) Read(
 
 	decompressedLen, err := compressor.DecompressedLen(blockData[:compressedLength])
 	if err != nil {
-		bpool.Put(blockData)
+		r.bpool.Put(blockData)
 		return nil, err
 	}
 
-	decompressed := bpool.Get(decompressedLen)
+	decompressed := r.bpool.Get(decompressedLen)
 	decompressed = decompressed[:decompressedLen]
 	err = compressor.Decompress(decompressed, blockData[:compressedLength])
-	bpool.Put(blockData)
+	r.bpool.Put(blockData)
 
 	if err != nil {
-		bpool.Put(decompressed)
+		r.bpool.Put(decompressed)
 		return nil, err
 	}
 

@@ -171,7 +171,7 @@ func TestDataBlockIterator_readEntry(t *testing.T) {
 			cmp := common.NewComparer()
 
 			for _, entry := range tc.testEntries {
-				iter := NewBlockIterator(cmp, blockData)
+				iter := NewBlockIterator(predictable_size.NewPredictablePool(), cmp, blockData)
 				iter.offset = entry.offset
 
 				iter.readEntry()
@@ -316,7 +316,7 @@ func TestDataBlockIterator_First(t *testing.T) {
 
 			// 2. Create iterator and test First()
 			cmp := common.NewComparer()
-			iter := NewBlockIterator(cmp, blockData)
+			iter := NewBlockIterator(predictable_size.NewPredictablePool(), cmp, blockData)
 
 			firstKV := iter.First()
 
@@ -495,7 +495,7 @@ func TestBlockIterator_Next(t *testing.T) {
 
 			// 2. Create iterator and test sequential Next() calls
 			cmp := common.NewComparer()
-			iter := NewBlockIterator(cmp, blockData)
+			iter := NewBlockIterator(predictable_size.NewPredictablePool(), cmp, blockData)
 
 			firstKV := iter.First()
 			assert.NotNil(t, firstKV, "First() should return non-nil InternalKV")

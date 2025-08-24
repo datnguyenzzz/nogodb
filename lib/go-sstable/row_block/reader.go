@@ -5,8 +5,8 @@ import (
 	"fmt"
 
 	"github.com/datnguyenzzz/nogodb/lib/go-bytesbufferpool/predictable_size"
-	"github.com/datnguyenzzz/nogodb/lib/go-sstable/block"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
+	block2 "github.com/datnguyenzzz/nogodb/lib/go-sstable/common/block"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/compression"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/storage"
 )
@@ -23,9 +23,9 @@ func (r *RowBlockReader) Init(fr storage.ILayoutReader) {
 
 func (r *RowBlockReader) Read(
 	bpool *predictable_size.PredictablePool,
-	bh *block.BlockHandle,
-	kind block.BlockKind,
-) (*block.Buffer, error) {
+	bh *block2.BlockHandle,
+	kind block2.BlockKind,
+) (*block2.Buffer, error) {
 
 	// TODO (high): The read function requires the buffer pool to be available to
 	//  obtain the pre-allocated buffer for handling the read stream.
@@ -52,7 +52,7 @@ func (r *RowBlockReader) Read(
 
 	// decompress block's data
 
-	compressedLength := bh.Length - block.TrailerLen
+	compressedLength := bh.Length - block2.TrailerLen
 	compressor := compression.NewCompressor(
 		compression.CompressionType(blockData[compressedLength]),
 	)
@@ -73,11 +73,11 @@ func (r *RowBlockReader) Read(
 		return nil, err
 	}
 
-	return block.MakeBufferRaw(decompressed), nil
+	return block2.MakeBufferRaw(decompressed), nil
 }
 
 func (r *RowBlockReader) validateChecksum(checksumType common.ChecksumType, blockData []byte) bool {
-	blockLengthWithoutTrailer := len(blockData) - block.TrailerLen
+	blockLengthWithoutTrailer := len(blockData) - block2.TrailerLen
 	foundChecksum := binary.LittleEndian.Uint32(blockData[blockLengthWithoutTrailer+1:])
 
 	compressor := blockData[blockLengthWithoutTrailer]

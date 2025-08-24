@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/datnguyenzzz/nogodb/lib/go-sstable/block"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
+	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common/block"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

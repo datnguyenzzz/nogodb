@@ -171,7 +171,7 @@ func TestDataBlockIterator_readEntry(t *testing.T) {
 			cmp := common.NewComparer()
 
 			for _, entry := range tc.testEntries {
-				iter := NewDataBlockIterator(cmp, blockData)
+				iter := NewBlockIterator(cmp, blockData)
 				iter.offset = entry.offset
 
 				iter.readEntry()
@@ -316,7 +316,7 @@ func TestDataBlockIterator_First(t *testing.T) {
 
 			// 2. Create iterator and test First()
 			cmp := common.NewComparer()
-			iter := NewDataBlockIterator(cmp, blockData)
+			iter := NewBlockIterator(cmp, blockData)
 
 			firstKV := iter.First()
 

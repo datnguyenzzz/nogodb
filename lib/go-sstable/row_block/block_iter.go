@@ -6,8 +6,8 @@ import (
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
 )
 
-// DataBlockIterator is an iterator over a single row-based block of data.
-type DataBlockIterator struct {
+// BlockIterator is an iterator over a single row-based block.
+type BlockIterator struct {
 	// data represents entire data of the block
 	data []byte
 	// key represents key of the current entry
@@ -24,17 +24,17 @@ type DataBlockIterator struct {
 	// TODO(high): Need exploring how to cache the data
 }
 
-func (i *DataBlockIterator) SeekGTE(key []byte) *common.InternalKV {
+func (i *BlockIterator) SeekGTE(key []byte) *common.InternalKV {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (i *DataBlockIterator) SeekLT(key []byte) *common.InternalKV {
+func (i *BlockIterator) SeekLT(key []byte) *common.InternalKV {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (i *DataBlockIterator) First() *common.InternalKV {
+func (i *BlockIterator) First() *common.InternalKV {
 	i.readEntry()
 	iKV := &common.InternalKV{}
 	iKV.K = *common.DeserializeKey(i.key)
@@ -42,28 +42,28 @@ func (i *DataBlockIterator) First() *common.InternalKV {
 	return iKV
 }
 
-func (i *DataBlockIterator) Last() *common.InternalKV {
+func (i *BlockIterator) Last() *common.InternalKV {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (i *DataBlockIterator) Next() *common.InternalKV {
+func (i *BlockIterator) Next() *common.InternalKV {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (i *DataBlockIterator) Prev() *common.InternalKV {
+func (i *BlockIterator) Prev() *common.InternalKV {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (i *DataBlockIterator) Close() error {
+func (i *BlockIterator) Close() error {
 	//TODO implement me
 	panic("implement me")
 }
 
 // readEntry read key, value and nextOffset of the current entry where the iterator points at
-func (i *DataBlockIterator) readEntry() {
+func (i *BlockIterator) readEntry() {
 	blkOffset := i.offset
 	sharedLen, e := binary.Uvarint(i.data[blkOffset:])
 	blkOffset += uint64(e)
@@ -85,13 +85,13 @@ func (i *DataBlockIterator) readEntry() {
 	i.nextOffset = blkOffset
 }
 
-func NewDataBlockIterator(
+func NewBlockIterator(
 	cmp common.IComparer,
 	block []byte,
-) *DataBlockIterator {
+) *BlockIterator {
 	// refer to the README to understand the data layout
 	numRestarts := int32(binary.LittleEndian.Uint32(block[len(block)-4:]))
-	i := &DataBlockIterator{
+	i := &BlockIterator{
 		cmp:           cmp,
 		data:          block,
 		numRestarts:   numRestarts,
@@ -101,4 +101,4 @@ func NewDataBlockIterator(
 	return i
 }
 
-var _ common.InternalIterator = (*DataBlockIterator)(nil)
+var _ common.InternalIterator = (*BlockIterator)(nil)

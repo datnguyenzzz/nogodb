@@ -4,8 +4,8 @@ import (
 	"encoding/binary"
 	"fmt"
 
-	"github.com/datnguyenzzz/nogodb/lib/go-sstable/block"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
+	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common/block"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/storage"
 )
 
@@ -22,6 +22,10 @@ func (f *Footer) Serialise() []byte {
 	binary.LittleEndian.PutUint32(buf[cap(buf)-common.MagicNumberLen-common.TableVersionLen:], uint32(f.version))
 	copy(buf[cap(buf)-common.MagicNumberLen:], common.MagicNumber)
 	return buf
+}
+
+func (f *Footer) GetMetaIndex() *block.BlockHandle {
+	return &f.metaIndexBH
 }
 
 func ReadFooter(

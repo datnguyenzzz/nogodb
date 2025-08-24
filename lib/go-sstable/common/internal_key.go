@@ -4,7 +4,7 @@ import (
 	"cmp"
 	"encoding/binary"
 
-	"github.com/datnguyenzzz/nogodb/lib/go-sstable/block"
+	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common/block"
 )
 
 // KeyKind enumerates the kind of key: a deletion tombstone, a set

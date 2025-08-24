@@ -3,8 +3,8 @@ package row_block
 import (
 	"sync"
 
-	"github.com/datnguyenzzz/nogodb/lib/go-sstable/block"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
+	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common/block"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/queue"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/storage"
 )

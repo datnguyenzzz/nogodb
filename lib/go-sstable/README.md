@@ -139,7 +139,8 @@ with the data block. It helps to faster locate the data block that might have a 
 The index block `i'th` value is the encoded block handle of the `i'th` data block.
 And the index block `i'th` key is a string `>=` last key in that data block 
 and `<` the first key in the successive data block. The index block restart 
-interval is `1`: every entry is a restart point.
+interval is `1`: every entry is a restart point. The index is added every time 
+the data block is flushed to storage (when it exceeds a certain size).
 
 By default, we use a two-level index. It consists of a sequence of lower-level 
 index blocks with block handles for data blocks followed by a single top-level 

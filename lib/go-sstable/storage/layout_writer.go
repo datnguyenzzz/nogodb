@@ -2,7 +2,7 @@ package storage
 
 import (
 	go_fs "github.com/datnguyenzzz/nogodb/lib/go-fs"
-	"github.com/datnguyenzzz/nogodb/lib/go-sstable/block"
+	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common/block"
 )
 
 type layoutWriter struct {

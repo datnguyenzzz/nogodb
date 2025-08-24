@@ -62,8 +62,10 @@ func (i *BlockIterator) Prev() *common.InternalKV {
 }
 
 func (i *BlockIterator) Close() error {
-	//TODO implement me
-	panic("implement me")
+	i.data = i.data[:0]
+	i.key = i.key[:0]
+	i.value = i.value[:0]
+	return nil
 }
 
 // readEntry read key, value and nextOffset of the current entry where the iterator points at

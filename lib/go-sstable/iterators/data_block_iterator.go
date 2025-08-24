@@ -68,8 +68,9 @@ func (i *DataBlockIterator) Prev() *common.InternalKV {
 }
 
 func (i *DataBlockIterator) Close() error {
-	//TODO implement me
-	panic("implement me")
+	err := i.secondLevelIndexIter.Close()
+	dataBlockIteratorPool.Put(i)
+	return err
 }
 
 func (i *DataBlockIterator) readMetaIndexBlock(footer *row_block.Footer) error {
@@ -107,14 +108,19 @@ func (i *DataBlockIterator) init2ndLevelIndexBlockIterator() error {
 
 func NewDataBlockIterator(fr go_fs.Readable, opts *options.IteratorOpts) (*DataBlockIterator, error) {
 	iter := dataBlockIteratorPool.Get().(*DataBlockIterator)
-
-	layoutReader := storage.NewLayoutReader(fr)
+	var err error
+	var footer *row_block.Footer
+	var layoutReader storage.ILayoutReader
 	defer func() {
-		_ = layoutReader.Close()
+		if err != nil {
+			_ = layoutReader.Close()
+			_ = iter.Close()
+		}
 	}()
 
+	layoutReader = storage.NewLayoutReader(fr)
 	fullSize := fr.Size()
-	footer, err := row_block.ReadFooter(layoutReader, fullSize)
+	footer, err = row_block.ReadFooter(layoutReader, fullSize)
 	if err != nil {
 		return nil, err
 	}
@@ -126,12 +132,12 @@ func NewDataBlockIterator(fr go_fs.Readable, opts *options.IteratorOpts) (*DataB
 	iter.blockReader.Init(layoutReader)
 
 	// read meta index
-	if err := iter.readMetaIndexBlock(footer); err != nil {
+	if err = iter.readMetaIndexBlock(footer); err != nil {
 		return nil, err
 	}
 
 	// init 2nd level index iterator
-	if err := iter.init2ndLevelIndexBlockIterator(); err != nil {
+	if err = iter.init2ndLevelIndexBlockIterator(); err != nil {
 		return nil, err
 	}
 

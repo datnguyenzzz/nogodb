@@ -48,8 +48,12 @@ func (i *BlockIterator) Last() *common.InternalKV {
 }
 
 func (i *BlockIterator) Next() *common.InternalKV {
-	//TODO implement me
-	panic("implement me")
+	i.offset = i.nextOffset
+	i.readEntry()
+	iKV := &common.InternalKV{}
+	iKV.K = *common.DeserializeKey(i.key)
+	iKV.SetValue(i.value)
+	return iKV
 }
 
 func (i *BlockIterator) Prev() *common.InternalKV {

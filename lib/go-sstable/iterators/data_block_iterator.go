@@ -7,7 +7,7 @@ import (
 	"github.com/datnguyenzzz/nogodb/lib/go-bytesbufferpool/predictable_size"
 	go_fs "github.com/datnguyenzzz/nogodb/lib/go-fs"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
-	block2 "github.com/datnguyenzzz/nogodb/lib/go-sstable/common/block"
+	block_common "github.com/datnguyenzzz/nogodb/lib/go-sstable/common/block"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/options"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/row_block"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/storage"
@@ -22,7 +22,7 @@ type DataBlockIterator struct {
 	// metaIndex has 2 keys
 	//  BlockKindFilter - reference to built filter of the data block
 	//  BlockKindIndex  - reference to the 2nd level block
-	metaIndex map[block2.BlockKind]*block2.BlockHandle
+	metaIndex map[block_common.BlockKind]*block_common.BlockHandle
 
 	// secondLevelIndexIter iterator through the 2nd level index block
 	secondLevelIndexIter common.InternalIterator
@@ -74,7 +74,7 @@ func (i *DataBlockIterator) Close() error {
 
 func (i *DataBlockIterator) readMetaIndexBlock(footer *row_block.Footer) error {
 	// Read and decode the meta index block
-	metaIndexBuf, err := i.blockReader.Read(i.bpool, footer.GetMetaIndex(), block2.BlockKindMetaIntex)
+	metaIndexBuf, err := i.blockReader.Read(i.bpool, footer.GetMetaIndex(), block_common.BlockKindMetaIntex)
 	if err != nil {
 		zap.L().Error("failed to read metaIndexBlock", zap.Error(err))
 		return err
@@ -82,21 +82,21 @@ func (i *DataBlockIterator) readMetaIndexBlock(footer *row_block.Footer) error {
 	blkIter := row_block.NewBlockIterator(common.NewComparer(), metaIndexBuf.ToByte())
 	for iter := blkIter.First(); iter != nil; iter = blkIter.Next() {
 		val := iter.Value()
-		bh := &block2.BlockHandle{}
+		bh := &block_common.BlockHandle{}
 		if sz := bh.DecodeFrom(val); sz != len(val) {
 			zap.L().Error("failed to decode block, corrupted size", zap.Any("block", i))
 			return fmt.Errorf("failed to decode block, corrupted size. %w", common.InternalServerError)
 		}
 
 		// meta index store the block type at the 1-st byte of the userKey
-		i.metaIndex[block2.BlockKind(iter.K.UserKey[0])] = bh
+		i.metaIndex[block_common.BlockKind(iter.K.UserKey[0])] = bh
 	}
 
 	return nil
 }
 
 func (i *DataBlockIterator) init2ndLevelIndexBlockIterator() error {
-	secondLevelIndexBuf, err := i.blockReader.Read(i.bpool, i.metaIndex[block2.BlockKindIndex], block2.BlockKindIndex)
+	secondLevelIndexBuf, err := i.blockReader.Read(i.bpool, i.metaIndex[block_common.BlockKindIndex], block_common.BlockKindIndex)
 	if err != nil {
 		zap.L().Error("failed to read secondLevelIndexBlock", zap.Error(err))
 		return err
@@ -122,7 +122,7 @@ func NewDataBlockIterator(fr go_fs.Readable, opts *options.IteratorOpts) (*DataB
 	if iter.blockReader == nil {
 		iter.blockReader = &row_block.RowBlockReader{}
 	}
-	iter.metaIndex = make(map[block2.BlockKind]*block2.BlockHandle)
+	iter.metaIndex = make(map[block_common.BlockKind]*block_common.BlockHandle)
 	iter.blockReader.Init(layoutReader)
 
 	// read meta index

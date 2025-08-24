@@ -8,6 +8,7 @@ import (
 )
 
 // BlockIterator is an iterator over a single row-based block.
+// BlockIterator will still return even if the record has tombstone mark
 type BlockIterator struct {
 	bpool *predictable_size.PredictablePool
 	// data represents entire data of the block

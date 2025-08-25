@@ -1,1 +1,4 @@
-## LRU cache
+## cache
+### Current support replacement method
+- [ ] LRUCache
+- [ ] ClockCache

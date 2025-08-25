@@ -11,8 +11,17 @@ import (
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/storage"
 )
 
-// RowBlockReader reads row-based blocks from a single file, handling caching,
-// checksum validation and decompression.
+type IBlockReader interface {
+	// Read perform read directly from the source without caching
+	Read(bh *block_common.BlockHandle, kind block_common.BlockKind) (*block_common.Buffer, error)
+	// ReadThroughCache perform read through cache method
+	ReadThroughCache(bh *block_common.BlockHandle, kind block_common.BlockKind) (*block_common.Buffer, error)
+	Init(bpool *predictable_size.PredictablePool, fr storage.ILayoutReader)
+}
+
+// RowBlockReader reads row-based blocks from a single file,
+// handling caching / read through cache, checksum validation
+// and decompression.
 type RowBlockReader struct {
 	bpool         *predictable_size.PredictablePool
 	storageReader storage.ILayoutReader
@@ -23,16 +32,23 @@ func (r *RowBlockReader) Init(bpool *predictable_size.PredictablePool, fr storag
 	r.storageReader = fr
 }
 
-func (r *RowBlockReader) Read(
-	bh *block_common.BlockHandle,
-	kind block_common.BlockKind,
-) (*block_common.Buffer, error) {
+func (r *RowBlockReader) ReadThroughCache(bh *block_common.BlockHandle, kind block_common.BlockKind) (*block_common.Buffer, error) {
 
 	// TODO (high): The read function requires the buffer pool to be available to
 	//  obtain the pre-allocated buffer for handling the read stream.
 	//  An optimization is to have a caching mechanism to cache the value of
 	//  the blockData , aka BlockCache (key: File ID + BlockHandle --> value: []byte)
 	//  Research on how to implement an efficient Block's Cache
+	//  ...
+	//  Wire up with the go-cache
+
+	panic("implement me")
+}
+
+func (r *RowBlockReader) Read(
+	bh *block_common.BlockHandle,
+	kind block_common.BlockKind,
+) (*block_common.Buffer, error) {
 
 	if r.bpool == nil {
 		return nil, fmt.Errorf("blockData pool is nil")
@@ -96,3 +112,5 @@ func (r *RowBlockReader) validateChecksum(checksumType common.ChecksumType, bloc
 
 	return true
 }
+
+var _ IBlockReader = (*RowBlockReader)(nil)

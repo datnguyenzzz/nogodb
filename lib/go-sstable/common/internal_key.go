@@ -112,6 +112,10 @@ func MakeMetaIndexKey(blkKind block.BlockKind) InternalKey {
 	}
 }
 
+func (k *InternalKey) ReadMetaIndexKey() block.BlockKind {
+	return block.BlockKind(k.Trailer)
+}
+
 func (k *InternalKey) SeqNum() SeqNum {
 	return SeqNum(k.Trailer >> 8)
 }

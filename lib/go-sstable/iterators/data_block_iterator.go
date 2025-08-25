@@ -19,14 +19,13 @@ import (
 // iterate over the datablock within the requested boundary [lower_bound, upper_bound]
 type DataBlockIterator struct {
 	bpool *predictable_size.PredictablePool
-	// metaIndex has 2 keys
-	//  BlockKindFilter - reference to built filter of the data block
-	//  BlockKindIndex  - reference to the 2nd level block
-	metaIndex map[block_common.BlockKind]*block_common.BlockHandle
+	// filterBH
+	filterBH *block_common.BlockHandle
 
 	// secondLevelIndexIter iterator through the 2nd level index block
+	secondLevelIndexBH   *block_common.BlockHandle
 	secondLevelIndexIter common.InternalIterator
-	blockReader          *row_block.RowBlockReader
+	blockReader          row_block.IBlockReader
 }
 
 var dataBlockIteratorPool = sync.Pool{
@@ -74,6 +73,7 @@ func (i *DataBlockIterator) Close() error {
 }
 
 func (i *DataBlockIterator) readMetaIndexBlock(footer *row_block.Footer) error {
+	// TODO (medium - dat.ngthanh): Should we cache the metaIndex block ?
 	// Read and decode the meta index block
 	metaIndexBuf, err := i.blockReader.Read(footer.GetMetaIndex(), block_common.BlockKindMetaIntex)
 	if err != nil {
@@ -89,15 +89,21 @@ func (i *DataBlockIterator) readMetaIndexBlock(footer *row_block.Footer) error {
 			return fmt.Errorf("failed to decode block, corrupted size. %w", common.InternalServerError)
 		}
 
-		// meta index store the block type at the 1-st byte of the userKey
-		i.metaIndex[block_common.BlockKind(iter.K.UserKey[0])] = bh
+		switch iter.K.ReadMetaIndexKey() {
+		case block_common.BlockKindIndex:
+			i.secondLevelIndexBH = bh
+		case block_common.BlockKindFilter:
+			i.filterBH = bh
+		default:
+		}
 	}
 
 	return nil
 }
 
 func (i *DataBlockIterator) init2ndLevelIndexBlockIterator() error {
-	secondLevelIndexBuf, err := i.blockReader.Read(i.metaIndex[block_common.BlockKindIndex], block_common.BlockKindIndex)
+	// TODO (medium - dat.ngthanh): Should we cache the 2nd level index block ?
+	secondLevelIndexBuf, err := i.blockReader.Read(i.secondLevelIndexBH, block_common.BlockKindIndex)
 	if err != nil {
 		zap.L().Error("failed to read secondLevelIndexBlock", zap.Error(err))
 		return err
@@ -128,7 +134,6 @@ func NewDataBlockIterator(fr go_fs.Readable, opts *options.IteratorOpts) (*DataB
 	if iter.blockReader == nil {
 		iter.blockReader = &row_block.RowBlockReader{}
 	}
-	iter.metaIndex = make(map[block_common.BlockKind]*block_common.BlockHandle)
 	iter.blockReader.Init(iter.bpool, layoutReader)
 
 	// read meta index

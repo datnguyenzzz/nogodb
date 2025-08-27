@@ -1,18 +1,31 @@
 package common
 
+type LazyFetcher interface {
+	Load() []byte
+}
+
+type InternalLazyValue struct {
+	V       []byte
+	Fetcher LazyFetcher
+}
+
 type InternalKV struct {
 	K InternalKey
-	// TODO (high): Need to re-evaluate, should we have to find a way to lazy-load the V instead ?
-	//  because the InternalKV used during the iteration, by which the V might not need to be read at some points
-	//  Lazy-load value: The V can either stored in the memory and immediately accessible, or it may
-	//  be stored out-of-band and need to be fetched when  required.
-	V []byte
+	V InternalLazyValue
 }
 
-func (ikv *InternalKV) Value() []byte {
-	return ikv.V
+func (iv *InternalLazyValue) Value() []byte {
+	if iv.Fetcher == nil {
+		return iv.V
+	}
+
+	return iv.Fetcher.Load()
 }
 
-func (ikv *InternalKV) SetValue(value []byte) {
-	ikv.V = value
+func (iv *InternalLazyValue) SetInplaceValue(value []byte) {
+	iv.V = value
+}
+
+func (iv *InternalLazyValue) SetLazyFetcher(fetcher LazyFetcher) {
+	iv.Fetcher = fetcher
 }

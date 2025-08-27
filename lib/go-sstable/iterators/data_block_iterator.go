@@ -80,9 +80,9 @@ func (i *DataBlockIterator) readMetaIndexBlock(footer *row_block.Footer) error {
 		zap.L().Error("failed to read metaIndexBlock", zap.Error(err))
 		return err
 	}
-	blkIter := row_block.NewBlockIterator(i.bpool, common.NewComparer(), metaIndexBuf.ToByte())
+	blkIter := row_block.NewBlockIterator(i.bpool, common.NewComparer(), metaIndexBuf.Value())
 	for iter := blkIter.First(); iter != nil; iter = blkIter.Next() {
-		val := iter.Value()
+		val := iter.V.Value()
 		bh := &block_common.BlockHandle{}
 		if sz := bh.DecodeFrom(val); sz != len(val) {
 			zap.L().Error("failed to decode block, corrupted size", zap.Any("block", i))
@@ -108,7 +108,7 @@ func (i *DataBlockIterator) init2ndLevelIndexBlockIterator() error {
 		zap.L().Error("failed to read secondLevelIndexBlock", zap.Error(err))
 		return err
 	}
-	i.secondLevelIndexIter = row_block.NewBlockIterator(i.bpool, common.NewComparer(), secondLevelIndexBuf.ToByte())
+	i.secondLevelIndexIter = row_block.NewBlockIterator(i.bpool, common.NewComparer(), secondLevelIndexBuf.Value())
 	return nil
 }
 

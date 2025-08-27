@@ -322,7 +322,7 @@ func TestDataBlockIterator_First(t *testing.T) {
 
 			assert.NotNil(t, firstKV, "First() should return non-nil InternalKV")
 			assert.Equal(t, tc.expectedFirstKey, string(firstKV.K.UserKey), "First() should return the first key")
-			assert.Equal(t, tc.expectedFirstValue, string(firstKV.V), "First() should return the first value")
+			assert.Equal(t, tc.expectedFirstValue, string(firstKV.V.Value()), "First() should return the first value")
 			assert.Equal(t, uint64(0), iter.offset, "iterator offset should be 0 after First()")
 			assert.Greater(t, iter.nextOffset, uint64(0), "nextOffset should be greater than 0 after First()")
 			assert.LessOrEqual(t, iter.nextOffset, iter.trailerOffset, "nextOffset should not exceed trailer offset")
@@ -500,7 +500,7 @@ func TestBlockIterator_Next(t *testing.T) {
 			firstKV := iter.First()
 			assert.NotNil(t, firstKV, "First() should return non-nil InternalKV")
 			assert.Equal(t, tc.expectedSequence[0].expectedKey, string(firstKV.K.UserKey), "First() should return the first key")
-			assert.Equal(t, tc.expectedSequence[0].expectedValue, string(firstKV.V), "First() should return the first value")
+			assert.Equal(t, tc.expectedSequence[0].expectedValue, string(firstKV.V.Value()), "First() should return the first value")
 
 			// Test Next() for remaining entries
 			for i := 1; i < len(tc.expectedSequence); i++ {
@@ -512,7 +512,7 @@ func TestBlockIterator_Next(t *testing.T) {
 
 				assert.NotNil(t, nextKV, "Next() should return non-nil InternalKV for entry %d", i)
 				assert.Equal(t, expected.expectedKey, string(nextKV.K.UserKey), "Next() should return correct key for entry %d", i)
-				assert.Equal(t, expected.expectedValue, string(nextKV.V), "Next() should return correct value for entry %d", i)
+				assert.Equal(t, expected.expectedValue, string(nextKV.V.Value()), "Next() should return correct value for entry %d", i)
 
 				// Verify iterator internal state
 				actualIterKey := common.DeserializeKey(iter.key)

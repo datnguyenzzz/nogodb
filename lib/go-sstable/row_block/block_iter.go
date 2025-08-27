@@ -41,7 +41,7 @@ func (i *BlockIterator) First() *common.InternalKV {
 	i.readEntry()
 	iKV := &common.InternalKV{}
 	iKV.K = *common.DeserializeKey(i.key)
-	iKV.SetValue(i.value)
+	iKV.V.SetInplaceValue(i.value)
 	return iKV
 }
 
@@ -55,7 +55,7 @@ func (i *BlockIterator) Next() *common.InternalKV {
 	i.readEntry()
 	iKV := &common.InternalKV{}
 	iKV.K = *common.DeserializeKey(i.key)
-	iKV.SetValue(i.value)
+	iKV.V.SetInplaceValue(i.value)
 	return iKV
 }
 

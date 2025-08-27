@@ -13,14 +13,14 @@ import (
 
 type IBlockReader interface {
 	// Read perform read directly from the source without caching
-	Read(bh *block_common.BlockHandle, kind block_common.BlockKind) (*block_common.Buffer, error)
+	Read(bh *block_common.BlockHandle, kind block_common.BlockKind) (*common.InternalLazyValue, error)
 	// ReadThroughCache perform read through cache method
-	ReadThroughCache(bh *block_common.BlockHandle, kind block_common.BlockKind) (*block_common.Buffer, error)
+	ReadThroughCache(bh *block_common.BlockHandle, kind block_common.BlockKind) (*common.InternalLazyValue, error)
 	Init(bpool *predictable_size.PredictablePool, fr storage.ILayoutReader)
 }
 
 // RowBlockReader reads row-based blocks from a single file,
-// handling caching / read through cache, checksum validation
+// handling block caching / read through cache, checksum validation
 // and decompression.
 type RowBlockReader struct {
 	bpool         *predictable_size.PredictablePool
@@ -32,7 +32,7 @@ func (r *RowBlockReader) Init(bpool *predictable_size.PredictablePool, fr storag
 	r.storageReader = fr
 }
 
-func (r *RowBlockReader) ReadThroughCache(bh *block_common.BlockHandle, kind block_common.BlockKind) (*block_common.Buffer, error) {
+func (r *RowBlockReader) ReadThroughCache(bh *block_common.BlockHandle, kind block_common.BlockKind) (*common.InternalLazyValue, error) {
 
 	// TODO (high): The read function requires the buffer pool to be available to
 	//  obtain the pre-allocated buffer for handling the read stream.
@@ -48,7 +48,7 @@ func (r *RowBlockReader) ReadThroughCache(bh *block_common.BlockHandle, kind blo
 func (r *RowBlockReader) Read(
 	bh *block_common.BlockHandle,
 	kind block_common.BlockKind,
-) (*block_common.Buffer, error) {
+) (*common.InternalLazyValue, error) {
 
 	if r.bpool == nil {
 		return nil, fmt.Errorf("blockData pool is nil")
@@ -90,7 +90,10 @@ func (r *RowBlockReader) Read(
 		return nil, err
 	}
 
-	return block_common.MakeBufferRaw(decompressed), nil
+	lv := &common.InternalLazyValue{}
+	lv.SetInplaceValue(decompressed)
+
+	return lv, nil
 }
 
 func (r *RowBlockReader) validateChecksum(checksumType common.ChecksumType, blockData []byte) bool {

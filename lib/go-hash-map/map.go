@@ -102,8 +102,26 @@ func (h *hashMap) Get(fileNum, key uint64) (LazyValue, bool) {
 }
 
 func (h *hashMap) Delete(fileNum, key uint64) bool {
-	//TODO implement me
-	panic("implement me")
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.closed {
+		return false
+	}
+	hash := murmur32(fileNum, key)
+	bucket := h.state.initBucket(int32(hash) % h.state.bucketSize)
+	node := bucket.Get(fileNum, key)
+	if node == nil {
+		return false
+	}
+
+	h.stats.statDel += 1
+	node.unref()
+
+	if h.cacher != nil {
+		h.cacher.Ban(node)
+	}
+
+	return true
 }
 
 func (h *hashMap) Close() {

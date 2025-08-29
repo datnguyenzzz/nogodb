@@ -15,6 +15,6 @@ type IMap interface {
 type iCache interface {
 	SetCapacity(capacity int64)
 	Promote(node *kv) bool
-	Evict( /* ... */ )
-	Ban( /* ... */ )
+	Evict( /* ... */)
+	Ban(node *kv)
 }

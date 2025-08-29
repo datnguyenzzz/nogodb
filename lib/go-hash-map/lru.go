@@ -39,7 +39,7 @@ type lru struct {
 	//   ^                                                     ^
 	//   |                                                     |
 	//   v                                                     v
-	//   least recent <-->         ...      <--> K-th most recent
+	//   least recent <-->       ...       <--> K-th most recent
 	recent *log
 }
 
@@ -98,9 +98,22 @@ func (l *lru) Evict() {
 	panic("implement me")
 }
 
-func (l *lru) Ban() {
-	//TODO implement me
-	panic("implement me")
+func (l *lru) Ban(node *kv) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	if node.log == nil {
+		node.log = &log{kv: node, ban: true}
+	} else {
+		currLog := node.log
+		if !currLog.ban {
+			currLog.remove()
+			currLog.ban = true
+			l.inUse -= node.size
+
+			node.unref()
+		}
+	}
 }
 
 // balance evict nodes to balance the maxSize.

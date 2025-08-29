@@ -9,12 +9,12 @@ type IMap interface {
 	Get(fileNum, key uint64) (LazyValue, bool)
 	Set(fileNum, key uint64, value Value) bool
 	Delete(fileNum, key uint64) bool
-	Close()
+	Close(force bool)
 }
 
 type iCache interface {
 	SetCapacity(capacity int64)
 	Promote(node *kv) bool
-	Evict( /* ... */)
+	Evict(node *kv)
 	Ban(node *kv)
 }

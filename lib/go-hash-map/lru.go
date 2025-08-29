@@ -93,9 +93,17 @@ func (l *lru) Promote(node *kv) bool {
 	return true
 }
 
-func (l *lru) Evict() {
-	//TODO implement me
-	panic("implement me")
+func (l *lru) Evict(node *kv) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	currLog := node.log
+	if currLog == nil || currLog.ban {
+		return
+	}
+
+	l.inUse -= node.size
+	currLog.remove()
+	node.unref()
 }
 
 func (l *lru) Ban(node *kv) {

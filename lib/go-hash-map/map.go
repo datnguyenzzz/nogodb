@@ -3,6 +3,7 @@ package go_hash_map
 import (
 	"reflect"
 	"sync"
+	"sync/atomic"
 )
 
 var (
@@ -124,9 +125,31 @@ func (h *hashMap) Delete(fileNum, key uint64) bool {
 	return true
 }
 
-func (h *hashMap) Close() {
-	//TODO implement me
-	panic("implement me")
+func (h *hashMap) Close(force bool) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	if h.closed {
+		return
+	}
+
+	h.closed = true
+	var allKVs []*kv
+	for i, _ := range h.state.buckets {
+		bucket := h.state.initBucket(int32(i))
+		bucket.mu.Lock()
+		allKVs = append(allKVs, bucket.nodes...)
+		bucket.mu.Unlock()
+	}
+
+	for _, kv := range allKVs {
+		if force {
+			atomic.StoreInt32(&kv.ref, 0)
+		}
+		if h.cacher != nil {
+			h.cacher.Evict(kv)
+		}
+	}
 }
 
 func NewMap(opts ...CacheOpt) IMap {

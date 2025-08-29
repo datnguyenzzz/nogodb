@@ -65,7 +65,7 @@ func (n *kv) ToLazyValue() LazyValue {
 }
 
 func (n *kv) unref() {
-	if atomic.AddInt32(&n.ref, -1) == 0 {
+	if atomic.AddInt32(&n.ref, -1) < 0 {
 		// delete the kv from the hash map
 		n.hm.mu.RLock()
 		if !n.hm.closed {

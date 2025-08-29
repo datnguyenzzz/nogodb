@@ -1,6 +1,6 @@
-## Go-cache - a block cache built for nogoDB
+## A block cache built for nogoDB
 
-Cache implements nogoDB's block cache. It supports 2 method for 
+go-hash-map implements nogoDB's block cache. It supports 2 method for 
 page cache replacement: LRU and Clock-pro. The underline hash tables implementation 
 is based on the Concurrent Dynamic-Sized Nonblocking Hash Tables
 
@@ -70,7 +70,9 @@ Async. Shrink operation when a bucket get oversized
 ```
 
 ### Replacement method
-#### LRU 
+#### LRU
+- Maintain a linked list to track the update log of key/value pairs. Each kv in the list represents an update, 
+  with the first kv corresponding to the most recently updated pair, and subsequent nodes following in chronological order.
 #### Clock Pro
 - CLOCK-Pro is a patent-free alternative to the Adaptive Replacement Cache,
   https://en.wikipedia.org/wiki/Adaptive_replacement_cache.

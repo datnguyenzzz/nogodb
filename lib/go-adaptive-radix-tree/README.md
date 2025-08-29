@@ -6,7 +6,7 @@ A high-performance, memory-efficient implementation of the Adaptive Radix Tree (
 
 This library provides a space-optimized, cache-friendly implementation of the Adaptive Radix Tree with the following features:
 
-- **Adaptive Node Sizing**: Uses four different node types (4, 16, 48, and 256 children) to minimize memory footprint
+- **Adaptive Node Sizing**: Uses four different kv types (4, 16, 48, and 256 children) to minimize memory footprint
 - **Type Safety**: Full Go generics support for any value type
 - **Concurrent Access**: Context-aware locking ensures thread safety during operations
 - **Path Compression**: Efficiently stores common key prefixes to reduce memory usage
@@ -16,14 +16,14 @@ This library provides a space-optimized, cache-friendly implementation of the Ad
 
 An Adaptive Radix Tree (ART) is an optimized data structure that combines the advantages of radix trees and tries:
 
-- **Space Efficiency**: Adaptively uses different node sizes based on actual child count
-- **Cache Locality**: Compact node structure improves CPU cache utilization
+- **Space Efficiency**: Adaptively uses different kv sizes based on actual child count
+- **Cache Locality**: Compact kv structure improves CPU cache utilization
 - **Fast Operations**: O(k) complexity for lookups, insertions, and deletions (where k is key length)
 - **Path Compression**: Stores common prefixes only once, reducing memory usage
 
 ## Node Types
 
-The implementation uses four different node types, each optimized for a specific number of children:
+The implementation uses four different kv types, each optimized for a specific number of children:
 
 1. **Node4**: Stores up to 4 children using simple arrays
 2. **Node16**: Stores up to 16 children with slightly more complex structure

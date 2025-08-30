@@ -56,7 +56,7 @@ type kv struct {
 	ref int32
 
 	// log used to track when this kv pair got updated
-	log *log
+	log unsafe.Pointer
 }
 
 func NewKV(fileNum, key uint64, hash uint32, hm *hashMap) *kv {
@@ -87,10 +87,4 @@ func (n *kv) SetValue(value Value, size int64) {
 
 	n.value = value
 	n.size = size
-}
-
-func (n *kv) SetLog(log *log) {
-	n.mu.Lock()
-	defer n.mu.Unlock()
-	n.log = log
 }

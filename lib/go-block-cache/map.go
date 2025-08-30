@@ -58,7 +58,6 @@ func (h *hashMap) GetStats() Stats {
 
 func (h *hashMap) Set(fileNum, key uint64, value Value) bool {
 	h.mu.RLock()
-	defer h.mu.RUnlock()
 	if h.closed {
 		return false
 	}
@@ -74,11 +73,12 @@ func (h *hashMap) Set(fileNum, key uint64, value Value) bool {
 		return true
 	}
 
-	valSize := int64(cap(value))
+	valSize := int64(computeSize(value))
 	node.SetValue(value, valSize)
 
 	atomic.AddInt64(&h.stats.statSet, 1)
 	atomic.AddInt64(&h.stats.statSize, valSize)
+	h.mu.RUnlock()
 
 	if h.cacher != nil {
 		if ok := h.cacher.Promote(node); !ok {
@@ -109,7 +109,6 @@ func (h *hashMap) Get(fileNum, key uint64) (LazyValue, bool) {
 
 func (h *hashMap) Delete(fileNum, key uint64) bool {
 	h.mu.RLock()
-	defer h.mu.RUnlock()
 	if h.closed {
 		return false
 	}
@@ -121,6 +120,7 @@ func (h *hashMap) Delete(fileNum, key uint64) bool {
 
 	atomic.AddInt64(&h.stats.statDel, 1)
 	node.unref()
+	h.mu.RUnlock()
 
 	if h.cacher != nil {
 		h.cacher.Ban(node)
@@ -175,8 +175,6 @@ func (h *hashMap) Close(force bool) {
 }
 
 func (h *hashMap) SetCapacity(capacity int64) {
-	h.mu.Lock()
-	defer h.mu.Unlock()
 	if h.closed {
 		return
 	}

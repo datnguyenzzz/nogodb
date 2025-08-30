@@ -14,3 +14,7 @@ func murmur32(ns, key uint64) uint32 {
 
 	return murmur3.Sum32(buf)
 }
+
+func computeSize(v Value) int {
+	return cap(v)
+}

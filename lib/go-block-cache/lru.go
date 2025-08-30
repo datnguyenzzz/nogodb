@@ -3,12 +3,14 @@ package go_block_cache
 import (
 	"fmt"
 	"sync"
+	"unsafe"
 
 	"go.uber.org/zap"
 )
 
 type log struct {
-	kv LazyValue
+	n  *kv
+	lz LazyValue
 	// ban do not allow promoting this key/value any longer
 	ban        bool
 	prev, next *log
@@ -66,8 +68,8 @@ func (l *lru) SetCapacity(capacity int64) {
 	evicted := l.balance()
 	l.mu.Unlock()
 
-	for _, kv := range evicted {
-		kv.Release()
+	for _, log := range evicted {
+		log.lz.Release()
 	}
 }
 
@@ -79,21 +81,22 @@ func (l *lru) Promote(node *kv) bool {
 			return false
 		}
 
-		log := &log{kv: node.ToLazyValue()}
-		node.SetLog(log)
+		log := &log{n: node, lz: node.ToLazyValue()}
+		l.recent.insert(log)
+		node.log = unsafe.Pointer(log)
 		l.inUse += node.size
 	} else {
-		log := node.log
+		log := (*log)(node.log)
 		if !log.ban {
 			log.remove()
+			l.recent.insert(log)
 		}
 	}
-	l.recent.insert(node.log)
 	evicted := l.balance()
 
 	l.mu.Unlock()
-	for _, kv := range evicted {
-		kv.Release()
+	for _, log := range evicted {
+		log.lz.Release()
 	}
 
 	return true
@@ -102,15 +105,16 @@ func (l *lru) Promote(node *kv) bool {
 func (l *lru) Evict(node *kv) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	currLog := node.log
+	currLog := (*log)(node.log)
 	if currLog == nil || currLog.ban {
 		return
 	}
 
 	l.inUse -= node.size
 	currLog.remove()
-	node.SetLog(nil)
-	node.unref()
+	node.log = nil
+
+	currLog.lz.Release()
 }
 
 func (l *lru) Ban(node *kv) {
@@ -118,16 +122,17 @@ func (l *lru) Ban(node *kv) {
 	defer l.mu.Unlock()
 
 	if node.log == nil {
-		node.log = &log{kv: node.ToLazyValue(), ban: true}
+		node.log = unsafe.Pointer(&log{n: node, ban: true})
 	} else {
-		currLog := node.log
+		currLog := (*log)(node.log)
 		if !currLog.ban {
 			currLog.remove()
-			node.SetLog(nil)
+			node.log = nil
 			currLog.ban = true
 			l.inUse -= node.size
 
-			node.unref()
+			currLog.lz.Release()
+			currLog.lz = nil
 		}
 	}
 }
@@ -135,16 +140,16 @@ func (l *lru) Ban(node *kv) {
 // balance evict nodes to balance the maxSize.
 //
 //	Caller must ensure the lru is locked
-func (l *lru) balance() (evicted []LazyValue) {
+func (l *lru) balance() (evicted []*log) {
 	for l.inUse > l.capacity {
 		leastUpdate := l.recent.prev
 		if leastUpdate == nil {
 			panic("lru recent pointer is nil")
 		}
 		leastUpdate.remove()
-		l.inUse -= int64(cap(leastUpdate.kv.Load()))
-		leastUpdate.kv = nil
-		evicted = append(evicted, leastUpdate.kv)
+		leastUpdate.n.log = nil
+		l.inUse -= int64(computeSize(leastUpdate.lz.Load()))
+		evicted = append(evicted, leastUpdate)
 	}
 
 	return evicted

@@ -20,7 +20,9 @@ func (h *handle) Release() {
 
 	if atomic.CompareAndSwapPointer(&h.n, nPtr, nil) {
 		n := (*kv)(nPtr)
+		n.hm.mu.Lock()
 		n.unref()
+		n.hm.mu.Unlock()
 	}
 }
 
@@ -66,11 +68,9 @@ func (n *kv) ToLazyValue() LazyValue {
 func (n *kv) unref() {
 	if atomic.AddInt32(&n.ref, -1) <= 0 {
 		// delete the kv from the hash map
-		n.hm.mu.RLock()
 		if !n.hm.closed {
 			_ = n.hm.removeKV(n)
 		}
-		n.hm.mu.RUnlock()
 	}
 }
 

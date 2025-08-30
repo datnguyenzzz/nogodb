@@ -126,7 +126,14 @@ func (h *hashMap) Delete(fileNum, key uint64) bool {
 	return true
 }
 
+// removeKV remove a node from a hashmap
+//
+//	caller must do the lock
 func (h *hashMap) removeKV(node *kv) bool {
+	if h.closed {
+		return false
+	}
+	atomic.AddInt64(&h.stats.statDel, 1)
 	bucket := h.state.initBucket(h.getBucketId(node.fileNum, node.key))
 	return bucket.DeleteNode(node.fileNum, node.key, node.hash, h)
 }
@@ -163,6 +170,17 @@ func (h *hashMap) Close(force bool) {
 	}
 }
 
+func (h *hashMap) SetCapacity(capacity int64) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.closed {
+		return
+	}
+	if h.cacher != nil {
+		h.cacher.SetCapacity(capacity)
+	}
+}
+
 func NewMap(opts ...CacheOpt) IMap {
 	state := &state{
 		buckets:       make([]*bucket, initialBucketSize),
@@ -185,12 +203,10 @@ func NewMap(opts ...CacheOpt) IMap {
 
 	switch c.cacheType {
 	case LRU:
-		c.cacher = newLRU()
+		c.cacher = newLRU(c.maxSize)
 	default:
 		panic("invalid cache type")
 	}
-
-	c.cacher.SetCapacity(c.maxSize)
 
 	return c
 }

@@ -46,12 +46,13 @@ type lru struct {
 	recent *log
 }
 
-func newLRU() *lru {
+func newLRU(maxSize int64) *lru {
 	dummy := new(log)
 	dummy.next = dummy
 	dummy.prev = dummy
 	return &lru{
-		recent: dummy,
+		capacity: maxSize,
+		recent:   dummy,
 	}
 }
 
@@ -67,7 +68,6 @@ func (l *lru) SetCapacity(capacity int64) {
 }
 
 func (l *lru) Promote(node *kv) bool {
-	var evicted []*kv
 	l.mu.Lock()
 	if node.log == nil {
 		// the key/value pair is updated for the first time
@@ -78,15 +78,14 @@ func (l *lru) Promote(node *kv) bool {
 		log := &log{kv: node}
 		node.SetLog(log)
 		l.inUse += node.size
-
-		evicted = l.balance()
 	} else {
 		log := node.log
 		if !log.ban {
 			log.remove()
-			l.recent.insert(log)
 		}
 	}
+	l.recent.insert(node.log)
+	evicted := l.balance()
 
 	l.mu.Unlock()
 	for _, kv := range evicted {

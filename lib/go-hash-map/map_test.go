@@ -40,6 +40,45 @@ func Test_HashMap_Set_Then_Get_Sync(t *testing.T) {
 	fmt.Printf("STATS: %#v\n", stats)
 }
 
+func Test_HashMap_Capacity_Resizing(t *testing.T) {
+	type params struct {
+		fileNum, fileKey uint64
+		value            []byte
+	}
+
+	cache := NewMap(
+		WithCacheType(LRU),
+		WithMaxSize(10),
+	)
+
+	dummyBytes := func(sz int) []byte {
+		return make([]byte, sz)
+	}
+
+	sequences := []params{
+		{0, 1, dummyBytes(1)},
+		{0, 2, dummyBytes(2)},
+		{1, 1, dummyBytes(3)},
+		{2, 1, dummyBytes(1)},
+		{2, 2, dummyBytes(1)},
+		{2, 3, dummyBytes(1)},
+		{2, 4, dummyBytes(1)},
+		{2, 5, dummyBytes(1)},
+	}
+	for _, sequence := range sequences {
+		ok := cache.Set(sequence.fileNum, sequence.fileKey, sequence.value)
+		assert.True(t, ok)
+	}
+	stats := cache.GetStats()
+	assert.Equal(t, int64(10), stats.statSize)
+	assert.Equal(t, int64(7), stats.statNodes) // [1 --> 8]
+	// cache the cache capacity
+	cache.SetCapacity(9)
+	stats = cache.GetStats()
+	assert.Equal(t, int64(8), stats.statSize)
+	assert.Equal(t, int64(6), stats.statNodes) // [2 --> 8]
+}
+
 func Test_Hashmap_Bulk_Set_Then_Get_Async(t *testing.T) {
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
@@ -74,7 +113,8 @@ func Test_Hashmap_Bulk_Set_Then_Get_Async(t *testing.T) {
 					r := rand.New(rand.NewSource(time.Now().UnixNano()))
 					for j := 0; j < tc.repeat; j++ {
 						key := r.Intn(tc.nObjects)
-						cache.Set(uint64(testID), uint64(key), dummyBytes)
+						ok := cache.Set(uint64(testID), uint64(key), dummyBytes)
+						assert.True(t, ok, "record should be updated into the cache")
 						lazyValue, ok := cache.Get(uint64(testID), uint64(key))
 						// record must be found, even in high concurrency manner
 						assert.True(t, ok, "record should exist")

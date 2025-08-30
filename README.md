@@ -1,6 +1,6 @@
 ### NogoDB: A Key-Value Storage using Fragmented Log-Structured Merge Tree
 
->_**Disclaimer #1**: This project is under development and crafted by human ingenuity—not AI. I won’t let G/AI steal all the fun!_
+>_**Disclaimer**: This project is under development and crafted by human ingenuity—not AI. I won’t let G/AI steal all the fun!_
 
 NogoDB is a key-value embedded storage system inspired by LevelDB and RocksDB. It builds upon RocksDB's file formats while 
 incorporating several enhancements, such as range deletion tombstones, table-level bloom filters, and updates to the MANIFEST format.

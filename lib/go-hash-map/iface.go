@@ -11,6 +11,7 @@ type IMap interface {
 	Delete(fileNum, key uint64) bool
 	Close(force bool)
 	GetStats() Stats
+	SetCapacity(capacity int64)
 }
 
 type iCache interface {

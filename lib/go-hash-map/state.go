@@ -1,6 +1,8 @@
 package go_hash_map
 
-import "sort"
+import (
+	"sort"
+)
 
 const (
 	overflowThreshold     = 1 << 5
@@ -35,7 +37,7 @@ func (s *state) initBucket(id int32) *bucket {
 
 	prevState := s.prevState
 	if prevState == nil {
-		return bucket
+		panic("prev state is nil when init a fresh bucket")
 	}
 
 	if s.bucketSize > prevState.bucketSize {
@@ -60,7 +62,6 @@ func (s *state) initBucket(id int32) *bucket {
 	}
 
 	bucket.state = initialized
-
 	return bucket
 }
 

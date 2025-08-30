@@ -1,6 +1,9 @@
 package go_hash_map
 
-import "sync"
+import (
+	"fmt"
+	"sync"
+)
 
 type log struct {
 	kv *kv
@@ -10,8 +13,8 @@ type log struct {
 }
 
 func (l *log) remove() {
-	if l.prev == nil {
-		panic("remove a zombie node")
+	if l.prev == nil || l.next == nil {
+		panic(fmt.Sprintf("remove a zombie node. fileNum: %v key: %v", l.kv.fileNum, l.kv.key))
 	}
 	l.prev.next = l.next
 	l.next.prev = l.prev
@@ -103,6 +106,7 @@ func (l *lru) Evict(node *kv) {
 
 	l.inUse -= node.size
 	currLog.remove()
+	node.SetLog(nil)
 	node.unref()
 }
 
@@ -116,6 +120,7 @@ func (l *lru) Ban(node *kv) {
 		currLog := node.log
 		if !currLog.ban {
 			currLog.remove()
+			node.SetLog(nil)
 			currLog.ban = true
 			l.inUse -= node.size
 
@@ -134,6 +139,7 @@ func (l *lru) balance() (evicted []*kv) {
 			panic("lru recent pointer is nil")
 		}
 		leastUpdate.remove()
+		leastUpdate.kv.SetLog(nil)
 		l.inUse -= leastUpdate.kv.size
 		evicted = append(evicted, leastUpdate.kv)
 	}

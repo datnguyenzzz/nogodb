@@ -1,7 +1,6 @@
 package go_hash_map
 
 import (
-	"reflect"
 	"sync"
 	"sync/atomic"
 )
@@ -18,7 +17,7 @@ var (
 	defaultCacheType  = LRU
 )
 
-type Value interface{}
+type Value []byte
 
 type CacheType byte
 
@@ -27,7 +26,7 @@ const (
 	ClockPro
 )
 
-type stats struct {
+type Stats struct {
 	statNodes  int64
 	statSize   int64
 	statGrow   int32
@@ -47,10 +46,14 @@ type hashMap struct {
 	cacheType CacheType
 
 	cacher iCache
-	stats  stats
+	stats  Stats
 
 	closed bool
 	state  *state
+}
+
+func (h *hashMap) GetStats() Stats {
+	return h.stats
 }
 
 func (h *hashMap) Set(fileNum, key uint64, value Value) bool {
@@ -59,18 +62,18 @@ func (h *hashMap) Set(fileNum, key uint64, value Value) bool {
 	if h.closed {
 		return false
 	}
-	hash := murmur32(fileNum, key)
-	bucket := h.state.initBucket(int32(hash) % h.state.bucketSize)
+	bucket := h.state.initBucket(h.getBucketId(fileNum, key))
 	node := bucket.Get(fileNum, key)
 	if node == nil {
+		hash := murmur32(fileNum, key)
 		node = bucket.AddNewNode(fileNum, key, hash, h)
 	}
 
-	valSize := int64(reflect.TypeOf(value).Size())
+	valSize := int64(cap(value))
 	node.SetValue(value, valSize)
 
-	h.stats.statSet++
-	h.stats.statSize += valSize
+	atomic.AddInt64(&h.stats.statSet, 1)
+	atomic.AddInt64(&h.stats.statSize, valSize)
 
 	if value == nil {
 		node.unref()
@@ -90,15 +93,14 @@ func (h *hashMap) Get(fileNum, key uint64) (LazyValue, bool) {
 		return nil, false
 	}
 
-	hash := murmur32(fileNum, key)
-	bucket := h.state.initBucket(int32(hash) % h.state.bucketSize)
+	bucket := h.state.initBucket(h.getBucketId(fileNum, key))
 	node := bucket.Get(fileNum, key)
 	if node == nil {
-		h.stats.statMiss += 1
+		atomic.AddInt64(&h.stats.statMiss, 1)
 		return nil, false
 	}
 
-	h.stats.statHit += 1
+	atomic.AddInt64(&h.stats.statHit, 1)
 	return node.ToLazyValue(), true
 }
 
@@ -108,14 +110,13 @@ func (h *hashMap) Delete(fileNum, key uint64) bool {
 	if h.closed {
 		return false
 	}
-	hash := murmur32(fileNum, key)
-	bucket := h.state.initBucket(int32(hash) % h.state.bucketSize)
+	bucket := h.state.initBucket(h.getBucketId(fileNum, key))
 	node := bucket.Get(fileNum, key)
 	if node == nil {
 		return false
 	}
 
-	h.stats.statDel += 1
+	atomic.AddInt64(&h.stats.statDel, 1)
 	node.unref()
 
 	if h.cacher != nil {
@@ -123,6 +124,16 @@ func (h *hashMap) Delete(fileNum, key uint64) bool {
 	}
 
 	return true
+}
+
+func (h *hashMap) removeKV(node *kv) bool {
+	bucket := h.state.initBucket(h.getBucketId(node.fileNum, node.key))
+	return bucket.DeleteNode(node.fileNum, node.key, node.hash, h)
+}
+
+func (h *hashMap) getBucketId(fileNum, key uint64) int32 {
+	hash := murmur32(fileNum, key)
+	return int32(hash % uint32(h.state.bucketSize))
 }
 
 func (h *hashMap) Close(force bool) {
@@ -159,7 +170,7 @@ func NewMap(opts ...CacheOpt) IMap {
 		growThreshold: int64(initialBucketSize * overflowThreshold),
 	}
 	for i, _ := range state.buckets {
-		state.buckets[i].state = initialized
+		state.buckets[i] = &bucket{state: initialized}
 	}
 
 	c := &hashMap{

@@ -10,6 +10,7 @@ type IMap interface {
 	Set(fileNum, key uint64, value Value) bool
 	Delete(fileNum, key uint64) bool
 	Close(force bool)
+	GetStats() Stats
 }
 
 type iCache interface {

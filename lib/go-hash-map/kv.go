@@ -12,7 +12,7 @@ type handle struct {
 }
 
 // Release freed the associated kv cache
-func (h handle) Release() {
+func (h *handle) Release() {
 	nPtr := atomic.LoadPointer(&h.n)
 	if nPtr == nil {
 		return
@@ -24,7 +24,7 @@ func (h handle) Release() {
 	}
 }
 
-func (h handle) Load() Value {
+func (h *handle) Load() Value {
 	n := (*kv)(atomic.LoadPointer(&h.n))
 	if n == nil {
 		return nil
@@ -56,7 +56,6 @@ func NewKV(fileNum, key uint64, hash uint32, hm *hashMap) *kv {
 		fileNum: fileNum,
 		key:     key,
 		hash:    hash,
-		ref:     1,
 	}
 }
 
@@ -65,11 +64,11 @@ func (n *kv) ToLazyValue() LazyValue {
 }
 
 func (n *kv) unref() {
-	if atomic.AddInt32(&n.ref, -1) < 0 {
+	if atomic.AddInt32(&n.ref, -1) <= 0 {
 		// delete the kv from the hash map
 		n.hm.mu.RLock()
 		if !n.hm.closed {
-			n.hm.Delete(n.fileNum, n.key)
+			_ = n.hm.removeKV(n)
 		}
 		n.hm.mu.RUnlock()
 	}

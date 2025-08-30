@@ -1,4 +1,4 @@
-package go_hash_map
+package go_block_cache
 
 type LazyValue interface {
 	Load() Value

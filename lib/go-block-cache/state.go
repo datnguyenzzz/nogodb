@@ -1,7 +1,9 @@
-package go_hash_map
+package go_block_cache
 
 import (
 	"sort"
+
+	"go.uber.org/zap"
 )
 
 const (
@@ -12,7 +14,7 @@ const (
 // state list of bucket, represent the current state of the hashmap
 type state struct {
 	buckets    []*bucket
-	bucketSize int32
+	bucketMark uint32
 
 	prevState *state
 
@@ -25,7 +27,7 @@ type state struct {
 	shrinkThreshold int64
 }
 
-func (s *state) initBucket(id int32) *bucket {
+func (s *state) initBucket(id uint32) *bucket {
 	bucket := s.buckets[id]
 
 	bucket.mu.Lock()
@@ -37,21 +39,23 @@ func (s *state) initBucket(id int32) *bucket {
 
 	prevState := s.prevState
 	if prevState == nil {
-		panic("prev state is nil when init a fresh bucket")
+		msg := "prev state is nil when init a fresh bucket"
+		zap.L().Error(msg)
+		panic(msg)
 	}
 
-	if s.bucketSize > prevState.bucketSize {
+	if s.bucketMark > prevState.bucketMark {
 		// grow
-		nodes := prevState.initBucket(id % prevState.bucketSize).Freeze()
+		nodes := prevState.initBucket(id & prevState.bucketMark).Freeze()
 		for _, node := range nodes {
-			if node.key%uint64(s.bucketSize) == uint64(id) {
+			if node.hash&s.bucketMark == id {
 				bucket.nodes = append(bucket.nodes, node)
 			}
 		}
 	} else {
 		// shrink
 		nodes0 := prevState.initBucket(id).Freeze()
-		nodes1 := prevState.initBucket(id + s.bucketSize).Freeze()
+		nodes1 := prevState.initBucket(id + uint32(len(s.buckets))).Freeze()
 
 		bucket.nodes = make([]*kv, 0, len(nodes0)+len(nodes1))
 		bucket.nodes = append(bucket.nodes, nodes0...)
@@ -67,7 +71,7 @@ func (s *state) initBucket(id int32) *bucket {
 
 func (s *state) initBuckets() {
 	for i, _ := range s.buckets {
-		s.initBucket(int32(i))
+		s.initBucket(uint32(i))
 	}
 
 	s.prevState = nil

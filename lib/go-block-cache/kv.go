@@ -1,4 +1,4 @@
-package go_hash_map
+package go_block_cache
 
 import (
 	"sync"
@@ -20,9 +20,16 @@ func (h *handle) Release() {
 
 	if atomic.CompareAndSwapPointer(&h.n, nPtr, nil) {
 		n := (*kv)(nPtr)
-		n.hm.mu.Lock()
-		n.unref()
-		n.hm.mu.Unlock()
+
+		if atomic.AddInt32(&n.ref, -1) <= 0 {
+			n.hm.mu.RLock()
+			// delete the kv from the hash map
+			if !n.hm.closed {
+				_ = n.hm.removeKV(n)
+			}
+			n.hm.mu.RUnlock()
+
+		}
 	}
 }
 

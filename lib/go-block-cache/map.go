@@ -1,4 +1,4 @@
-package go_hash_map
+package go_block_cache
 
 import (
 	"sync"
@@ -69,15 +69,16 @@ func (h *hashMap) Set(fileNum, key uint64, value Value) bool {
 		node = bucket.AddNewNode(fileNum, key, hash, h)
 	}
 
+	if value == nil {
+		node.unref()
+		return true
+	}
+
 	valSize := int64(cap(value))
 	node.SetValue(value, valSize)
 
 	atomic.AddInt64(&h.stats.statSet, 1)
 	atomic.AddInt64(&h.stats.statSize, valSize)
-
-	if value == nil {
-		node.unref()
-	}
 
 	if h.cacher != nil {
 		if ok := h.cacher.Promote(node); !ok {
@@ -89,6 +90,8 @@ func (h *hashMap) Set(fileNum, key uint64, value Value) bool {
 }
 
 func (h *hashMap) Get(fileNum, key uint64) (LazyValue, bool) {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
 	if h.closed {
 		return nil, false
 	}
@@ -105,8 +108,8 @@ func (h *hashMap) Get(fileNum, key uint64) (LazyValue, bool) {
 }
 
 func (h *hashMap) Delete(fileNum, key uint64) bool {
-	h.mu.Lock()
-	defer h.mu.Unlock()
+	h.mu.RLock()
+	defer h.mu.RUnlock()
 	if h.closed {
 		return false
 	}
@@ -138,12 +141,13 @@ func (h *hashMap) removeKV(node *kv) bool {
 	return bucket.DeleteNode(node.fileNum, node.key, node.hash, h)
 }
 
-func (h *hashMap) getBucketId(fileNum, key uint64) int32 {
+func (h *hashMap) getBucketId(fileNum, key uint64) uint32 {
 	hash := murmur32(fileNum, key)
-	return int32(hash % uint32(h.state.bucketSize))
+	return hash & h.state.bucketMark
 }
 
 func (h *hashMap) Close(force bool) {
+	// mutex lock to ensure all the shared locks are cleared
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
@@ -154,7 +158,7 @@ func (h *hashMap) Close(force bool) {
 	h.closed = true
 	var allKVs []*kv
 	for i, _ := range h.state.buckets {
-		bucket := h.state.initBucket(int32(i))
+		bucket := h.state.initBucket(uint32(i))
 		bucket.mu.Lock()
 		allKVs = append(allKVs, bucket.nodes...)
 		bucket.mu.Unlock()
@@ -184,7 +188,7 @@ func (h *hashMap) SetCapacity(capacity int64) {
 func NewMap(opts ...CacheOpt) IMap {
 	state := &state{
 		buckets:       make([]*bucket, initialBucketSize),
-		bucketSize:    int32(initialBucketSize),
+		bucketMark:    uint32(initialBucketSize - 1),
 		growThreshold: int64(initialBucketSize * overflowThreshold),
 	}
 	for i, _ := range state.buckets {

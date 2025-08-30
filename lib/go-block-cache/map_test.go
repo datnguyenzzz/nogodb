@@ -1,9 +1,8 @@
-package go_hash_map
+package go_block_cache
 
 import (
 	"fmt"
 	"math/rand"
-	"runtime"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -72,7 +71,7 @@ func Test_HashMap_Capacity_Resizing(t *testing.T) {
 	stats := cache.GetStats()
 	assert.Equal(t, int64(10), stats.statSize)
 	assert.Equal(t, int64(7), stats.statNodes) // [1 --> 8]
-	// cache the cache capacity
+	// reduce the cache capacity, then evict the least recent updated node
 	cache.SetCapacity(9)
 	stats = cache.GetStats()
 	assert.Equal(t, int64(8), stats.statSize)
@@ -80,18 +79,16 @@ func Test_HashMap_Capacity_Resizing(t *testing.T) {
 }
 
 func Test_Hashmap_Bulk_Set_Then_Get_Async(t *testing.T) {
-	runtime.GOMAXPROCS(runtime.NumCPU())
-
 	type params struct {
 		desc                                              string
 		nObjects, nHandles, concurrent, repeat, cacheSize int
 	}
 
 	tests := []params{
-		{"big cache - small load", 1000, 1, 1, 1, 10 * MiB},
+		{"big cache - small load", 100, 3, 3, 3, 10 * MiB},
 		{"big cache - medium load", 10000, 400, 50, 3, 10 * MiB},
 		{"big cache - big load", 100000, 1000, 100, 10, 10 * MiB},
-		{"small cache - small load", 1000, 1, 1, 1, 100 * B},
+		{"small cache - small load", 100, 3, 3, 3, 50 * B},
 		{"small cache - medium load", 10000, 400, 50, 3, 100 * B},
 		{"small cache - big load", 100000, 1000, 100, 10, 100 * B},
 	}
@@ -105,40 +102,53 @@ func Test_Hashmap_Bulk_Set_Then_Get_Async(t *testing.T) {
 			var isDone int32
 
 			wg := new(sync.WaitGroup)
+
+			// Emulate Release a random lazyvalue, until the test is finished the loop
+			go func() {
+				r := rand.New(rand.NewSource(time.Now().UnixNano()))
+				for atomic.LoadInt32(&isDone) == 1 {
+					id := r.Intn(tc.nHandles)
+					lazyValue := (*LazyValue)(atomic.LoadPointer(&lazyValues[id]))
+					if lazyValue != nil && atomic.CompareAndSwapPointer(&lazyValues[id], unsafe.Pointer(lazyValue), nil) {
+						(*lazyValue).Release()
+					}
+					time.Sleep(time.Millisecond)
+				}
+			}()
+
 			for i := 0; i < tc.concurrent; i++ {
 				wg.Add(1)
 				// Set then Get new key/value pair to the cache
 				go func() {
 					defer wg.Done()
+
 					r := rand.New(rand.NewSource(time.Now().UnixNano()))
-					for j := 0; j < tc.repeat; j++ {
+					for j := 0; j < tc.nObjects*tc.repeat; j++ {
+						if t.Failed() {
+							return
+						}
 						key := r.Intn(tc.nObjects)
 						ok := cache.Set(uint64(testID), uint64(key), dummyBytes)
-						assert.True(t, ok, "record should be updated into the cache")
+						if !assert.True(t, ok, "record should be updated into the cache") {
+							return
+						}
+
 						lazyValue, ok := cache.Get(uint64(testID), uint64(key))
 						// record must be found, even in high concurrency manner
-						assert.True(t, ok, "record should exist")
-						assert.NotNil(t, lazyValue, "record should exist")
+						if !assert.True(t, ok, "record should exist") {
+							return
+						}
+						if !assert.NotNil(t, lazyValue, "record should exist") {
+							return
+						}
 						val := []byte(lazyValue.Load())
 						assert.Equal(t, dummyBytes, val, "record should matched")
 						// store the lazyValue
-						if !atomic.CompareAndSwapPointer(&lazyValues[r.Intn(tc.nHandles)], nil, unsafe.Pointer(&lazyValue)) {
+						lvId := r.Intn(tc.nHandles)
+						if !atomic.CompareAndSwapPointer(&lazyValues[lvId], nil, unsafe.Pointer(&lazyValue)) {
 							// the slot already fill, then release it
 							lazyValue.Release()
 						}
-					}
-				}()
-
-				// Emulate Release a random lazyvalue, until the test is finished the loop
-				go func() {
-					r := rand.New(rand.NewSource(time.Now().UnixNano()))
-					for atomic.LoadInt32(&isDone) == 1 {
-						id := r.Intn(tc.nHandles)
-						lazyValue := (*LazyValue)(atomic.LoadPointer(&lazyValues[id]))
-						if lazyValue != nil && atomic.CompareAndSwapPointer(&lazyValues[id], unsafe.Pointer(lazyValue), nil) {
-							(*lazyValue).Release()
-						}
-						time.Sleep(time.Millisecond)
 					}
 				}()
 			}

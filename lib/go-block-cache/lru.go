@@ -1,12 +1,14 @@
-package go_hash_map
+package go_block_cache
 
 import (
 	"fmt"
 	"sync"
+
+	"go.uber.org/zap"
 )
 
 type log struct {
-	kv *kv
+	kv LazyValue
 	// ban do not allow promoting this key/value any longer
 	ban        bool
 	prev, next *log
@@ -14,7 +16,9 @@ type log struct {
 
 func (l *log) remove() {
 	if l.prev == nil || l.next == nil {
-		panic(fmt.Sprintf("remove a zombie node. fileNum: %v key: %v", l.kv.fileNum, l.kv.key))
+		msg := fmt.Sprintf("remove a zombie node")
+		zap.L().Error(msg)
+		panic(msg)
 	}
 	l.prev.next = l.next
 	l.next.prev = l.prev
@@ -63,7 +67,7 @@ func (l *lru) SetCapacity(capacity int64) {
 	l.mu.Unlock()
 
 	for _, kv := range evicted {
-		kv.unref()
+		kv.Release()
 	}
 }
 
@@ -75,7 +79,7 @@ func (l *lru) Promote(node *kv) bool {
 			return false
 		}
 
-		log := &log{kv: node}
+		log := &log{kv: node.ToLazyValue()}
 		node.SetLog(log)
 		l.inUse += node.size
 	} else {
@@ -89,7 +93,7 @@ func (l *lru) Promote(node *kv) bool {
 
 	l.mu.Unlock()
 	for _, kv := range evicted {
-		kv.unref()
+		kv.Release()
 	}
 
 	return true
@@ -114,7 +118,7 @@ func (l *lru) Ban(node *kv) {
 	defer l.mu.Unlock()
 
 	if node.log == nil {
-		node.log = &log{kv: node, ban: true}
+		node.log = &log{kv: node.ToLazyValue(), ban: true}
 	} else {
 		currLog := node.log
 		if !currLog.ban {
@@ -131,15 +135,15 @@ func (l *lru) Ban(node *kv) {
 // balance evict nodes to balance the maxSize.
 //
 //	Caller must ensure the lru is locked
-func (l *lru) balance() (evicted []*kv) {
+func (l *lru) balance() (evicted []LazyValue) {
 	for l.inUse > l.capacity {
 		leastUpdate := l.recent.prev
 		if leastUpdate == nil {
 			panic("lru recent pointer is nil")
 		}
 		leastUpdate.remove()
-		leastUpdate.kv.SetLog(nil)
-		l.inUse -= leastUpdate.kv.size
+		l.inUse -= int64(cap(leastUpdate.kv.Load()))
+		leastUpdate.kv = nil
 		evicted = append(evicted, leastUpdate.kv)
 	}
 

@@ -17,6 +17,6 @@ minimizing data rewriting within the same level and significantly reducing write
 - [`Status: Done`] [Adaptive radix tree - Serve as an in-memory storage](lib/go-adaptive-radix-tree/README.md)
 - [`Status: Done`] [Blocked Bloom Filter with bit pattern](lib/go-blocked-bloom-filter/README.md)
 - [`Status: Done`] [Write Ahead Log](lib/go-wal/README.md)
-- [`Status: In Progress`] [Cache - A hash map for caching block](lib/go-hash-map/README.md)
+- [`Status: In Progress`] [Cache - A hash map for caching block](lib/go-block-cache/README.md)
 - [`Status: In Progress`] [Sort String Table](lib/go-sstable/README.md)
 - [`Status: Not Yet Started`] [Virtual File System](lib/go-fs)

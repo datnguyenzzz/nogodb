@@ -73,7 +73,7 @@ func (l *lru) SetCapacity(capacity int64) {
 	}
 }
 
-func (l *lru) Promote(node *kv) bool {
+func (l *lru) Promote(node *kv, diffSize int64) bool {
 	l.mu.Lock()
 	if node.log == nil {
 		// the key/value pair is updated for the first time
@@ -84,11 +84,12 @@ func (l *lru) Promote(node *kv) bool {
 		log := &log{n: node}
 		l.recent.insert(log)
 		node.log = unsafe.Pointer(log)
-		l.inUse += node.size
+		atomic.AddInt64(&l.inUse, node.size)
 	} else {
 		log := (*log)(node.log)
 		log.remove()
 		l.recent.insert(log)
+		atomic.AddInt64(&l.inUse, diffSize)
 	}
 	evicted := l.balance()
 	l.mu.Unlock()

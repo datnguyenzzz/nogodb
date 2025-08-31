@@ -13,7 +13,8 @@ import (
 )
 
 var (
-	dummyBytes = []byte{01, 12, 23, 34, 45, 56, 67, 78, 89, 90}
+	dummy10Bytes = []byte{01, 12, 23, 34, 45, 56, 67, 78, 89, 90}
+	dummy1Byte   = []byte{10}
 )
 
 func Test_HashMap_Set_Then_Get_Sync(t *testing.T) {
@@ -23,15 +24,21 @@ func Test_HashMap_Set_Then_Get_Sync(t *testing.T) {
 
 	dummyFileNum, dummyKey := 1, 1
 
-	cache.Set(uint64(dummyFileNum), uint64(dummyKey), dummyBytes)
+	cache.Set(uint64(dummyFileNum), uint64(dummyKey), dummy10Bytes)
 	lazyValue, ok := cache.Get(uint64(dummyFileNum), uint64(dummyKey))
 	assert.True(t, ok)
 	assert.NotNil(t, lazyValue)
 	val := []byte(lazyValue.Load())
-	assert.Equal(t, dummyBytes, val)
-	// release it
-	lazyValue.Release()
+	assert.Equal(t, dummy10Bytes, val)
 
+	cache.Set(uint64(dummyFileNum), uint64(dummyKey), dummy1Byte)
+	lazyValue, ok = cache.Get(uint64(dummyFileNum), uint64(dummyKey))
+	assert.True(t, ok)
+	assert.NotNil(t, lazyValue)
+	val = lazyValue.Load()
+	assert.Equal(t, dummy1Byte, val)
+
+	lazyValue.Release()
 	// verify stats
 	stats := cache.GetStats()
 	assert.Zero(t, stats.statNodes, "Stats nodes should be zero")
@@ -84,7 +91,7 @@ func Test_LazyValue_Release(t *testing.T) {
 	cache := NewMap(
 		WithCacheType(LRU),
 	)
-	ok := cache.Set(uint64(1), uint64(1), dummyBytes)
+	ok := cache.Set(uint64(1), uint64(1), dummy10Bytes)
 	assert.True(t, ok)
 	times := 5
 	// Get the lazy value of the given block
@@ -99,7 +106,7 @@ func Test_LazyValue_Release(t *testing.T) {
 	// The remains 4 lazy values must still accessible, if the cache still have spaces
 	for i := 1; i < times; i++ {
 		val := []byte(lazyValues[i].Load())
-		assert.Equal(t, dummyBytes, val, fmt.Sprintf("lazy value should match"))
+		assert.Equal(t, dummy10Bytes, val, fmt.Sprintf("lazy value should match"))
 	}
 }
 
@@ -154,7 +161,7 @@ func Test_Hashmap_Bulk_Set_Then_Get_And_Release_Async(t *testing.T) {
 							return
 						}
 						key := r.Intn(tc.nObjects)
-						ok := cache.Set(uint64(testID), uint64(key), dummyBytes)
+						ok := cache.Set(uint64(testID), uint64(key), dummy10Bytes)
 						if !assert.True(t, ok, fmt.Sprintf("%v-%v should be updated into the cache", testID, key)) {
 							return
 						}
@@ -168,7 +175,7 @@ func Test_Hashmap_Bulk_Set_Then_Get_And_Release_Async(t *testing.T) {
 							return
 						}
 						val := []byte(lazyValue.Load())
-						assert.Equal(t, dummyBytes, val, fmt.Sprintf("%v-%v lazy value should match", testID, key))
+						assert.Equal(t, dummy10Bytes, val, fmt.Sprintf("%v-%v lazy value should match", testID, key))
 						// store the lazyValue for the delayed releasing
 						lvId := r.Intn(tc.nHandles)
 						if !atomic.CompareAndSwapPointer(&lazyValues[lvId], nil, unsafe.Pointer(&lazyValue)) {

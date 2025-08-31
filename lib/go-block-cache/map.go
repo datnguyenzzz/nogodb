@@ -88,12 +88,14 @@ func (h *hashMap) Set(fileNum, key uint64, value Value) bool {
 		}
 
 		valSize := int64(computeSize(value))
+		diffSize := valSize - node.size
 		node.SetValue(value, valSize)
+		atomic.StoreInt32(&node.ref, 0)
 		atomic.AddInt64(&h.stats.statSet, 1)
 		h.mu.RUnlock()
 
 		if h.cacher != nil {
-			if ok := h.cacher.Promote(node); !ok {
+			if ok := h.cacher.Promote(node, diffSize); !ok {
 				return false
 			}
 		}
@@ -175,7 +177,7 @@ func (h *hashMap) remove(node *kv) bool {
 		if isFrozen {
 			continue
 		}
-		
+
 		if removed {
 			//fmt.Printf("Removed node %d-%d\n", node.fileNum, node.key)
 			//for _, node := range bucket.nodes {

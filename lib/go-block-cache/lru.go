@@ -123,6 +123,7 @@ func (l *lru) balance() (evicted []*kv) {
 		if leastUpdate == nil {
 			panic("lru recent pointer is nil")
 		}
+		//fmt.Printf("removing lru node: %v -- value: %v\n", unsafe.Pointer(leastUpdate.n), leastUpdate.n.value)
 		l.RemoveLRULog(leastUpdate)
 		evicted = append(evicted, leastUpdate.n)
 	}

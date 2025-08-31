@@ -2,6 +2,8 @@ package go_block_cache
 
 import (
 	"sort"
+	"sync/atomic"
+	"unsafe"
 
 	"go.uber.org/zap"
 )
@@ -16,7 +18,7 @@ type state struct {
 	buckets    []bucket
 	bucketMark uint32
 
-	prevState *state
+	prevState unsafe.Pointer // point to the previous state
 
 	// resizing True if any bucket is changing its size
 	resizing int32
@@ -37,7 +39,9 @@ func (s *state) initBucket(id uint32) *bucket {
 		return bucket
 	}
 
-	prevState := s.prevState
+	//fmt.Printf("init bucket %v\n", unsafe.Pointer(bucket))
+
+	prevState := (*state)(atomic.LoadPointer(&s.prevState))
 	if prevState == nil {
 		msg := "prev state is nil when init a fresh bucket"
 		zap.L().Error(msg)
@@ -75,5 +79,5 @@ func (s *state) initBuckets() {
 		s.initBucket(uint32(i))
 	}
 
-	s.prevState = nil
+	atomic.StorePointer(&s.prevState, nil)
 }

@@ -5,6 +5,7 @@ import (
 	"sync"
 	"testing"
 	"time"
+	"unsafe"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -96,13 +97,18 @@ func Test_AddNewNode_Then_Get_Async(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.desc, func(t *testing.T) {
 			b := &bucket{state: initialized}
-			dummyHM := &hashMap{stats: *new(Stats), state: new(state)}
+			dummyHM := &hashMap{stats: *new(Stats), state: unsafe.Pointer(new(state))}
 			wg := new(sync.WaitGroup)
 			for _, node := range tc.sequences {
 				wg.Add(1)
 				go func() {
 					defer wg.Done()
-					b.AddNewNode(node.fileNum, node.key, node.hash, dummyHM)
+					for {
+						isFrozen, _ := b.AddNewNode(node.fileNum, node.key, node.hash, dummyHM)
+						if !isFrozen {
+							break
+						}
+					}
 				}()
 			}
 			wg.Wait()
@@ -140,7 +146,7 @@ func Test_AddNewNode_Then_Get_Big_Async(t *testing.T) {
 
 	// add nodes to the bucket
 	b := &bucket{state: initialized}
-	dummyHM := &hashMap{stats: *new(Stats), state: new(state)}
+	dummyHM := &hashMap{stats: *new(Stats), state: unsafe.Pointer(new(state))}
 	wg := new(sync.WaitGroup)
 	for _, node := range sequences {
 		wg.Add(1)

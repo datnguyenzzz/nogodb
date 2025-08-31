@@ -3,6 +3,7 @@ package go_block_cache
 import (
 	"sync"
 	"sync/atomic"
+	"unsafe"
 )
 
 var (
@@ -48,7 +49,8 @@ type hashMap struct {
 	stats  Stats
 
 	closed bool
-	state  *state
+	// points to state. As in the state don't have mutex
+	state unsafe.Pointer
 }
 
 func (h *hashMap) GetStats() Stats {
@@ -65,7 +67,8 @@ func (h *hashMap) Set(fileNum, key uint64, value Value) bool {
 		h.mu.RUnlock()
 		return false
 	}
-	bucket := h.state.initBucket(h.getBucketId(fileNum, key))
+	state := (*state)(atomic.LoadPointer(&h.state))
+	bucket := state.initBucket(h.getBucketId(fileNum, key))
 	for {
 		isFrozen, node := bucket.Get(fileNum, key)
 		if isFrozen {
@@ -81,7 +84,7 @@ func (h *hashMap) Set(fileNum, key uint64, value Value) bool {
 		}
 
 		//fmt.Printf("About setting node %d-%d to bucket-%v\n", fileNum, key, unsafe.Pointer(bucket))
-		if value == nil {
+		if value == nil || computeSize(value) == 0 {
 			node.unRef()
 			h.mu.RUnlock()
 			return true
@@ -115,7 +118,8 @@ func (h *hashMap) Get(fileNum, key uint64) (LazyValue, bool) {
 	var isFrozen bool
 	var node *kv
 	for {
-		bucket := h.state.initBucket(h.getBucketId(fileNum, key))
+		state := (*state)(atomic.LoadPointer(&h.state))
+		bucket := state.initBucket(h.getBucketId(fileNum, key))
 		isFrozen, node = bucket.Get(fileNum, key)
 		if isFrozen {
 			continue
@@ -146,7 +150,8 @@ func (h *hashMap) Delete(fileNum, key uint64) bool {
 	var isFrozen bool
 	var node *kv
 	for {
-		bucket := h.state.initBucket(h.getBucketId(fileNum, key))
+		state := (*state)(atomic.LoadPointer(&h.state))
+		bucket := state.initBucket(h.getBucketId(fileNum, key))
 		isFrozen, node = bucket.Get(fileNum, key)
 		if isFrozen {
 			continue
@@ -172,7 +177,8 @@ func (h *hashMap) remove(node *kv) bool {
 
 	var removed, isFrozen bool
 	for {
-		bucket := h.state.initBucket(h.getBucketId(node.fileNum, node.key))
+		state := (*state)(atomic.LoadPointer(&h.state))
+		bucket := state.initBucket(h.getBucketId(node.fileNum, node.key))
 		isFrozen, removed = bucket.DeleteNode(node.fileNum, node.key, node.hash, h)
 		if isFrozen {
 			continue
@@ -195,8 +201,9 @@ func (h *hashMap) remove(node *kv) bool {
 }
 
 func (h *hashMap) getBucketId(fileNum, key uint64) uint32 {
+	state := (*state)(atomic.LoadPointer(&h.state))
 	hash := murmur32(fileNum, key)
-	return hash & h.state.bucketMark
+	return hash & state.bucketMark
 }
 
 func (h *hashMap) Close(force bool) {
@@ -210,8 +217,9 @@ func (h *hashMap) Close(force bool) {
 
 	h.closed = true
 	var allKVs []*kv
-	for i, _ := range h.state.buckets {
-		bucket := h.state.initBucket(uint32(i))
+	state := (*state)(atomic.LoadPointer(&h.state))
+	for i, _ := range state.buckets {
+		bucket := state.initBucket(uint32(i))
 		bucket.mu.Lock()
 		allKVs = append(allKVs, bucket.nodes...)
 		bucket.mu.Unlock()
@@ -225,6 +233,8 @@ func (h *hashMap) Close(force bool) {
 			h.cacher.Evict(kv)
 		}
 	}
+
+	atomic.StorePointer(&h.state, nil)
 }
 
 func (h *hashMap) SetCapacity(capacity int64) {
@@ -247,7 +257,7 @@ func NewMap(opts ...CacheOpt) IMap {
 	}
 
 	c := &hashMap{
-		state:     state,
+		state:     unsafe.Pointer(state),
 		maxSize:   int64(defaultCacheSize),
 		cacheType: defaultCacheType,
 	}

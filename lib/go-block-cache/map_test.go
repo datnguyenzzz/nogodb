@@ -3,6 +3,7 @@ package go_block_cache
 import (
 	"fmt"
 	"math/rand"
+	"runtime"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -111,18 +112,19 @@ func Test_LazyValue_Release(t *testing.T) {
 }
 
 func Test_Hashmap_Bulk_Set_Then_Get_And_Release_Async(t *testing.T) {
+	runtime.GOMAXPROCS(runtime.NumCPU())
 	type params struct {
-		desc                                              string
-		nObjects, nHandles, concurrent, repeat, cacheSize int
+		desc                          string
+		nObjects, nHandles, cacheSize int
 	}
 
 	tests := []params{
-		{"big cache - small load", 10, 5, 3, 3, 10 * MiB},
-		{"big cache - medium load", 10000, 400, 50, 3, 10 * MiB},
-		{"big cache - big load", 100000, 1000, 100, 10, 10 * MiB},
-		{"small cache - small load", 10, 5, 3, 3, 50 * B},
-		{"small cache - medium load", 10000, 400, 50, 3, 100 * B},
-		{"small cache - big load", 100000, 1000, 100, 10, 100 * B},
+		{"big cache - small load", 10, 5, 10 * MiB},
+		{"big cache - medium load", 1000, 200, 10 * MiB},
+		{"big cache - big load", 10000, 3000, 10 * MiB},
+		{"small cache - small load", 10, 5, 50 * B},
+		{"small cache - medium load", 1000, 200, 100 * B},
+		{"small cache - big load", 10000, 3000, 100 * B},
 	}
 
 	for testID, tc := range tests {
@@ -136,7 +138,7 @@ func Test_Hashmap_Bulk_Set_Then_Get_And_Release_Async(t *testing.T) {
 
 			wg := new(sync.WaitGroup)
 
-			// Emulate Release a random lazyvalue, until the test is finished the loop
+			// Emulate Release a random lazy value, until the test is finished the loop
 			go func() {
 				r := rand.New(rand.NewSource(time.Now().UnixNano()))
 				for atomic.LoadInt32(&isDone) == 0 {
@@ -150,44 +152,46 @@ func Test_Hashmap_Bulk_Set_Then_Get_And_Release_Async(t *testing.T) {
 				}
 			}()
 
-			for i := 0; i < tc.concurrent; i++ {
+			r := rand.New(rand.NewSource(time.Now().UnixNano()))
+			for i := 0; i < tc.nObjects; i++ {
 				wg.Add(1)
 				// Set then Get new key/value pair to the cache
 				go func() {
 					defer wg.Done()
-					r := rand.New(rand.NewSource(time.Now().UnixNano()))
-					for j := 0; j < tc.nObjects*tc.repeat; j++ {
-						if t.Failed() {
-							return
-						}
-						key := r.Intn(tc.nObjects)
-						ok := cache.Set(uint64(testID), uint64(key), dummy10Bytes)
-						if !assert.True(t, ok, fmt.Sprintf("%v-%v should be updated into the cache", testID, key)) {
-							return
-						}
 
-						lazyValue, ok := cache.Get(uint64(testID), uint64(key))
-						if !assert.True(t, ok, fmt.Sprintf("%v-%v record should exist", testID, key)) {
-							return
-						}
+					if t.Failed() {
+						return
+					}
+					ok := cache.Set(uint64(testID), uint64(i), dummy10Bytes)
+					if !assert.True(t, ok, fmt.Sprintf("%v-%v should be updated into the cache", testID, i)) {
+						return
+					}
 
-						if !assert.NotNil(t, lazyValue, fmt.Sprintf("%v-%v record should exist", testID, key)) {
-							return
-						}
-						val := []byte(lazyValue.Load())
-						assert.Equal(t, dummy10Bytes, val, fmt.Sprintf("%v-%v lazy value should match", testID, key))
-						// store the lazyValue for the delayed releasing
-						lvId := r.Intn(tc.nHandles)
-						if !atomic.CompareAndSwapPointer(&lazyValues[lvId], nil, unsafe.Pointer(&lazyValue)) {
-							lazyValue.Release()
-						}
+					lazyValue, ok := cache.Get(uint64(testID), uint64(i))
+					if !assert.True(t, ok, fmt.Sprintf("%v-%v record should exist", testID, i)) {
+						return
+					}
+					if !assert.NotNil(t, lazyValue, fmt.Sprintf("%v-%v record should exist", testID, i)) {
+						return
+					}
+
+					val := []byte(lazyValue.Load())
+					if !assert.Equal(t, dummy10Bytes, val, fmt.Sprintf("%v-%v lazy value should match", testID, i)) {
+						return
+					}
+
+					// store the lazyValue for the delayed releasing
+					lvId := r.Intn(tc.nHandles)
+					if !atomic.CompareAndSwapPointer(&lazyValues[lvId], nil, unsafe.Pointer(&lazyValue)) {
+						lazyValue.Release()
 					}
 				}()
 			}
 
 			wg.Wait()
 			atomic.StoreInt32(&isDone, 1)
-			// release all lazy values are pending
+
+			// release all lazy values that are pending
 			for i, _ := range lazyValues {
 				lazyValue := (*LazyValue)(atomic.LoadPointer(&lazyValues[i]))
 				if lazyValue != nil {

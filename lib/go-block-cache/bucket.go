@@ -4,6 +4,7 @@ import (
 	"sort"
 	"sync"
 	"sync/atomic"
+	"unsafe"
 )
 
 type bucketState byte
@@ -73,7 +74,7 @@ func (b *bucket) AddNewNode(fileNum, key uint64, hash uint32, hm *hashMap) (isFr
 	}
 	b.mu.Unlock()
 
-	b.grow(hm)
+	b.grow(hm, (*state)(atomic.LoadPointer(&hm.state)))
 	return false, newNode
 }
 
@@ -106,7 +107,7 @@ func (b *bucket) DeleteNode(fileNum, key uint64, hash uint32, hm *hashMap) (isFr
 	b.mu.Unlock()
 
 	if deleted {
-		b.shrink(hm)
+		b.shrink(hm, (*state)(atomic.LoadPointer(&hm.state)))
 	}
 	return false, deleted
 }
@@ -118,8 +119,7 @@ func (b *bucket) Freeze() []*kv {
 	return b.nodes
 }
 
-func (b *bucket) grow(hm *hashMap) {
-	currState := hm.state
+func (b *bucket) grow(hm *hashMap, currState *state) {
 	grow := atomic.AddInt64(&hm.stats.statNodes, 1) >= currState.growThreshold
 	if len(b.nodes) > overflowThreshold {
 		grow = grow || atomic.AddInt32(&currState.overflow, 1) >= overflowGrowThreshold
@@ -138,19 +138,20 @@ func (b *bucket) grow(hm *hashMap) {
 		// all buckets have a fresh start
 		buckets:         make([]bucket, newBucketSize),
 		bucketMark:      uint32(newBucketSize - 1),
-		prevState:       currState,
+		prevState:       unsafe.Pointer(currState),
 		growThreshold:   int64(newBucketSize * overflowThreshold),
 		shrinkThreshold: int64(newBucketSize / 2),
 	}
 
-	hm.state = newState
+	if !atomic.CompareAndSwapPointer(&hm.state, unsafe.Pointer(currState), unsafe.Pointer(newState)) {
+		panic("Failed to swap the state when growing ")
+	}
 	atomic.AddInt32(&hm.stats.statGrow, 1)
 
-	go hm.state.initBuckets()
+	go newState.initBuckets()
 }
 
-func (b *bucket) shrink(hm *hashMap) {
-	currState := hm.state
+func (b *bucket) shrink(hm *hashMap, currState *state) {
 	shrink := atomic.AddInt64(&hm.stats.statNodes, -1) < currState.shrinkThreshold
 	if len(b.nodes) >= overflowThreshold {
 		atomic.AddInt32(&currState.overflow, -1)
@@ -173,12 +174,15 @@ func (b *bucket) shrink(hm *hashMap) {
 		// all buckets have a fresh start
 		buckets:         make([]bucket, newBucketSize),
 		bucketMark:      uint32(newBucketSize - 1),
-		prevState:       currState,
+		prevState:       unsafe.Pointer(currState),
 		growThreshold:   int64(newBucketSize * overflowThreshold),
 		shrinkThreshold: int64(newBucketSize / 2),
 	}
 
-	hm.state = newState
+	if !atomic.CompareAndSwapPointer(&hm.state, unsafe.Pointer(currState), unsafe.Pointer(newState)) {
+		panic("Failed to swap the state when growing ")
+	}
 	atomic.AddInt32(&hm.stats.statShrink, 1)
-	go hm.state.initBuckets()
+
+	go newState.initBuckets()
 }

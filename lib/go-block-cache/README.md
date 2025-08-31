@@ -21,6 +21,32 @@ Blocks are keyed by a `(fileNum, key)` pair where:
 - `key`: Unique identifier within the file (e.g., block offset)
 - Keys are unique for the lifetime of the cache instance due to immutable files and non-reused file numbers
 
+
+## Benchmark
+
+```
+goos: darwin
+goarch: arm64
+pkg: github.com/datnguyenzzz/nogodb/lib/go-block-cache
+cpu: Apple M1 Pro
+
+Benchmark_Ristretto_Cache_Add_Read-10          	  471723	      2593 ns/op	   2096952 mem_footprint_in_bytes	     462 B/op	       7 allocs/op
+Benchmark_Ristretto_Cache_Add-10               	  479282	      2520 ns/op	   2096952 mem_footprint_in_bytes	     546 B/op	       8 allocs/op
+Benchmark_Ristretto_Cache_Read-10              	33852442	     33.05 ns/op	   2096952 mem_footprint_in_bytes	       6 B/op	       0 allocs/op
+Benchmark_Ristretto_Cache_Add_Read_Async-10    	 2836270	     400.1 ns/op	   2096952 mem_footprint_in_bytes	     360 B/op	       2 allocs/op
+Benchmark_Ristretto_Cache_Add_Async-10         	 3034792	     374.5 ns/op	   2096952 mem_footprint_in_bytes	     360 B/op	       2 allocs/op
+Benchmark_Ristretto_Cache_Read_Async-10        	15597987	     80.80 ns/op	   2096952 mem_footprint_in_bytes	       0 B/op	       0 allocs/op
+
+Benchmark_NogoDB_Cache_Add_Read-10             	  546520	      2258 ns/op	   2097152 mem_footprint_in_bytes	     393 B/op	       4 allocs/op
+Benchmark_NogoDB_Cache_Add-10                  	  568741	      2192 ns/op	   2097152 mem_footprint_in_bytes	     385 B/op	       3 allocs/op
+Benchmark_NogoDB_Cache_Read-10                 	29273527	     41.02 ns/op	   2097152 mem_footprint_in_bytes	       0 B/op	       0 allocs/op
+Benchmark_NogoDB_Cache_Add_Read_Async-10       	 1423645	     838.4 ns/op	   2097152 mem_footprint_in_bytes	     277 B/op	       2 allocs/op
+Benchmark_NogoDB_Cache_Add_Async-10            	 1482656	     841.6 ns/op	   2097152 mem_footprint_in_bytes	     272 B/op	       1 allocs/op
+Benchmark_NogoDB_Cache_Read_Async-10           	 4317998	     273.1 ns/op	   2097152 mem_footprint_in_bytes	       0 B/op	       0 allocs/op
+PASS
+ok  	github.com/datnguyenzzz/nogodb/lib/go-block-cache	226.049s
+```
+
 ## Architecture Overview
 
 ### Core Components
@@ -127,6 +153,7 @@ Clock-Pro is a patent-free alternative to Adaptive Replacement Cache (ARC):
 - Better performance than LRU for mixed access patterns  
 - Handles both temporal and spatial locality
 - Reference: [USENIX 2005 Paper](http://static.usenix.org/event/usenix05/tech/general/full_papers/jiang/jiang_html/html.html)
+
 
 ## Usage Examples
 

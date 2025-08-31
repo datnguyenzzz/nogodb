@@ -7,7 +7,7 @@ import (
 )
 
 var (
-	B   = 1
+	B   = int64(1)
 	KiB = 1024 * B
 	MiB = 1024 * KiB
 )

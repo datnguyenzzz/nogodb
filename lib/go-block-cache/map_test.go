@@ -43,7 +43,7 @@ func Test_HashMap_Set_Then_Get_Sync(t *testing.T) {
 	stats := cache.GetStats()
 	assert.Zero(t, stats.statNodes, "Stats nodes should be zero")
 	assert.Zero(t, cache.GetInUsed(), "Stats size should be zero")
-	fmt.Printf("STATS: %#v\n", stats)
+	//fmt.Printf("STATS: %#v\n", stats)
 }
 
 func Test_HashMap_Capacity_Resizing(t *testing.T) {
@@ -83,7 +83,7 @@ func Test_HashMap_Capacity_Resizing(t *testing.T) {
 	stats = cache.GetStats()
 	assert.Equal(t, int64(8), cache.GetInUsed())
 	assert.Equal(t, int64(6), stats.statNodes) // [2 --> 8]
-	fmt.Printf("STATS: %#v\n", stats)
+	//fmt.Printf("STATS: %#v\n", stats)
 
 }
 
@@ -101,13 +101,20 @@ func Test_LazyValue_Release(t *testing.T) {
 		lazyValues[i], ok = cache.Get(uint64(1), uint64(1))
 		assert.True(t, ok)
 	}
-	// Release 1 of 5 lazy values
+	// Release 1st of 5 lazy values
 	lazyValues[0].Release()
 	// The remains 4 lazy values must still accessible, if the cache still have spaces
 	for i := 1; i < times; i++ {
 		val := []byte(lazyValues[i].Load())
 		assert.Equal(t, dummy10Bytes, val, fmt.Sprintf("lazy value should match"))
 	}
+
+	// Release all 4 left lazy values
+	for i := 1; i < times; i++ {
+		lazyValues[i].Release()
+	}
+	_, ok = cache.Get(uint64(1), uint64(1))
+	assert.False(t, ok)
 }
 
 func Test_LazyValue_Small_Cache(t *testing.T) {
@@ -139,8 +146,9 @@ func Test_LazyValue_Small_Cache(t *testing.T) {
 
 func Test_Hashmap_Bulk_Set_Then_Get_And_Release_Async(t *testing.T) {
 	type params struct {
-		desc                          string
-		nObjects, nHandles, cacheSize int
+		desc               string
+		nObjects, nHandles int
+		cacheSize          int64
 	}
 
 	randomBytes := func(sz int) []byte {
@@ -238,7 +246,7 @@ func Test_Hashmap_Bulk_Set_Then_Get_And_Release_Async(t *testing.T) {
 			stats := cache.GetStats()
 			assert.Zero(t, stats.statNodes, "Stats Nodes should be zero")
 			assert.Zero(t, cache.GetInUsed(), "Cached size should be zero")
-			fmt.Printf("STATS: %#v\n", stats)
+			//fmt.Printf("STATS: %#v\n", stats)
 		})
 	}
 }
@@ -265,5 +273,39 @@ func Test_HashMap_Hit_And_Miss(t *testing.T) {
 		_, ok = cache.Get(uint64(0), uint64(i+keySize))
 		assert.False(t, ok)
 	}
-	fmt.Printf("STATS: %#v\n", cache.GetStats())
+	//fmt.Printf("STATS: %#v\n", cache.GetStats())
+}
+
+func Test_HashMap_Delete(t *testing.T) {
+	cache := NewMap(
+		WithCacheType(LRU),
+	)
+
+	// Delete by using hashmap.Delete(...)
+	cache.Set(0, 1, dummy10Bytes)
+	lazyValue, ok := cache.Get(0, 1)
+	assert.True(t, ok)
+	assert.NotNil(t, lazyValue)
+	val := []byte(lazyValue.Load())
+	assert.Equal(t, dummy10Bytes, val)
+
+	ok = cache.Delete(0, 2)
+	assert.False(t, ok)
+
+	ok = cache.Delete(0, 1)
+	assert.True(t, ok)
+	_, ok = cache.Get(0, 1)
+	assert.False(t, ok)
+
+	// Delete by using the lazyValue.Release()
+	cache.Set(0, 1, dummy10Bytes)
+	lazyValue, ok = cache.Get(0, 1)
+	assert.True(t, ok)
+	assert.NotNil(t, lazyValue)
+	val = lazyValue.Load()
+	assert.Equal(t, dummy10Bytes, val)
+
+	lazyValue.Release()
+	_, ok = cache.Get(0, 1)
+	assert.False(t, ok)
 }

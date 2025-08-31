@@ -110,16 +110,93 @@ Benchmark results on Apple M1 Pro:
 | Get       | 500,000      | 24      | 49,266,505      | 0                 |
 | Get       | 1,000,000    | 10      | 100,743,017     | 0                 |
 
-## Use Cases
+## Data Structure Comparison
 
-Adaptive Radix Trees excel in the following scenarios:
+The following table compares key characteristics of different data structures commonly used for key-value storage:
 
-- **In-Memory Databases**: Efficient storage and retrieval of large datasets
-- **Key-Value Stores**: Fast lookups with minimal memory overhead
-- **String Dictionaries**: Compact storage of string keys with common prefixes
-- **IP Routing Tables**: Efficient storage and lookup of network routes
-- **Auto-Completion Systems**: Quick prefix-based searches
-- **Time-Series Data**: Ordered access to time-based records
+| Feature | Adaptive Radix Tree (ART) | Skip List | Hash Table |
+|---------|---------------------------|-----------|------------|
+| **Time Complexity** | | | |
+| - Search | O(k) | O(log n) | O(1) average, O(n) worst |
+| - Insert | O(k) | O(log n) | O(1) average, O(n) worst |
+| - Delete | O(k) | O(log n) | O(1) average, O(n) worst |
+| - Range Query | O(k + m) | O(log n + m) | Not supported |
+| - Ordered Traversal | ✅ Natural | ✅ Natural | ❌ Requires sorting |
+| **Memory Characteristics** | | | |
+| - Memory Efficiency | ⭐⭐⭐⭐⭐ Excellent | ⭐⭐⭐ Good | ⭐⭐⭐ Good |
+| - Cache Locality | ⭐⭐⭐⭐⭐ Excellent | ⭐⭐ Fair | ⭐⭐⭐ Good |
+| - Memory Overhead | ~20-40 bytes/key | ~24-32 bytes/key | ~16-24 bytes/key |
+| - Path Compression | ✅ Built-in | ❌ None | ❌ None |
+| **Scalability** | | | |
+| - Large Datasets | ⭐⭐⭐⭐⭐ Excellent | ⭐⭐⭐⭐ Good | ⭐⭐⭐⭐ Good |
+| - String Keys | ⭐⭐⭐⭐⭐ Optimal | ⭐⭐⭐ Good | ⭐⭐⭐⭐ Good |
+| - Prefix Sharing | ⭐⭐⭐⭐⭐ Excellent | ❌ None | ❌ None |
+| **Concurrency** | | | |
+| - Read Concurrency | ⭐⭐⭐ Fair | ⭐⭐⭐⭐ Good | ⭐⭐⭐⭐⭐ Excellent |
+| - Write Concurrency | ⭐⭐ Limited | ⭐⭐⭐ Fair | ⭐⭐⭐⭐⭐ Excellent |
+| - Lock Granularity | Coarse-grained | Fine-grained | Fine-grained |
+| **Use Case Suitability** | | | |
+| - In-Memory DB Index | ⭐⭐⭐⭐⭐ Optimal | ⭐⭐⭐⭐ Good | ⭐⭐⭐ Fair |
+| - String Dictionaries | ⭐⭐⭐⭐⭐ Optimal | ⭐⭐⭐ Good | ⭐⭐⭐⭐ Good |
+| - IP Routing Tables | ⭐⭐⭐⭐⭐ Optimal | ⭐⭐ Poor | ⭐⭐ Poor |
+| - Auto-completion | ⭐⭐⭐⭐⭐ Optimal | ⭐⭐⭐ Good | ❌ Not suitable |
+| - Cache Implementation | ⭐⭐⭐ Fair | ⭐⭐ Poor | ⭐⭐⭐⭐⭐ Optimal |
+| - High-Freq Lookups | ⭐⭐⭐⭐ Good | ⭐⭐⭐ Fair | ⭐⭐⭐⭐⭐ Optimal |
+
+### Key Insights
+
+**Adaptive Radix Tree (ART)**
+
+*Advantages:*
+- **Memory Efficiency**: Superior for string keys with common prefixes due to path compression
+- **Cache Performance**: Excellent spatial locality from compact, adaptive node structures
+- **Ordered Access**: Natural lexicographic ordering enables efficient range queries
+- **Deterministic Performance**: O(k) complexity independent of dataset size
+
+*Disadvantages:*
+- **Implementation Complexity**: More complex to implement and debug than alternatives
+- **Limited Concurrency**: Coarse-grained locking reduces parallel write performance
+- **Pointer Overhead**: Multiple indirections can hurt performance on small datasets
+- **Worst-case Memory**: Can use more memory than hash tables for random, short keys
+
+**Skip List**
+
+*Advantages:*  
+- **Simplicity**: Easier to implement and debug compared to ART
+- **Probabilistic Balance**: Self-balancing without complex rotation logic
+- **Fine-grained Locking**: Better concurrency than ART's coarse-grained approach
+- **Consistent Performance**: Predictable O(log n) behavior across all operations
+
+*Disadvantages:*
+- **Memory Overhead**: Higher memory usage due to multiple forward pointers per node
+- **Cache Misses**: Poor spatial locality due to scattered node allocation
+- **No Path Compression**: Cannot optimize storage for keys with common prefixes
+- **Probabilistic Nature**: Performance can vary based on random level generation
+
+**Hash Table**
+
+*Advantages:*
+- **Lookup Speed**: Unmatched O(1) average case performance for point queries  
+- **Concurrency**: Excellent parallelism with techniques like lock-free hashing
+- **Implementation Maturity**: Well-understood with many optimized implementations
+- **Memory Predictability**: Fixed overhead per entry with good load factor management
+
+*Disadvantages:*
+- **No Ordering**: Cannot support range queries or ordered traversal natively
+- **Hash Collisions**: Performance degrades to O(n) in worst case with poor hash functions
+- **Resize Costs**: Expensive rehashing operations when load factor thresholds exceeded
+- **Memory Waste**: Fixed bucket allocation can waste memory with sparse key distributions
+
+### Choosing the Right Structure
+
+| Scenario | Recommended Structure | Rationale |
+|----------|----------------------|-----------|
+| String-heavy workloads with prefixes | **ART** | Path compression dramatically reduces memory usage |
+| High-frequency point lookups | **Hash Table** | O(1) average performance beats all alternatives |
+| Need for range/prefix queries | **ART or Skip List** | Hash tables don't support ordered operations |
+| Write-heavy concurrent workloads | **Hash Table** | Superior concurrent write performance |
+| Memory-constrained environments | **ART** | Best memory efficiency for structured keys |
+| Simple implementation requirements | **Skip List** | Easier to implement and maintain |
 
 ## Future Enhancements
 

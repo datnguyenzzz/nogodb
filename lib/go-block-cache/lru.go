@@ -11,7 +11,6 @@ import (
 
 type log struct {
 	n          *kv
-	lz         LazyValue
 	prev, next *log
 }
 
@@ -67,8 +66,10 @@ func (l *lru) SetCapacity(capacity int64) {
 	evicted := l.balance()
 	l.mu.Unlock()
 
-	for _, log := range evicted {
-		log.lz.Release()
+	for _, n := range evicted {
+		n.hm.mu.RLock()
+		n.forceUnRef()
+		n.hm.mu.RUnlock()
 	}
 }
 
@@ -80,7 +81,7 @@ func (l *lru) Promote(node *kv) bool {
 			return false
 		}
 
-		log := &log{n: node, lz: node.ToLazyValue()}
+		log := &log{n: node}
 		l.recent.insert(log)
 		node.log = unsafe.Pointer(log)
 		l.inUse += node.size
@@ -91,8 +92,11 @@ func (l *lru) Promote(node *kv) bool {
 	}
 	evicted := l.balance()
 	l.mu.Unlock()
-	for _, log := range evicted {
-		log.lz.Release()
+
+	for _, n := range evicted {
+		n.hm.mu.RLock()
+		n.forceUnRef()
+		n.hm.mu.RUnlock()
 	}
 
 	return true
@@ -101,25 +105,25 @@ func (l *lru) Promote(node *kv) bool {
 func (l *lru) Evict(node *kv) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
+
 	currLog := (*log)(node.log)
 	if currLog == nil {
 		return
 	}
-
 	l.RemoveLRULog(currLog)
 }
 
 // balance remove nodes to balance the maxSize.
 //
 //	Caller must ensure the lru is locked
-func (l *lru) balance() (evicted []*log) {
+func (l *lru) balance() (evicted []*kv) {
 	for l.inUse > l.capacity {
 		leastUpdate := l.recent.prev
 		if leastUpdate == nil {
 			panic("lru recent pointer is nil")
 		}
 		l.RemoveLRULog(leastUpdate)
-		evicted = append(evicted, leastUpdate)
+		evicted = append(evicted, leastUpdate.n)
 	}
 
 	return evicted
@@ -128,7 +132,7 @@ func (l *lru) balance() (evicted []*log) {
 func (l *lru) RemoveLRULog(lruLog *log) {
 	lruLog.remove()
 	lruLog.n.log = nil
-	l.inUse -= int64(computeSize(lruLog.lz.Load()))
+	atomic.AddInt64(&l.inUse, -int64(computeSize(lruLog.n.value)))
 }
 
 func (l *lru) GetInUsed() int64 {

@@ -32,35 +32,39 @@ func (b *bucket) seekGTE(fileNum, key uint64) int {
 	})
 }
 
-func (b *bucket) Get(fileNum, key uint64) *kv {
+func (b *bucket) Get(fileNum, key uint64) (isFrozen bool, n *kv) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
+	if b.state == frozen {
+		return true, nil
+	}
+
 	if len(b.nodes) == 0 {
-		return nil
+		return false, nil
 	}
 
 	pos := b.seekGTE(fileNum, key)
 	if pos == len(b.nodes) {
-		return nil
+		return false, nil
 	}
 
-	n := b.nodes[pos]
+	n = b.nodes[pos]
 	if n.fileNum != fileNum || n.key != key {
-		return nil
+		return false, nil
 	}
 
-	return n
+	return false, n
 }
 
-func (b *bucket) AddNewNode(fileNum, key uint64, hash uint32, hm *hashMap) *kv {
+func (b *bucket) AddNewNode(fileNum, key uint64, hash uint32, hm *hashMap) (isFrozen bool, newNode *kv) {
 	b.mu.Lock()
 	if b.state == frozen {
 		b.mu.Unlock()
-		return nil
+		return true, nil
 	}
 
 	pos := b.seekGTE(fileNum, key)
-	newNode := NewKV(fileNum, key, hash, hm)
+	newNode = NewKV(fileNum, key, hash, hm)
 	if pos == len(b.nodes) {
 		b.nodes = append(b.nodes, newNode)
 	} else {
@@ -70,30 +74,29 @@ func (b *bucket) AddNewNode(fileNum, key uint64, hash uint32, hm *hashMap) *kv {
 	b.mu.Unlock()
 
 	b.grow(hm)
-	return newNode
+	return false, newNode
 }
 
-func (b *bucket) DeleteNode(fileNum, key uint64, hash uint32, hm *hashMap) bool {
+func (b *bucket) DeleteNode(fileNum, key uint64, hash uint32, hm *hashMap) (isFrozen bool, deleted bool) {
 	b.mu.Lock()
 
 	if b.state == frozen {
 		b.mu.Unlock()
-		return false
+		return true, false
 	}
 
 	pos := b.seekGTE(fileNum, key)
 	if pos == len(b.nodes) {
 		b.mu.Unlock()
-		return false
+		return false, false
 	}
 
 	n := b.nodes[pos]
 	if n.fileNum != fileNum || n.key != key {
 		b.mu.Unlock()
-		return false
+		return false, false
 	}
 
-	var deleted bool
 	if atomic.LoadInt32(&n.ref) <= 0 {
 		//fmt.Printf(">>> Deleting node %d-%d from bucket-%d\n", fileNum, key, unsafe.Pointer(b))
 		deleted = true
@@ -105,7 +108,7 @@ func (b *bucket) DeleteNode(fileNum, key uint64, hash uint32, hm *hashMap) bool 
 	if deleted {
 		b.shrink(hm)
 	}
-	return deleted
+	return false, deleted
 }
 
 func (b *bucket) Freeze() []*kv {

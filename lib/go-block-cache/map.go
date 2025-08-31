@@ -62,31 +62,43 @@ func (h *hashMap) GetInUsed() int64 {
 func (h *hashMap) Set(fileNum, key uint64, value Value) bool {
 	h.mu.RLock()
 	if h.closed {
+		h.mu.RUnlock()
 		return false
 	}
 	bucket := h.state.initBucket(h.getBucketId(fileNum, key))
-	node := bucket.Get(fileNum, key)
-	if node == nil {
-		hash := murmur32(fileNum, key)
-		node = bucket.AddNewNode(fileNum, key, hash, h)
-	}
-
-	//fmt.Printf("About setting node %d-%d to bucket-%v\n", fileNum, key, unsafe.Pointer(bucket))
-	if value == nil {
-		node.unRef()
-		return true
-	}
-
-	valSize := int64(computeSize(value))
-	node.SetValue(value, valSize)
-
-	atomic.AddInt64(&h.stats.statSet, 1)
-	h.mu.RUnlock()
-
-	if h.cacher != nil {
-		if ok := h.cacher.Promote(node); !ok {
-			return false
+	for {
+		isFrozen, node := bucket.Get(fileNum, key)
+		if isFrozen {
+			continue
 		}
+
+		if node == nil {
+			hash := murmur32(fileNum, key)
+			isFrozen, node = bucket.AddNewNode(fileNum, key, hash, h)
+		}
+		if isFrozen {
+			continue
+		}
+
+		//fmt.Printf("About setting node %d-%d to bucket-%v\n", fileNum, key, unsafe.Pointer(bucket))
+		if value == nil {
+			node.unRef()
+			h.mu.RUnlock()
+			return true
+		}
+
+		valSize := int64(computeSize(value))
+		node.SetValue(value, valSize)
+		atomic.AddInt64(&h.stats.statSet, 1)
+		h.mu.RUnlock()
+
+		if h.cacher != nil {
+			if ok := h.cacher.Promote(node); !ok {
+				return false
+			}
+		}
+
+		break
 	}
 
 	return true
@@ -98,16 +110,28 @@ func (h *hashMap) Get(fileNum, key uint64) (LazyValue, bool) {
 	if h.closed {
 		return nil, false
 	}
+	var isFrozen bool
+	var node *kv
+	for {
+		bucket := h.state.initBucket(h.getBucketId(fileNum, key))
+		isFrozen, node = bucket.Get(fileNum, key)
+		if isFrozen {
+			continue
+		}
+		//fmt.Printf("Get Node %d-%d. Found node: %v, bucket: %v\n", fileNum, key, unsafe.Pointer(node), unsafe.Pointer(bucket))
+		//for _, n := range bucket.nodes {
+		//	fmt.Printf(">>> Nodes in bucket: %d-%d\n", n.fileNum, n.key)
+		//}
+		if node == nil {
+			atomic.AddInt64(&h.stats.statMiss, 1)
+			return nil, false
+		}
 
-	bucket := h.state.initBucket(h.getBucketId(fileNum, key))
-	node := bucket.Get(fileNum, key)
-	if node == nil {
-		atomic.AddInt64(&h.stats.statMiss, 1)
-		return nil, false
+		atomic.AddInt64(&h.stats.statHit, 1)
+		node.upRef()
+		break
 	}
 
-	atomic.AddInt64(&h.stats.statHit, 1)
-	node.upRef()
 	return node.ToLazyValue(), true
 }
 
@@ -117,30 +141,54 @@ func (h *hashMap) Delete(fileNum, key uint64) bool {
 	if h.closed {
 		return false
 	}
-	bucket := h.state.initBucket(h.getBucketId(fileNum, key))
-	node := bucket.Get(fileNum, key)
-	if node == nil {
-		return false
+	var isFrozen bool
+	var node *kv
+	for {
+		bucket := h.state.initBucket(h.getBucketId(fileNum, key))
+		isFrozen, node = bucket.Get(fileNum, key)
+		if isFrozen {
+			continue
+		}
+		if node == nil {
+			return false
+		}
+
+		node.unRef()
+		break
 	}
 
-	node.unRef()
 	return true
 }
 
 // remove removes a node from a hashmap
 //
-//	caller must do the lock
+//	Important: caller must ensure the Rlock of the hashmap
 func (h *hashMap) remove(node *kv) bool {
 	if h.closed {
 		return false
 	}
-	bucket := h.state.initBucket(h.getBucketId(node.fileNum, node.key))
-	removed := bucket.DeleteNode(node.fileNum, node.key, node.hash, h)
-	if removed {
-		h.cacher.Evict(node)
-		node = nil
-		atomic.AddInt64(&h.stats.statDel, 1)
+
+	var removed, isFrozen bool
+	for {
+		bucket := h.state.initBucket(h.getBucketId(node.fileNum, node.key))
+		isFrozen, removed = bucket.DeleteNode(node.fileNum, node.key, node.hash, h)
+		if isFrozen {
+			continue
+		}
+		
+		if removed {
+			//fmt.Printf("Removed node %d-%d\n", node.fileNum, node.key)
+			//for _, node := range bucket.nodes {
+			//	fmt.Printf(">>> Nodes after deletion in bucket: %d-%d\n", node.fileNum, node.key)
+			//}
+			h.cacher.Evict(node)
+			node = nil
+			atomic.AddInt64(&h.stats.statDel, 1)
+		}
+
+		break
 	}
+
 	return removed
 }
 

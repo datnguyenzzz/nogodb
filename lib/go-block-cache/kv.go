@@ -71,13 +71,17 @@ func (n *kv) ToLazyValue() LazyValue {
 	return &handle{n: unsafe.Pointer(n)}
 }
 
+// unRef Caller must ensure the hashmap is hold a RLock before calling this function
 func (n *kv) unRef() {
 	if atomic.AddInt32(&n.ref, -1) <= 0 {
-		// delete the kv from the hash map
-		if !n.hm.closed {
-			_ = n.hm.remove(n)
-		}
+		_ = n.hm.remove(n)
 	}
+}
+
+// forceUnRef Caller must ensure the hashmap is hold a RLock before calling this function
+func (n *kv) forceUnRef() {
+	atomic.StoreInt32(&n.ref, 0)
+	n.hm.remove(n)
 }
 
 func (n *kv) upRef() {

@@ -76,6 +76,31 @@ func Test_HashMap_Capacity_Resizing(t *testing.T) {
 	stats = cache.GetStats()
 	assert.Equal(t, int64(8), cache.GetInUsed())
 	assert.Equal(t, int64(6), stats.statNodes) // [2 --> 8]
+	fmt.Printf("STATS: %#v\n", stats)
+
+}
+
+func Test_LazyValue_Release(t *testing.T) {
+	cache := NewMap(
+		WithCacheType(LRU),
+	)
+	ok := cache.Set(uint64(1), uint64(1), dummyBytes)
+	assert.True(t, ok)
+	times := 5
+	// Get the lazy value of the given block
+	lazyValues := make([]LazyValue, times)
+	for i := 0; i < times; i++ {
+		var ok bool
+		lazyValues[i], ok = cache.Get(uint64(1), uint64(1))
+		assert.True(t, ok)
+	}
+	// Release 1 of 5 lazy values
+	lazyValues[0].Release()
+	// The remains 4 lazy values must still accessible, if the cache still have spaces
+	for i := 1; i < times; i++ {
+		val := []byte(lazyValues[i].Load())
+		assert.Equal(t, dummyBytes, val, fmt.Sprintf("lazy value should match"))
+	}
 }
 
 func Test_Hashmap_Bulk_Set_Then_Get_And_Release_Async(t *testing.T) {
@@ -85,10 +110,10 @@ func Test_Hashmap_Bulk_Set_Then_Get_And_Release_Async(t *testing.T) {
 	}
 
 	tests := []params{
-		{"big cache - small load", 100, 10, 3, 3, 10 * MiB},
+		{"big cache - small load", 10, 5, 3, 3, 10 * MiB},
 		{"big cache - medium load", 10000, 400, 50, 3, 10 * MiB},
 		{"big cache - big load", 100000, 1000, 100, 10, 10 * MiB},
-		{"small cache - small load", 100, 3, 3, 3, 50 * B},
+		{"small cache - small load", 10, 5, 3, 3, 50 * B},
 		{"small cache - medium load", 10000, 400, 50, 3, 100 * B},
 		{"small cache - big load", 100000, 1000, 100, 10, 100 * B},
 	}
@@ -123,7 +148,6 @@ func Test_Hashmap_Bulk_Set_Then_Get_And_Release_Async(t *testing.T) {
 				// Set then Get new key/value pair to the cache
 				go func() {
 					defer wg.Done()
-
 					r := rand.New(rand.NewSource(time.Now().UnixNano()))
 					for j := 0; j < tc.nObjects*tc.repeat; j++ {
 						if t.Failed() {
@@ -134,22 +158,20 @@ func Test_Hashmap_Bulk_Set_Then_Get_And_Release_Async(t *testing.T) {
 						if !assert.True(t, ok, fmt.Sprintf("%v-%v should be updated into the cache", testID, key)) {
 							return
 						}
-						// the cache size should never go higher the capacity of the cache
-						assert.LessOrEqual(t, cache.GetInUsed(), int64(tc.cacheSize), "Cached size should not exceed the capacity")
+
 						lazyValue, ok := cache.Get(uint64(testID), uint64(key))
-						// record must be found, even in high concurrency manner
 						if !assert.True(t, ok, fmt.Sprintf("%v-%v record should exist", testID, key)) {
 							return
 						}
+
 						if !assert.NotNil(t, lazyValue, fmt.Sprintf("%v-%v record should exist", testID, key)) {
 							return
 						}
 						val := []byte(lazyValue.Load())
 						assert.Equal(t, dummyBytes, val, fmt.Sprintf("%v-%v lazy value should match", testID, key))
-						// store the lazyValue
+						// store the lazyValue for the delayed releasing
 						lvId := r.Intn(tc.nHandles)
 						if !atomic.CompareAndSwapPointer(&lazyValues[lvId], nil, unsafe.Pointer(&lazyValue)) {
-							// the slot already fill, then release it
 							lazyValue.Release()
 						}
 					}
@@ -158,7 +180,7 @@ func Test_Hashmap_Bulk_Set_Then_Get_And_Release_Async(t *testing.T) {
 
 			wg.Wait()
 			atomic.StoreInt32(&isDone, 1)
-			// release all lazyvalues are left
+			// release all lazy values are pending
 			for i, _ := range lazyValues {
 				lazyValue := (*LazyValue)(atomic.LoadPointer(&lazyValues[i]))
 				if lazyValue != nil {

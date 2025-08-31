@@ -35,7 +35,7 @@ func Test_HashMap_Set_Then_Get_Sync(t *testing.T) {
 	// verify stats
 	stats := cache.GetStats()
 	assert.Zero(t, stats.statNodes, "Stats nodes should be zero")
-	assert.Zero(t, stats.statSize, "Stats size should be zero")
+	assert.Zero(t, cache.GetInUsed(), "Stats size should be zero")
 	fmt.Printf("STATS: %#v\n", stats)
 }
 
@@ -69,12 +69,12 @@ func Test_HashMap_Capacity_Resizing(t *testing.T) {
 		assert.True(t, ok)
 	}
 	stats := cache.GetStats()
-	assert.Equal(t, int64(10), stats.statSize)
+	assert.Equal(t, int64(10), cache.GetInUsed())
 	assert.Equal(t, int64(7), stats.statNodes) // [1 --> 8]
-	// reduce the cache capacity, then evict the least recent updated node
+	// reduce the cache capacity, then remove the least recent updated node
 	cache.SetCapacity(9)
 	stats = cache.GetStats()
-	assert.Equal(t, int64(8), stats.statSize)
+	assert.Equal(t, int64(8), cache.GetInUsed())
 	assert.Equal(t, int64(6), stats.statNodes) // [2 --> 8]
 }
 
@@ -134,6 +134,8 @@ func Test_Hashmap_Bulk_Set_Then_Get_And_Release_Async(t *testing.T) {
 						if !assert.True(t, ok, fmt.Sprintf("%v-%v should be updated into the cache", testID, key)) {
 							return
 						}
+						// the cache size should never go higher the capacity of the cache
+						assert.LessOrEqual(t, cache.GetInUsed(), int64(tc.cacheSize), "Cached size should not exceed the capacity")
 						lazyValue, ok := cache.Get(uint64(testID), uint64(key))
 						// record must be found, even in high concurrency manner
 						if !assert.True(t, ok, fmt.Sprintf("%v-%v record should exist", testID, key)) {
@@ -167,8 +169,8 @@ func Test_Hashmap_Bulk_Set_Then_Get_And_Release_Async(t *testing.T) {
 
 			// check the stats
 			stats := cache.GetStats()
-			assert.Zero(t, stats.statNodes, "Stats nodes should be zero")
-			assert.Zero(t, stats.statSize, "Stats size should be zero")
+			assert.Zero(t, stats.statNodes, "Stats Nodes should be zero")
+			assert.Zero(t, cache.GetInUsed(), "Cached size should be zero")
 			fmt.Printf("STATS: %#v\n", stats)
 		})
 	}

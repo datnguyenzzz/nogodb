@@ -97,14 +97,12 @@ func (b *bucket) DeleteNode(fileNum, key uint64, hash uint32, hm *hashMap) bool 
 	if atomic.LoadInt32(&n.ref) <= 0 {
 		//fmt.Printf(">>> Deleting node %d-%d from bucket-%d\n", fileNum, key, unsafe.Pointer(b))
 		deleted = true
-		n.value = nil
 		b.nodes = append(b.nodes[:pos], b.nodes[pos+1:]...)
 	}
 
 	b.mu.Unlock()
 
 	if deleted {
-		atomic.AddInt64(&hm.stats.statSize, -1*n.size)
 		b.shrink(hm)
 	}
 	return deleted

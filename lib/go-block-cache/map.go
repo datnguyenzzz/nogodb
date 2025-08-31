@@ -28,7 +28,6 @@ const (
 
 type Stats struct {
 	statNodes  int64
-	statSize   int64
 	statGrow   int32
 	statShrink int32
 	statHit    int64
@@ -45,7 +44,7 @@ type hashMap struct {
 	maxSize   int64
 	cacheType CacheType
 
-	cacher iCache
+	cacher *lru
 	stats  Stats
 
 	closed bool
@@ -54,6 +53,10 @@ type hashMap struct {
 
 func (h *hashMap) GetStats() Stats {
 	return h.stats
+}
+
+func (h *hashMap) GetInUsed() int64 {
+	return h.cacher.GetInUsed()
 }
 
 func (h *hashMap) Set(fileNum, key uint64, value Value) bool {
@@ -78,7 +81,6 @@ func (h *hashMap) Set(fileNum, key uint64, value Value) bool {
 	node.SetValue(value, valSize)
 
 	atomic.AddInt64(&h.stats.statSet, 1)
-	atomic.AddInt64(&h.stats.statSize, valSize)
 	h.mu.RUnlock()
 
 	if h.cacher != nil {
@@ -111,6 +113,7 @@ func (h *hashMap) Get(fileNum, key uint64) (LazyValue, bool) {
 
 func (h *hashMap) Delete(fileNum, key uint64) bool {
 	h.mu.RLock()
+	defer h.mu.RUnlock()
 	if h.closed {
 		return false
 	}
@@ -121,25 +124,21 @@ func (h *hashMap) Delete(fileNum, key uint64) bool {
 	}
 
 	node.unRef()
-	h.mu.RUnlock()
-
-	if h.cacher != nil {
-		h.cacher.Ban(node)
-	}
-
 	return true
 }
 
-// removeKV remove a node from a hashmap
+// remove removes a node from a hashmap
 //
 //	caller must do the lock
-func (h *hashMap) removeKV(node *kv) bool {
+func (h *hashMap) remove(node *kv) bool {
 	if h.closed {
 		return false
 	}
 	bucket := h.state.initBucket(h.getBucketId(node.fileNum, node.key))
 	removed := bucket.DeleteNode(node.fileNum, node.key, node.hash, h)
 	if removed {
+		h.cacher.Evict(node)
+		node = nil
 		atomic.AddInt64(&h.stats.statDel, 1)
 	}
 	return removed

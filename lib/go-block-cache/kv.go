@@ -23,12 +23,8 @@ func (h *handle) Release() {
 
 		if atomic.AddInt32(&n.ref, -1) <= 0 {
 			n.hm.mu.RLock()
-			// delete the kv from the hash map
-			if !n.hm.closed {
-				_ = n.hm.removeKV(n)
-			}
+			_ = n.hm.remove(n)
 			n.hm.mu.RUnlock()
-
 		}
 	}
 }
@@ -79,7 +75,7 @@ func (n *kv) unRef() {
 	if atomic.AddInt32(&n.ref, -1) <= 0 {
 		// delete the kv from the hash map
 		if !n.hm.closed {
-			_ = n.hm.removeKV(n)
+			_ = n.hm.remove(n)
 		}
 	}
 }

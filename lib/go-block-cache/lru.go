@@ -3,16 +3,15 @@ package go_block_cache
 import (
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"unsafe"
 
 	"go.uber.org/zap"
 )
 
 type log struct {
-	n  *kv
-	lz LazyValue
-	// ban do not allow promoting this key/value any longer
-	ban        bool
+	n          *kv
+	lz         LazyValue
 	prev, next *log
 }
 
@@ -87,13 +86,10 @@ func (l *lru) Promote(node *kv) bool {
 		l.inUse += node.size
 	} else {
 		log := (*log)(node.log)
-		if !log.ban {
-			log.remove()
-			l.recent.insert(log)
-		}
+		log.remove()
+		l.recent.insert(log)
 	}
 	evicted := l.balance()
-
 	l.mu.Unlock()
 	for _, log := range evicted {
 		log.lz.Release()
@@ -106,38 +102,14 @@ func (l *lru) Evict(node *kv) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	currLog := (*log)(node.log)
-	if currLog == nil || currLog.ban {
+	if currLog == nil {
 		return
 	}
 
-	l.inUse -= node.size
-	currLog.remove()
-	node.log = nil
-
-	currLog.lz.Release()
+	l.RemoveLRULog(currLog)
 }
 
-func (l *lru) Ban(node *kv) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-
-	if node.log == nil {
-		node.log = unsafe.Pointer(&log{n: node, ban: true})
-	} else {
-		currLog := (*log)(node.log)
-		if !currLog.ban {
-			currLog.remove()
-			node.log = nil
-			currLog.ban = true
-			l.inUse -= node.size
-
-			currLog.lz.Release()
-			currLog.lz = nil
-		}
-	}
-}
-
-// balance evict nodes to balance the maxSize.
+// balance remove nodes to balance the maxSize.
 //
 //	Caller must ensure the lru is locked
 func (l *lru) balance() (evicted []*log) {
@@ -146,13 +118,19 @@ func (l *lru) balance() (evicted []*log) {
 		if leastUpdate == nil {
 			panic("lru recent pointer is nil")
 		}
-		leastUpdate.remove()
-		leastUpdate.n.log = nil
-		l.inUse -= int64(computeSize(leastUpdate.lz.Load()))
+		l.RemoveLRULog(leastUpdate)
 		evicted = append(evicted, leastUpdate)
 	}
 
 	return evicted
 }
 
-var _ iCache = (*lru)(nil)
+func (l *lru) RemoveLRULog(lruLog *log) {
+	lruLog.remove()
+	lruLog.n.log = nil
+	l.inUse -= int64(computeSize(lruLog.lz.Load()))
+}
+
+func (l *lru) GetInUsed() int64 {
+	return atomic.LoadInt64(&l.inUse)
+}

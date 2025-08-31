@@ -24,6 +24,14 @@ type bucket struct {
 	state bucketState
 }
 
+// seekGTE return minimum pos in the b.nodes which has fileNum/key greater than or equal
+// than then given.
+func (b *bucket) seekGTE(fileNum, key uint64) int {
+	return sort.Search(len(b.nodes), func(i int) bool {
+		return b.nodes[i].key > key || (b.nodes[i].key == key && b.nodes[i].fileNum >= fileNum)
+	})
+}
+
 func (b *bucket) Get(fileNum, key uint64) *kv {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -31,15 +39,16 @@ func (b *bucket) Get(fileNum, key uint64) *kv {
 		return nil
 	}
 
-	pos := sort.Search(len(b.nodes), func(i int) bool {
-		return b.nodes[i].fileNum == fileNum && b.nodes[i].key == key
-	})
+	pos := b.seekGTE(fileNum, key)
 	if pos == len(b.nodes) {
 		return nil
 	}
 
 	n := b.nodes[pos]
-	atomic.AddInt32(&n.ref, 1)
+	if n.fileNum != fileNum || n.key != key {
+		return nil
+	}
+
 	return n
 }
 
@@ -50,14 +59,7 @@ func (b *bucket) AddNewNode(fileNum, key uint64, hash uint32, hm *hashMap) *kv {
 		return nil
 	}
 
-	pos := sort.Search(len(b.nodes), func(i int) bool {
-		if b.nodes[i].key == key {
-			return b.nodes[i].fileNum >= fileNum
-		}
-
-		return b.nodes[i].key > key
-	})
-
+	pos := b.seekGTE(fileNum, key)
 	newNode := NewKV(fileNum, key, hash, hm)
 	if pos == len(b.nodes) {
 		b.nodes = append(b.nodes, newNode)
@@ -75,19 +77,25 @@ func (b *bucket) DeleteNode(fileNum, key uint64, hash uint32, hm *hashMap) bool 
 	b.mu.Lock()
 
 	if b.state == frozen {
+		b.mu.Unlock()
 		return false
 	}
 
-	pos := sort.Search(len(b.nodes), func(i int) bool {
-		return b.nodes[i].fileNum == fileNum && b.nodes[i].key == key
-	})
+	pos := b.seekGTE(fileNum, key)
 	if pos == len(b.nodes) {
+		b.mu.Unlock()
 		return false
 	}
 
 	n := b.nodes[pos]
+	if n.fileNum != fileNum || n.key != key {
+		b.mu.Unlock()
+		return false
+	}
+
 	var deleted bool
 	if atomic.LoadInt32(&n.ref) <= 0 {
+		//fmt.Printf(">>> Deleting node %d-%d from bucket-%d\n", fileNum, key, unsafe.Pointer(b))
 		deleted = true
 		n.value = nil
 		b.nodes = append(b.nodes[:pos], b.nodes[pos+1:]...)
@@ -127,7 +135,7 @@ func (b *bucket) grow(hm *hashMap) {
 	newBucketSize := 2 * len(currState.buckets)
 	newState := &state{
 		// all buckets have a fresh start
-		buckets:         make([]*bucket, newBucketSize),
+		buckets:         make([]bucket, newBucketSize),
 		bucketMark:      uint32(newBucketSize - 1),
 		prevState:       currState,
 		growThreshold:   int64(newBucketSize * overflowThreshold),
@@ -162,7 +170,7 @@ func (b *bucket) shrink(hm *hashMap) {
 	newBucketSize := len(currState.buckets) / 2
 	newState := &state{
 		// all buckets have a fresh start
-		buckets:         make([]*bucket, newBucketSize),
+		buckets:         make([]bucket, newBucketSize),
 		bucketMark:      uint32(newBucketSize - 1),
 		prevState:       currState,
 		growThreshold:   int64(newBucketSize * overflowThreshold),

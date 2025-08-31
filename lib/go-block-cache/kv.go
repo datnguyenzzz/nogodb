@@ -53,6 +53,9 @@ type kv struct {
 	size         int64
 
 	// ref count number of instances still reference to the memory allocated for this kv
+	// Since the hashMap will return the lazyValue, therefore, we might not
+	// want to delete the allocated data in the memory, if there are some instances
+	// still referring to it
 	ref int32
 
 	// log used to track when this kv pair got updated
@@ -72,13 +75,17 @@ func (n *kv) ToLazyValue() LazyValue {
 	return &handle{n: unsafe.Pointer(n)}
 }
 
-func (n *kv) unref() {
+func (n *kv) unRef() {
 	if atomic.AddInt32(&n.ref, -1) <= 0 {
 		// delete the kv from the hash map
 		if !n.hm.closed {
 			_ = n.hm.removeKV(n)
 		}
 	}
+}
+
+func (n *kv) upRef() {
+	atomic.AddInt32(&n.ref, 1)
 }
 
 func (n *kv) SetValue(value Value, size int64) {

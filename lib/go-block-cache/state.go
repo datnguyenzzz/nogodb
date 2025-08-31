@@ -13,7 +13,7 @@ const (
 
 // state list of bucket, represent the current state of the hashmap
 type state struct {
-	buckets    []*bucket
+	buckets    []bucket
 	bucketMark uint32
 
 	prevState *state
@@ -28,7 +28,7 @@ type state struct {
 }
 
 func (s *state) initBucket(id uint32) *bucket {
-	bucket := s.buckets[id]
+	bucket := &s.buckets[id]
 
 	bucket.mu.Lock()
 	defer bucket.mu.Unlock()
@@ -61,7 +61,8 @@ func (s *state) initBucket(id uint32) *bucket {
 		bucket.nodes = append(bucket.nodes, nodes0...)
 		bucket.nodes = append(bucket.nodes, nodes1...)
 		sort.Slice(bucket.nodes, func(i, j int) bool {
-			return bucket.nodes[i].key < bucket.nodes[j].key
+			return bucket.nodes[i].key < bucket.nodes[j].key ||
+				(bucket.nodes[i].key == bucket.nodes[j].key && bucket.nodes[i].fileNum < bucket.nodes[j].fileNum)
 		})
 	}
 

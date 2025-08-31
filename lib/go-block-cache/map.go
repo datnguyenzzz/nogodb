@@ -68,8 +68,9 @@ func (h *hashMap) Set(fileNum, key uint64, value Value) bool {
 		node = bucket.AddNewNode(fileNum, key, hash, h)
 	}
 
+	//fmt.Printf("About setting node %d-%d to bucket-%v\n", fileNum, key, unsafe.Pointer(bucket))
 	if value == nil {
-		node.unref()
+		node.unRef()
 		return true
 	}
 
@@ -104,6 +105,7 @@ func (h *hashMap) Get(fileNum, key uint64) (LazyValue, bool) {
 	}
 
 	atomic.AddInt64(&h.stats.statHit, 1)
+	node.upRef()
 	return node.ToLazyValue(), true
 }
 
@@ -118,8 +120,7 @@ func (h *hashMap) Delete(fileNum, key uint64) bool {
 		return false
 	}
 
-	atomic.AddInt64(&h.stats.statDel, 1)
-	node.unref()
+	node.unRef()
 	h.mu.RUnlock()
 
 	if h.cacher != nil {
@@ -136,9 +137,12 @@ func (h *hashMap) removeKV(node *kv) bool {
 	if h.closed {
 		return false
 	}
-	atomic.AddInt64(&h.stats.statDel, 1)
 	bucket := h.state.initBucket(h.getBucketId(node.fileNum, node.key))
-	return bucket.DeleteNode(node.fileNum, node.key, node.hash, h)
+	removed := bucket.DeleteNode(node.fileNum, node.key, node.hash, h)
+	if removed {
+		atomic.AddInt64(&h.stats.statDel, 1)
+	}
+	return removed
 }
 
 func (h *hashMap) getBucketId(fileNum, key uint64) uint32 {
@@ -185,12 +189,12 @@ func (h *hashMap) SetCapacity(capacity int64) {
 
 func NewMap(opts ...CacheOpt) IMap {
 	state := &state{
-		buckets:       make([]*bucket, initialBucketSize),
+		buckets:       make([]bucket, initialBucketSize),
 		bucketMark:    uint32(initialBucketSize - 1),
 		growThreshold: int64(initialBucketSize * overflowThreshold),
 	}
 	for i, _ := range state.buckets {
-		state.buckets[i] = &bucket{state: initialized}
+		state.buckets[i].state = initialized
 	}
 
 	c := &hashMap{

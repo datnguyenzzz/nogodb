@@ -71,7 +71,7 @@ func (h *hashMap) Set(fileNum, key uint64, value Value) bool {
 	// defer until the bucket is initialised (aka migrate data from a frozen to a new bucket)
 	for {
 		state := (*state)(atomic.LoadPointer(&h.state))
-		bucket := state.initBucket(h.getBucketId(fileNum, key, state))
+		bucket := state.lazyLoadBucket(h.getBucketId(fileNum, key, state))
 		isFrozen, node := bucket.Get(fileNum, key)
 		if isFrozen {
 			continue
@@ -85,7 +85,6 @@ func (h *hashMap) Set(fileNum, key uint64, value Value) bool {
 			continue
 		}
 
-		//fmt.Printf("About setting node %d-%d to bucket-%v\n", fileNum, key, unsafe.Pointer(bucket))
 		if value == nil || computeSize(value) == 0 {
 			node.unRef()
 			h.mu.RUnlock()
@@ -122,15 +121,11 @@ func (h *hashMap) Get(fileNum, key uint64) (LazyValue, bool) {
 	// defer until the bucket is initialised (aka migrate data from a frozen to a new bucket)
 	for {
 		state := (*state)(atomic.LoadPointer(&h.state))
-		bucket := state.initBucket(h.getBucketId(fileNum, key, state))
+		bucket := state.lazyLoadBucket(h.getBucketId(fileNum, key, state))
 		isFrozen, node = bucket.Get(fileNum, key)
 		if isFrozen {
 			continue
 		}
-		//fmt.Printf("Get Node %d-%d. Found node: %v, bucket: %v\n", fileNum, key, unsafe.Pointer(node), unsafe.Pointer(bucket))
-		//for _, n := range bucket.nodes {
-		//	fmt.Printf(">>> Nodes in bucket: %d-%d\n", n.fileNum, n.key)
-		//}
 		if node == nil {
 			atomic.AddInt64(&h.stats.statMiss, 1)
 			return nil, false
@@ -155,7 +150,7 @@ func (h *hashMap) Delete(fileNum, key uint64) bool {
 	// defer until the bucket is initialised (aka migrate data from a frozen to a new bucket)
 	for {
 		state := (*state)(atomic.LoadPointer(&h.state))
-		bucket := state.initBucket(h.getBucketId(fileNum, key, state))
+		bucket := state.lazyLoadBucket(h.getBucketId(fileNum, key, state))
 		isFrozen, node = bucket.Get(fileNum, key)
 		if isFrozen {
 			continue
@@ -182,17 +177,13 @@ func (h *hashMap) remove(node *kv) bool {
 	var removed, isFrozen bool
 	for {
 		state := (*state)(atomic.LoadPointer(&h.state))
-		bucket := state.initBucket(h.getBucketId(node.fileNum, node.key, state))
+		bucket := state.lazyLoadBucket(h.getBucketId(node.fileNum, node.key, state))
 		isFrozen, removed = bucket.DeleteNode(node.fileNum, node.key, node.hash, h)
 		if isFrozen {
 			continue
 		}
 
 		if removed {
-			//fmt.Printf("Removed node %d-%d\n", node.fileNum, node.key)
-			//for _, node := range bucket.nodes {
-			//	fmt.Printf(">>> Nodes after deletion in bucket: %d-%d\n", node.fileNum, node.key)
-			//}
 			h.cacher.Evict(node)
 			node = nil
 			atomic.AddInt64(&h.stats.statDel, 1)
@@ -222,7 +213,7 @@ func (h *hashMap) Close(force bool) {
 	var allKVs []*kv
 	state := (*state)(atomic.LoadPointer(&h.state))
 	for i, _ := range state.buckets {
-		bucket := state.initBucket(uint32(i))
+		bucket := state.lazyLoadBucket(uint32(i))
 		bucket.mu.Lock()
 		allKVs = append(allKVs, bucket.nodes...)
 		bucket.mu.Unlock()

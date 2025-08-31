@@ -29,7 +29,7 @@ type state struct {
 	shrinkThreshold int64
 }
 
-func (s *state) initBucket(id uint32) *bucket {
+func (s *state) lazyLoadBucket(id uint32) *bucket {
 	bucket := &s.buckets[id]
 
 	bucket.mu.Lock()
@@ -50,7 +50,7 @@ func (s *state) initBucket(id uint32) *bucket {
 
 	if s.bucketMark > prevState.bucketMark {
 		// grow
-		nodes := prevState.initBucket(id & prevState.bucketMark).Freeze()
+		nodes := prevState.lazyLoadBucket(id & prevState.bucketMark).Freeze()
 		for _, node := range nodes {
 			if node.hash&s.bucketMark == id {
 				bucket.nodes = append(bucket.nodes, node)
@@ -58,8 +58,8 @@ func (s *state) initBucket(id uint32) *bucket {
 		}
 	} else {
 		// shrink
-		nodes0 := prevState.initBucket(id).Freeze()
-		nodes1 := prevState.initBucket(id + uint32(len(s.buckets))).Freeze()
+		nodes0 := prevState.lazyLoadBucket(id).Freeze()
+		nodes1 := prevState.lazyLoadBucket(id + uint32(len(s.buckets))).Freeze()
 
 		bucket.nodes = make([]*kv, 0, len(nodes0)+len(nodes1))
 		bucket.nodes = append(bucket.nodes, nodes0...)
@@ -76,7 +76,7 @@ func (s *state) initBucket(id uint32) *bucket {
 
 func (s *state) initBuckets() {
 	for i, _ := range s.buckets {
-		s.initBucket(uint32(i))
+		s.lazyLoadBucket(uint32(i))
 	}
 
 	atomic.StorePointer(&s.prevState, nil)

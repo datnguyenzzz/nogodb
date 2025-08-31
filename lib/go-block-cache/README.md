@@ -1,86 +1,197 @@
-## A block cache built for nogoDB
+# Go Block Cache
 
-go-hash-map implements nogoDB's block cache. It supports 2 method for 
-page cache replacement: LRU and Clock-pro. The underline hash tables implementation 
-is based on the Concurrent Dynamic-Sized Nonblocking Hash Tables
+A high-performance, thread-safe block cache implementation built for nogoDB. This library provides a concurrent, 
+dynamic-sized hash table with configurable cache replacement policies, optimized for database block caching scenarios.
+The hash tables implementation is based on: "Dynamic-Sized Nonblocking Hash Tables", by Yujie Liu, Kunlong Zhang, and 
+Michael Spear. ACM Symposium on Principles of Distributed Computing, Jul 2014.
 
-Blocks are keyed by an (fileNum, offset) pair. The fileNum and offset
-refer to an sstable file number and the offset of the block within the file.
-Because sstables are immutable and file numbers are never reused,
-(fileNum,offset) are unique for the lifetime of a nogoDB instance.
+## Features
 
-## Overview 
+- **Concurrent Dynamic Hash Table**: Lock-free operations with automatic resizing
+- **Multiple Cache Policies**: LRU (implemented), Clock-Pro (planned)
+- **Memory Management**: Automatic eviction with configurable capacity limits
+- **Thread Safety**: Full concurrency support for read/write operations
+- **LazyValue Interface**: Memory-efficient value loading with reference counting
+- **High Performance**: Optimized for database workloads with minimal allocation overhead
 
-### Concurrent Dynamic-Sized Nonblocking Hash Tables
+## Key Concepts
 
-Set(key, value):
-   1. hash(key) = `bucket_id`
-   2. Append (key,value) into `bucket_id` in sorted order
+Blocks are keyed by a `(fileNum, key)` pair where:
+- `fileNum`: Identifies the source file (e.g., SSTable file number)  
+- `key`: Unique identifier within the file (e.g., block offset)
+- Keys are unique for the lifetime of the cache instance due to immutable files and non-reused file numbers
 
-Get(key):
-   1. hash(key) = `bucket_id`
-   2. Binary search on `bucket_id` to find key
+## Architecture Overview
 
-Async. Grow operation when a bucket get overflowed
- 
+### Core Components
+
+The cache consists of several key components working together:
+
+1. **HashMap (`hashMap`)**: Main interface providing thread-safe operations
+2. **State Management (`state`)**: Handles bucket array resizing and migration 
+3. **Bucket (`bucket`)**: Individual hash buckets containing sorted key-value nodes
+4. **KV Nodes (`kv`)**: Individual cache entries with reference counting
+5. **LRU Cache (`lru`)**: Manages memory pressure and eviction policies
+6. **LazyValue (`handle`)**: Memory-efficient value access with cleanup
+
+### Concurrent Dynamic-Sized Hash Tables
+
+The hash table implementation is based on **Dynamic-Sized Nonblocking Hash Tables** research, providing:
+- Lock-free bucket operations during normal access
+- Automatic resizing when load thresholds are exceeded
+- Non-blocking reads during resize operations
+- Sorted bucket contents for efficient lookups
+
+#### Set Operation Flow:
 ```
-+--------------+------+
-|   bucket 1   |      |
-+--------------+------+
-|    ...       |      |
-+--------------+------+
-| bucket I % N |      | -- key % 2N = I -
-+--------------+------+                  |
-|    ...       |      |                  |           
-+--------------+------+                  |
-|   bucket N   |      |                  |
-+--------------+------+                  |
-|    ...       |      |                  |
-+--------------+------+                  |
-|   bucket I   |      | <-- append key --
-+--------------+------+
-|    ...       |      |
-+--------------+------+
-|   bucket 2N  |      |
-+--------------+------+
-```
-
-Async. Shrink operation when a bucket get oversized
-
-```
-+--------------+------+
-|   bucket 1   |      |
-+--------------+------+
-|    ...       |      |
-+--------------+------+
-|   bucket I   |      | <- append key ---
-+--------------+------+                  |
-|    ...       |      |                  |           
-+--------------+------+                  |
-|  bucket N/2  |      |                  |
-+--------------+------+                  |
-|    ...       |      |                  |
-+--------------+------+                  |
-| bucket I+N/2 |      | --- All keys ----
-+--------------+------+
-|    ...       |      |
-+--------------+------+
-|   bucket N   |      |
-+--------------+------+
+Set(fileNum, key, value):
+   1. hash(fileNum, key) → bucket_id
+   2. Locate bucket in current state
+   3. Insert/update (fileNum,key,value) in sorted order within bucket
+   4. Update LRU cache and handle memory pressure
+   5. Trigger resize if overflow thresholds exceeded
 ```
 
-### Replacement method
-#### LRU
-- Maintain a linked list to track the update log of key/value pairs. Each kv in the list represents an update, 
-  with the first kv corresponding to the most recently updated pair, and subsequent nodes following in chronological order.
-#### Clock Pro
-- CLOCK-Pro is a patent-free alternative to the Adaptive Replacement Cache,
-  https://en.wikipedia.org/wiki/Adaptive_replacement_cache.
-  It is an approximation of LIRS ( https://en.wikipedia.org/wiki/LIRS_caching_algorithm ),
-  much like the CLOCK page replacement algorithm is an approximation of LRU.
-  The original paper: http://static.usenix.org/event/usenix05/tech/general/full_papers/jiang/jiang_html/html.html
+#### Get Operation Flow:
+```
+Get(fileNum, key):
+   1. hash(fileNum, key) → bucket_id  
+   2. Binary search within sorted bucket for key
+   3. Increment reference count and return LazyValue
+   4. Update LRU position for cache hit
+```
+
+### Dynamic Resizing
+
+#### Growth Operation
+When buckets become overloaded (> 32 entries) or global thresholds exceeded:
+
+```
+Original State (N buckets):        After Growth (2N buckets):
++--------------+------+            +--------------+------+
+|   bucket 1   | data |            |   bucket 1   | data |  
++--------------+------+            +--------------+------+
+|    ...       |      |            |    ...       |      |
++--------------+------+            +--------------+------+ 
+| bucket I % N | data | -------->  | bucket I     | data |  ← Redistributed
++--------------+------+            +--------------+------+
+|    ...       |      |            |    ...       |      |
++--------------+------+            +--------------+------+
+|   bucket N   | data |            | bucket I+N   | data |  ← New location
++--------------+------+            +--------------+------+
+                                   |    ...       |      |
+                                   +--------------+------+
+                                   |  bucket 2N   | data |
+                                   +--------------+------+
+```
+
+#### Shrink Operation  
+When buckets become underutilized (< N/2 total entries):
+
+```
+Original State (N buckets):        After Shrink (N/2 buckets):
++--------------+------+            +--------------+------+
+|   bucket 1   | data |            |   bucket 1   | data |
++--------------+------+            +--------------+------+
+|    ...       |      |            |    ...       |      |
++--------------+------+            +--------------+------+
+|   bucket I   | data | -------->  |   bucket I   | merged|  ← Combined data
++--------------+------+            +--------------+------+
+|    ...       |      |            |    ...       |      |
++--------------+------+            +--------------+------+
+| bucket N/2+I | data |            |  bucket N/2  | data |
++--------------+------+            +--------------+------+
+|    ...       |      |
++--------------+------+
+|   bucket N   | data |
++--------------+------+
+```
+
+## Cache Replacement Policies
+
+### LRU (Least Recently Used) - **Implemented**
+
+The LRU implementation uses a doubly-linked list to track access patterns:
+
+- **Structure**: Circular doubly-linked list with dummy head node
+- **Promotion**: Recently accessed items move to front of list  
+- **Eviction**: Items are removed from the tail when capacity exceeded
+- **Thread Safety**: Protected by mutex during list operations
+- **Memory Tracking**: Automatic size tracking with atomic operations
 
 
-## Current support replacement method
-- [ ] LRUCache
-- [ ] ClockCache
+### Clock-Pro - **Planned**
+
+Clock-Pro is a patent-free alternative to Adaptive Replacement Cache (ARC):
+- Approximation of LIRS (Low Inter-reference Recency Set) algorithm
+- Better performance than LRU for mixed access patterns  
+- Handles both temporal and spatial locality
+- Reference: [USENIX 2005 Paper](http://static.usenix.org/event/usenix05/tech/general/full_papers/jiang/jiang_html/html.html)
+
+## Usage Examples
+
+### Basic Usage
+
+```go
+package main
+
+import (
+    "fmt"
+    cache "path/to/go-block-cache"
+)
+
+func main() {
+    // Create cache with LRU policy and 10MB capacity
+    blockCache := cache.NewMap(
+        cache.WithCacheType(cache.LRU),
+        cache.WithMaxSize(10 * 1024 * 1024), // 10MB
+    )
+    defer blockCache.Close(false)
+
+    // Store a block
+    fileNum, blockOffset := uint64(1), uint64(1024)
+    blockData := []byte("block content...")
+    
+    success := blockCache.Set(fileNum, blockOffset, blockData)
+    if !success {
+        fmt.Println("Failed to cache block")
+        return
+    }
+
+    // Retrieve the block
+    lazyValue, found := blockCache.Get(fileNum, blockOffset)
+    if !found {
+        fmt.Println("Block not found in cache")
+        return
+    }
+    defer lazyValue.Release() // Important: always release!
+
+    // Access the actual data
+    cachedData := lazyValue.Load()
+    fmt.Printf("Retrieved block: %s\n", string(cachedData))
+}
+```
+
+### High-Concurrency Pattern
+
+```go
+func workerRoutine(cache IMap, fileNum uint64, wg *sync.WaitGroup) {
+    defer wg.Done()
+    
+    for i := 0; i < 1000; i++ {
+        blockOffset := uint64(i * 4096) // 4KB blocks
+        data := make([]byte, 4096)
+        
+        // Store block
+        cache.Set(fileNum, blockOffset, data)
+        
+        // Immediately try to read it back
+        if lazyValue, ok := cache.Get(fileNum, blockOffset); ok {
+            // Use the data...
+            _ = lazyValue.Load()
+            lazyValue.Release()
+        }
+        // Note: May miss due to immediate LRU eviction under memory pressure
+    }
+}
+```

@@ -242,3 +242,5 @@ func Test_Hashmap_Bulk_Set_Then_Get_And_Release_Async(t *testing.T) {
 		})
 	}
 }
+
+func Test_Hashmap_Latency(t *testing.T) {}

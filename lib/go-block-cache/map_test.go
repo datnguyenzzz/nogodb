@@ -3,7 +3,6 @@ package go_block_cache
 import (
 	"fmt"
 	"math/rand"
-	"runtime"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -112,7 +111,6 @@ func Test_LazyValue_Release(t *testing.T) {
 }
 
 func Test_Hashmap_Bulk_Set_Then_Get_And_Release_Async(t *testing.T) {
-	runtime.GOMAXPROCS(runtime.NumCPU())
 	type params struct {
 		desc                          string
 		nObjects, nHandles, cacheSize int

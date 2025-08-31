@@ -67,9 +67,10 @@ func (h *hashMap) Set(fileNum, key uint64, value Value) bool {
 		h.mu.RUnlock()
 		return false
 	}
-	state := (*state)(atomic.LoadPointer(&h.state))
-	bucket := state.initBucket(h.getBucketId(fileNum, key))
+
 	for {
+		state := (*state)(atomic.LoadPointer(&h.state))
+		bucket := state.initBucket(h.getBucketId(fileNum, key, state))
 		isFrozen, node := bucket.Get(fileNum, key)
 		if isFrozen {
 			continue
@@ -119,7 +120,7 @@ func (h *hashMap) Get(fileNum, key uint64) (LazyValue, bool) {
 	var node *kv
 	for {
 		state := (*state)(atomic.LoadPointer(&h.state))
-		bucket := state.initBucket(h.getBucketId(fileNum, key))
+		bucket := state.initBucket(h.getBucketId(fileNum, key, state))
 		isFrozen, node = bucket.Get(fileNum, key)
 		if isFrozen {
 			continue
@@ -151,7 +152,7 @@ func (h *hashMap) Delete(fileNum, key uint64) bool {
 	var node *kv
 	for {
 		state := (*state)(atomic.LoadPointer(&h.state))
-		bucket := state.initBucket(h.getBucketId(fileNum, key))
+		bucket := state.initBucket(h.getBucketId(fileNum, key, state))
 		isFrozen, node = bucket.Get(fileNum, key)
 		if isFrozen {
 			continue
@@ -178,7 +179,7 @@ func (h *hashMap) remove(node *kv) bool {
 	var removed, isFrozen bool
 	for {
 		state := (*state)(atomic.LoadPointer(&h.state))
-		bucket := state.initBucket(h.getBucketId(node.fileNum, node.key))
+		bucket := state.initBucket(h.getBucketId(node.fileNum, node.key, state))
 		isFrozen, removed = bucket.DeleteNode(node.fileNum, node.key, node.hash, h)
 		if isFrozen {
 			continue
@@ -200,8 +201,7 @@ func (h *hashMap) remove(node *kv) bool {
 	return removed
 }
 
-func (h *hashMap) getBucketId(fileNum, key uint64) uint32 {
-	state := (*state)(atomic.LoadPointer(&h.state))
+func (h *hashMap) getBucketId(fileNum, key uint64, state *state) uint32 {
 	hash := murmur32(fileNum, key)
 	return hash & state.bucketMark
 }

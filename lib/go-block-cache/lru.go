@@ -16,7 +16,7 @@ type log struct {
 
 func (l *log) remove() {
 	if l.prev == nil || l.next == nil {
-		msg := fmt.Sprintf("remove a zombie node")
+		msg := fmt.Sprintf("evict a zombie node")
 		zap.L().Error(msg)
 		panic(msg)
 	}
@@ -68,7 +68,7 @@ func (l *lru) SetCapacity(capacity int64) {
 
 	for _, n := range evicted {
 		n.hm.mu.RLock()
-		n.forceUnRef()
+		n.hm.evict(n)
 		n.hm.mu.RUnlock()
 	}
 }
@@ -96,7 +96,7 @@ func (l *lru) Promote(node *kv, diffSize int64) bool {
 
 	for _, n := range evicted {
 		n.hm.mu.RLock()
-		n.forceUnRef()
+		n.hm.evict(n)
 		n.hm.mu.RUnlock()
 	}
 
@@ -114,7 +114,7 @@ func (l *lru) Evict(node *kv) {
 	l.RemoveLRULog(currLog)
 }
 
-// balance remove nodes to balance the maxSize.
+// balance evict nodes to balance the maxSize.
 //
 //	Caller must ensure the lru is locked
 func (l *lru) balance() (evicted []*kv) {

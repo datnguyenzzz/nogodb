@@ -78,7 +78,7 @@ func Test_HashMap_Capacity_Resizing(t *testing.T) {
 	stats := cache.GetStats()
 	assert.Equal(t, int64(10), cache.GetInUsed())
 	assert.Equal(t, int64(7), stats.statNodes) // [1 --> 8]
-	// reduce the cache capacity, then remove the least recent updated node
+	// reduce the cache capacity, then evict the least recent updated node
 	cache.SetCapacity(9)
 	stats = cache.GetStats()
 	assert.Equal(t, int64(8), cache.GetInUsed())
@@ -243,4 +243,27 @@ func Test_Hashmap_Bulk_Set_Then_Get_And_Release_Async(t *testing.T) {
 	}
 }
 
-func Test_Hashmap_Latency(t *testing.T) {}
+func Test_HashMap_Hit_And_Miss(t *testing.T) {
+	randomBytes := func(sz int) []byte {
+		res := make([]byte, sz)
+		for i := 0; i < sz; i++ {
+			res[i] = byte(rand.Intn(256))
+		}
+		return res
+	}
+
+	cache := NewMap(WithCacheType(LRU))
+	keySize := 10
+	for i := 0; i < keySize; i++ {
+		ok := cache.Set(uint64(0), uint64(i), randomBytes(keySize))
+		assert.True(t, ok, fmt.Sprintf("%v-%v should be updated into the cache", uint64(0), i))
+	}
+
+	for i := 0; i < keySize; i++ {
+		_, ok := cache.Get(uint64(0), uint64(i))
+		assert.True(t, ok)
+		_, ok = cache.Get(uint64(0), uint64(i+keySize))
+		assert.False(t, ok)
+	}
+	fmt.Printf("STATS: %#v\n", cache.GetStats())
+}

@@ -68,7 +68,8 @@ func (h *hashMap) Set(fileNum, key uint64, value Value) bool {
 		return false
 	}
 
-	// defer until the bucket is initialised (aka migrate data from a frozen to a new bucket)
+	// defer until the target bucket is initialised (aka migrate data from a frozen to a new bucket)
+	// but do not require blocking all operations to the hash map during the migration
 	for {
 		state := (*state)(atomic.LoadPointer(&h.state))
 		bucket := state.lazyLoadBucket(h.getBucketId(fileNum, key, state))
@@ -86,7 +87,7 @@ func (h *hashMap) Set(fileNum, key uint64, value Value) bool {
 		}
 
 		if value == nil || computeSize(value) == 0 {
-			node.unRef()
+			h.evict(node)
 			h.mu.RUnlock()
 			return true
 		}
@@ -118,7 +119,8 @@ func (h *hashMap) Get(fileNum, key uint64) (LazyValue, bool) {
 	}
 	var isFrozen bool
 	var node *kv
-	// defer until the bucket is initialised (aka migrate data from a frozen to a new bucket)
+	// defer until the target bucket is initialised (aka migrate data from a frozen to a new bucket)
+	// but do not require blocking all operations to the hash map during the migration
 	for {
 		state := (*state)(atomic.LoadPointer(&h.state))
 		bucket := state.lazyLoadBucket(h.getBucketId(fileNum, key, state))
@@ -147,7 +149,8 @@ func (h *hashMap) Delete(fileNum, key uint64) bool {
 	}
 	var isFrozen bool
 	var node *kv
-	// defer until the bucket is initialised (aka migrate data from a frozen to a new bucket)
+	// defer until the target bucket is initialised (aka migrate data from a frozen to a new bucket)
+	// but do not require blocking all operations to the hash map during the migration
 	for {
 		state := (*state)(atomic.LoadPointer(&h.state))
 		bucket := state.lazyLoadBucket(h.getBucketId(fileNum, key, state))
@@ -159,20 +162,21 @@ func (h *hashMap) Delete(fileNum, key uint64) bool {
 			return false
 		}
 
-		node.unRef()
+		h.evict(node)
 		break
 	}
 
 	return true
 }
 
-// remove removes a node from a hashmap
+// evict removes a node from a hashmap
 //
 //	Important: caller must ensure the Rlock of the hashmap
-func (h *hashMap) remove(node *kv) bool {
+func (h *hashMap) evict(node *kv) bool {
 	if h.closed {
 		return false
 	}
+	atomic.StoreInt32(&node.ref, 0)
 	// defer until the bucket is initialised
 	var removed, isFrozen bool
 	for {
@@ -200,7 +204,7 @@ func (h *hashMap) getBucketId(fileNum, key uint64, state *state) uint32 {
 	return hash & state.bucketMark
 }
 
-func (h *hashMap) Close(force bool) {
+func (h *hashMap) Close() {
 	// mutex lock to ensure all the shared locks are cleared
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -220,12 +224,7 @@ func (h *hashMap) Close(force bool) {
 	}
 
 	for _, kv := range allKVs {
-		if force {
-			atomic.StoreInt32(&kv.ref, 0)
-		}
-		if h.cacher != nil {
-			h.cacher.Evict(kv)
-		}
+		h.evict(kv)
 	}
 
 	atomic.StorePointer(&h.state, nil)

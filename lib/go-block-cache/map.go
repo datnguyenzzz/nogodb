@@ -68,6 +68,7 @@ func (h *hashMap) Set(fileNum, key uint64, value Value) bool {
 		return false
 	}
 
+	// defer until the bucket is initialised (aka migrate data from a frozen to a new bucket)
 	for {
 		state := (*state)(atomic.LoadPointer(&h.state))
 		bucket := state.initBucket(h.getBucketId(fileNum, key, state))
@@ -118,6 +119,7 @@ func (h *hashMap) Get(fileNum, key uint64) (LazyValue, bool) {
 	}
 	var isFrozen bool
 	var node *kv
+	// defer until the bucket is initialised (aka migrate data from a frozen to a new bucket)
 	for {
 		state := (*state)(atomic.LoadPointer(&h.state))
 		bucket := state.initBucket(h.getBucketId(fileNum, key, state))
@@ -150,6 +152,7 @@ func (h *hashMap) Delete(fileNum, key uint64) bool {
 	}
 	var isFrozen bool
 	var node *kv
+	// defer until the bucket is initialised (aka migrate data from a frozen to a new bucket)
 	for {
 		state := (*state)(atomic.LoadPointer(&h.state))
 		bucket := state.initBucket(h.getBucketId(fileNum, key, state))
@@ -175,7 +178,7 @@ func (h *hashMap) remove(node *kv) bool {
 	if h.closed {
 		return false
 	}
-
+	// defer until the bucket is initialised
 	var removed, isFrozen bool
 	for {
 		state := (*state)(atomic.LoadPointer(&h.state))

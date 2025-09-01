@@ -79,37 +79,11 @@ jobs:
         done
         
         # Remove existing coverage section if it exists
-        sed -i '/## Test Coverage/,/^$/d' README.md
+        sed -i '/## Test Coverage/,/^## /d; /## Test Coverage/,$ { /## Test Coverage/d; }' README.md
         
-        # Add coverage section after Internal component section (skip all Internal component lines)
-        awk '
-        BEGIN { in_internal = 0 }
-        /^## Internal component/ { 
-          in_internal = 1
-          print $0
-          next
-        }
-        /^##/ && in_internal { 
-          # Found next section, insert coverage before it
-          while ((getline line < "coverage_section.md") > 0) {
-            print line
-          }
-          print ""
-          in_internal = 0
-          print $0
-          next
-        }
-        in_internal { next }  # Skip all lines in Internal component section
-        { print $0 }
-        END {
-          # If we reach end of file while still in internal section
-          if (in_internal) {
-            while ((getline line < "coverage_section.md") > 0) {
-              print line
-            }
-          }
-        }
-        ' README.md > README_new.md && mv README_new.md README.md
+        # Append coverage section at the end of README
+        echo "" >> README.md
+        cat coverage_section.md >> README.md
     
     - name: Commit coverage update
       run: |

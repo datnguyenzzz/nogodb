@@ -27,7 +27,7 @@ func (iv *InternalLazyValue) Value() []byte {
 
 func (iv *InternalLazyValue) Release() {
 	if iv.Fetcher == nil {
-		return
+		iv.V = nil
 	}
 
 	iv.Fetcher.Release()

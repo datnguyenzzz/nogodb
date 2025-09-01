@@ -1,0 +1,40 @@
+name: Test Library Packages
+
+on:
+  push:
+    branches: [ master, main ]
+    paths:
+      - 'lib/**'
+  pull_request:
+    branches: [ master, main ]
+    paths:
+      - 'lib/**'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        package:
+          - go-adaptive-radix-tree
+          - go-block-cache
+          - go-blocked-bloom-filter
+          - go-bytesbufferpool
+          - go-context-aware-lock
+          - go-fs
+          - go-sstable
+          - go-wal
+
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.24.x'
+    
+    - name: Test ${{ matrix.package }}
+      run: |
+        cd lib/${{ matrix.package }}
+        go test -v ./...

@@ -16,14 +16,6 @@ minimizing data rewriting within the same level and significantly reducing write
 ## Architecture (Plan Ahead)
 ```mermaid
 graph TB
-%% Legend
-%% api: Public API Layer
-%% core: Core Processing Layer
-%% memory: In-Memory Layer
-%% storage: On-Disk Layer
-%% bg: Background Operations
-%% fs: File System Layer
-
 %% Subgraphs with padding for spacing
     subgraph PublicAPI["Public API Layer"]
         style PublicAPI padding:15px
@@ -79,6 +71,9 @@ graph TB
 
     BlockCache <-.-> BloomFilter
     BlockCache <-.-> BlockIndex
+    BlockCache <-.-> SSTFiles
+    BlockIndex <-.-> SSTFiles
+    BloomFilter <-.-> SSTFiles
 
     SSTFiles --> Compaction
     MemTable --> FlushOps
@@ -92,7 +87,6 @@ graph TB
     click NogoDB_API "xyz"
     click WritePath "xyz"
     click ReadPath "xyz"
-    click MergeOps "xyz"
     click MemTable "xyz"
     click BlockCache "xyz"
     click BloomFilter "xyz"
@@ -110,6 +104,17 @@ graph TB
     classDef storage fill:#CCFFCC,stroke:#33FF33,stroke-width:2px;
     classDef bg fill:#E5E5E5,stroke:#666666,stroke-width:2px;
     classDef fs fill:#FFE5E5,stroke:#FF3333,stroke-width:2px;
+    
+    subgraph legend1 [Legend]
+        L1["Public API Layer"]:::api
+        L2["Core Processing Layer"]:::core
+        L3["In-Memory Layer"]:::memory
+    end
+    subgraph legend2 [Legend]
+        L4["On-Disk Layer"]:::storage
+        L5["Background Operations"]:::bg
+        L6["File System Layer"]:::fs
+    end
 ```
 
 ## Internal component

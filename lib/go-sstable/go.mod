@@ -8,6 +8,8 @@ replace github.com/datnguyenzzz/nogodb/lib/go-bytesbufferpool => ../go-bytesbuff
 
 replace github.com/datnguyenzzz/nogodb/lib/go-fs => ../go-fs
 
+replace github.com/datnguyenzzz/nogodb/lib/go-block-cache => ../go-block-cache
+
 require (
 	github.com/DataDog/zstd v1.5.7
 	github.com/datnguyenzzz/nogodb/lib/go-blocked-bloom-filter v0.0.0-00010101000000-000000000000

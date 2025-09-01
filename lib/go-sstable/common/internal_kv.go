@@ -2,6 +2,9 @@ package common
 
 type LazyFetcher interface {
 	Load() []byte
+	// Release freed associated resources. Release should always success
+	// and can be called multiple times without causing error.
+	Release()
 }
 
 type InternalLazyValue struct {
@@ -20,6 +23,14 @@ func (iv *InternalLazyValue) Value() []byte {
 	}
 
 	return iv.Fetcher.Load()
+}
+
+func (iv *InternalLazyValue) Release() {
+	if iv.Fetcher == nil {
+		return
+	}
+
+	iv.Fetcher.Release()
 }
 
 func (iv *InternalLazyValue) SetInplaceValue(value []byte) {

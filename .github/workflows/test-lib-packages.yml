@@ -34,7 +34,75 @@ jobs:
       with:
         go-version: '1.24.x'
     
-    - name: Test ${{ matrix.package }}
+    - name: Test ${{ matrix.package }} with coverage
       run: |
         cd lib/${{ matrix.package }}
-        go test -v ./...
+        go test -v -coverprofile=coverage.out ./...
+        go tool cover -func=coverage.out | tail -1 | awk '{print $3}' > coverage.txt
+    
+    - name: Upload coverage artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage-${{ matrix.package }}
+        path: lib/${{ matrix.package }}/coverage.txt
+
+  update-readme:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/master'
+    
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Download all coverage artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: coverage-reports
+    
+    - name: Generate coverage report and update README
+      run: |
+        echo "## Test Coverage" > coverage_section.md
+        echo "" >> coverage_section.md
+        echo "| Package | Coverage |" >> coverage_section.md
+        echo "|---------|----------|" >> coverage_section.md
+        
+        for dir in coverage-reports/coverage-*; do
+          package_name=$(basename "$dir" | sed 's/coverage-//')
+          if [ -f "$dir/coverage.txt" ]; then
+            coverage=$(cat "$dir/coverage.txt")
+            echo "| $package_name | $coverage |" >> coverage_section.md
+          else
+            echo "| $package_name | N/A |" >> coverage_section.md
+          fi
+        done
+        
+        # Remove existing coverage section if it exists
+        sed -i '/## Test Coverage/,/^$/d' README.md
+        
+        # Add coverage section after Internal component section
+        awk '
+        BEGIN { in_coverage = 0 }
+        /^## Internal component/ { 
+          print $0
+          while ((getline line < "coverage_section.md") > 0) {
+            print line
+          }
+          print ""
+          next
+        }
+        { print $0 }
+        ' README.md > README_new.md && mv README_new.md README.md
+    
+    - name: Commit coverage update
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git add README.md
+        if git diff --staged --quiet; then
+          echo "No changes to commit"
+        else
+          git commit -m "Update test coverage in README [skip ci]"
+          git push
+        fi

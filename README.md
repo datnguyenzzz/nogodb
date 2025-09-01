@@ -125,12 +125,13 @@ graph TB
 - [`Status: In Progress`] [Sort String Table](lib/go-sstable/README.md)
 - [`Status: Not Yet Started`] [Virtual File System](lib/go-fs)
 
+
 ## Test Coverage
 
 | Package | Coverage |
 |---------|----------|
 | go-adaptive-radix-tree | 53.8% |
-| go-block-cache | 84.0% |
+| go-block-cache | 84.3% |
 | go-blocked-bloom-filter | 90.7% |
 | go-bytesbufferpool | 90.5% |
 | go-context-aware-lock | 0.0% |

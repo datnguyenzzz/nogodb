@@ -118,6 +118,19 @@ graph TB
 ```
 
 ## Internal component
+## Test Coverage
+
+| Package | Coverage |
+|---------|----------|
+| go-adaptive-radix-tree | 53.8% |
+| go-block-cache | 84.3% |
+| go-blocked-bloom-filter | 90.7% |
+| go-bytesbufferpool | 90.5% |
+| go-context-aware-lock | 0.0% |
+| go-fs | 0.0% |
+| go-sstable | 28.5% |
+| go-wal | 16.4% |
+
 - [`Status: Done`] [Adaptive radix tree - Serve as an in-memory storage](lib/go-adaptive-radix-tree/README.md)
 - [`Status: Done`] [Blocked Bloom Filter with bit pattern](lib/go-blocked-bloom-filter/README.md)
 - [`Status: Done`] [Write Ahead Log](lib/go-wal/README.md)

@@ -13,6 +13,105 @@ To address this tradeoff, NogoDB leverages an advanced data structure called
 Fragmented Log-Structured Merge Trees (FLSM). FLSM introduces the concept of "guards" to organize logs more effectively, 
 minimizing data rewriting within the same level and significantly reducing write amplification.
 
+## Architecture (Plan Ahead)
+```mermaid
+graph TB
+%% Legend
+%% api: Public API Layer
+%% core: Core Processing Layer
+%% memory: In-Memory Layer
+%% storage: On-Disk Layer
+%% bg: Background Operations
+%% fs: File System Layer
+
+%% Subgraphs with padding for spacing
+    subgraph PublicAPI["Public API Layer"]
+        style PublicAPI padding:15px
+        NogoDB_API["NogoDB API"]:::api
+    end
+
+    subgraph Core["Core Processing Layer"]
+        style Core padding:15px
+        WritePath["Write Path"]:::core
+        ReadPath["Read/Iterator Path"]:::core
+        MergeOps["Merge Operations"]:::core
+    end
+
+    subgraph Memory["In-Memory Layer"]
+        style Memory padding:15px
+        BlockCache["Block Cache"]:::memory
+        MemTable["MemTable"]:::memory
+        BloomFilter["Block Bloom Filter"]:::memory
+        BlockIndex["Block Index"]:::memory
+    end
+
+    subgraph Storage["On-Disk Layer"]
+        style Storage padding:15px
+        SSTFiles["SST Files"]:::storage
+        WALog["Write-Ahead Log (WAL)"]:::storage
+        ManFile["MANIFEST"]:::storage
+    end
+
+    subgraph BackgroundOps["Background Operations"]
+        style BackgroundOps padding:15px
+        Compaction["Compaction Job"]:::bg
+        FlushOps["Flush Operations"]:::bg
+    end
+
+    subgraph FileSystem["File System Layer"]
+        style FileSystem padding:15px
+        FSAbstract["File System Abstraction"]:::fs
+    end
+
+%% Main flow connections (consistent arrow direction left to right)
+    NogoDB_API --> WritePath
+    NogoDB_API --> ReadPath
+    NogoDB_API --> MergeOps
+
+    WritePath --> MemTable
+    WritePath --> WALog
+
+    MergeOps --> MemTable
+    MergeOps --> SSTFiles
+
+    ReadPath --> BlockCache
+    ReadPath --> MemTable
+
+    BlockCache <-.-> BloomFilter
+    BlockCache <-.-> BlockIndex
+
+    SSTFiles --> Compaction
+    MemTable --> FlushOps
+    FlushOps --> SSTFiles
+
+    SSTFiles -->|Buffered Write| FSAbstract
+    WALog -->|Buffered Write| FSAbstract
+    SSTFiles -.-> ManFile
+
+%% Click events only on existing nodes
+    click NogoDB_API "xyz"
+    click WritePath "xyz"
+    click ReadPath "xyz"
+    click MergeOps "xyz"
+    click MemTable "xyz"
+    click BlockCache "xyz"
+    click BloomFilter "xyz"
+    click BlockIndex "xyz"
+    click SSTFiles "xyz"
+    click WALog "xyz"
+    click Compaction "xyz"
+    click FlushOps "xyz"
+    click FSAbstract "xyz"
+
+%% Styles for groups
+    classDef api fill:#FFE5CC,stroke:#FF9933,stroke-width:2px;
+    classDef core fill:#CCE5FF,stroke:#3399FF,stroke-width:2px;
+    classDef memory fill:#E5CCFF,stroke:#9933FF,stroke-width:2px;
+    classDef storage fill:#CCFFCC,stroke:#33FF33,stroke-width:2px;
+    classDef bg fill:#E5E5E5,stroke:#666666,stroke-width:2px;
+    classDef fs fill:#FFE5E5,stroke:#FF3333,stroke-width:2px;
+```
+
 ## Internal component
 - [`Status: Done`] [Adaptive radix tree - Serve as an in-memory storage](lib/go-adaptive-radix-tree/README.md)
 - [`Status: Done`] [Blocked Bloom Filter with bit pattern](lib/go-blocked-bloom-filter/README.md)

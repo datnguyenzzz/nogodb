@@ -33,7 +33,6 @@ func (r *RowBlockReader) Init(bpool *predictable_size.PredictablePool, fr storag
 }
 
 func (r *RowBlockReader) ReadThroughCache(bh *block_common.BlockHandle, kind block_common.BlockKind) (*common.InternalLazyValue, error) {
-
 	// TODO (high): The read function requires the buffer pool to be available to
 	//  obtain the pre-allocated buffer for handling the read stream.
 	//  An optimization is to have a caching mechanism to cache the value of
@@ -41,7 +40,6 @@ func (r *RowBlockReader) ReadThroughCache(bh *block_common.BlockHandle, kind blo
 	//  Research on how to implement an efficient Block's Cache
 	//  ...
 	//  Wire up with the go-cache
-
 	panic("implement me")
 }
 

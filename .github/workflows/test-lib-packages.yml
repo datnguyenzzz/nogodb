@@ -77,11 +77,11 @@ jobs:
             
             # Determine color based on coverage percentage
             if [ "$coverage_num" -lt 50 ]; then
-              color_badge="![Coverage](https://img.shields.io/badge/coverage-$coverage-red)"
+              color_badge="![Coverage](https://img.shields.io/badge/coverage-$coverage_num-red)"
             elif [ "$coverage_num" -lt 75 ]; then
-              color_badge="![Coverage](https://img.shields.io/badge/coverage-$coverage-yellow)"
+              color_badge="![Coverage](https://img.shields.io/badge/coverage-$coverage_num-yellow)"
             else
-              color_badge="![Coverage](https://img.shields.io/badge/coverage-$coverage-green)"
+              color_badge="![Coverage](https://img.shields.io/badge/coverage-$coverage_num-green)"
             fi
             
             echo "| $package_name | $color_badge |" >> coverage_section.md

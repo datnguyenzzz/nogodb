@@ -116,15 +116,16 @@ graph TB
 
 
 
+
 ## Test Coverage
 
 | Package | Coverage |
 |---------|----------|
-| go-adaptive-radix-tree | 53.8% |
-| go-block-cache | 84.0% |
-| go-blocked-bloom-filter | 90.7% |
-| go-bytesbufferpool | 90.5% |
-| go-context-aware-lock | 0.0% |
-| go-fs | 0.0% |
-| go-sstable | 40.4% |
-| go-wal | 16.4% |
+| go-adaptive-radix-tree | ![Coverage](https://img.shields.io/badge/coverage-53.8%-yellow) |
+| go-block-cache | ![Coverage](https://img.shields.io/badge/coverage-84.0%-green) |
+| go-blocked-bloom-filter | ![Coverage](https://img.shields.io/badge/coverage-90.7%-green) |
+| go-bytesbufferpool | ![Coverage](https://img.shields.io/badge/coverage-90.5%-green) |
+| go-context-aware-lock | ![Coverage](https://img.shields.io/badge/coverage-0.0%-red) |
+| go-fs | ![Coverage](https://img.shields.io/badge/coverage-0.0%-red) |
+| go-sstable | ![Coverage](https://img.shields.io/badge/coverage-40.4%-red) |
+| go-wal | ![Coverage](https://img.shields.io/badge/coverage-16.4%-red) |

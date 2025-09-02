@@ -84,18 +84,12 @@ graph TB
     SSTFiles -.-> ManFile
 
 %% Click events only on existing nodes
-    click NogoDB_API "xyz"
-    click WritePath "xyz"
-    click ReadPath "xyz"
-    click MemTable "xyz"
-    click BlockCache "xyz"
-    click BloomFilter "xyz"
-    click BlockIndex "xyz"
-    click SSTFiles "xyz"
-    click WALog "xyz"
-    click Compaction "xyz"
-    click FlushOps "xyz"
-    click FSAbstract "xyz"
+    click MemTable "https://github.com/datnguyenzzz/nogodb/tree/master/lib/go-adaptive-radix-tree"
+    click BlockCache "https://github.com/datnguyenzzz/nogodb/tree/master/lib/go-block-cache"
+    click BloomFilter "https://github.com/datnguyenzzz/nogodb/tree/master/lib/go-blocked-bloom-filter"
+    click SSTFiles "https://github.com/datnguyenzzz/nogodb/tree/master/lib/go-sstable"
+    click WALog "https://github.com/datnguyenzzz/nogodb/tree/master/lib/go-wal"
+    click FSAbstract "https://github.com/datnguyenzzz/nogodb/tree/master/lib/go-fs"
 
 %% Styles for groups
     classDef api fill:#FFE5CC,stroke:#FF9933,stroke-width:2px;

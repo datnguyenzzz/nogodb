@@ -72,9 +72,21 @@ jobs:
           package_name=$(basename "$dir" | sed 's/coverage-//')
           if [ -f "$dir/coverage.txt" ]; then
             coverage=$(cat "$dir/coverage.txt")
-            echo "| $package_name | $coverage |" >> coverage_section.md
+            # Extract numeric value from coverage percentage
+            coverage_num=$(echo "$coverage" | sed 's/%//' | sed 's/\..*//')
+            
+            # Determine color based on coverage percentage
+            if [ "$coverage_num" -lt 50 ]; then
+              color_badge="![Coverage](https://img.shields.io/badge/coverage-$coverage-red)"
+            elif [ "$coverage_num" -lt 75 ]; then
+              color_badge="![Coverage](https://img.shields.io/badge/coverage-$coverage-yellow)"
+            else
+              color_badge="![Coverage](https://img.shields.io/badge/coverage-$coverage-green)"
+            fi
+            
+            echo "| $package_name | $color_badge |" >> coverage_section.md
           else
-            echo "| $package_name | N/A |" >> coverage_section.md
+            echo "| $package_name | ![Coverage](https://img.shields.io/badge/coverage-N%2FA-lightgrey) |" >> coverage_section.md
           fi
         done
         

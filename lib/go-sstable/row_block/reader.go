@@ -54,7 +54,6 @@ func (r *RowBlockReader) Read(
 	}
 
 	compressedVal := &common.InternalLazyValue{}
-
 	compressedVal.ReserveBuffer(r.bpool, int(bh.Length))
 	if err := r.storageReader.ReadAt(compressedVal.Value(), bh.Offset); err != nil {
 		compressedVal.Release()

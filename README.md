@@ -84,11 +84,17 @@ graph TB
     SSTFiles -.-> ManFile
 
 %% Click events only on existing nodes
+    click NogoDB_API "xyz"
+    click WritePath "xyz"
+    click ReadPath "xyz"
     click MemTable "https://github.com/datnguyenzzz/nogodb/tree/master/lib/go-adaptive-radix-tree"
     click BlockCache "https://github.com/datnguyenzzz/nogodb/tree/master/lib/go-block-cache"
     click BloomFilter "https://github.com/datnguyenzzz/nogodb/tree/master/lib/go-blocked-bloom-filter"
+    click BlockIndex "xyz"
     click SSTFiles "https://github.com/datnguyenzzz/nogodb/tree/master/lib/go-sstable"
     click WALog "https://github.com/datnguyenzzz/nogodb/tree/master/lib/go-wal"
+    click Compaction "xyz"
+    click FlushOps "xyz"
     click FSAbstract "https://github.com/datnguyenzzz/nogodb/tree/master/lib/go-fs"
 
 %% Styles for groups
@@ -98,17 +104,6 @@ graph TB
     classDef storage fill:#CCFFCC,stroke:#33FF33,stroke-width:2px;
     classDef bg fill:#E5E5E5,stroke:#666666,stroke-width:2px;
     classDef fs fill:#FFE5E5,stroke:#FF3333,stroke-width:2px;
-    
-    subgraph legend1 [Legend]
-        L1["Public API Layer"]:::api
-        L2["Core Processing Layer"]:::core
-        L3["In-Memory Layer"]:::memory
-    end
-    subgraph legend2 [Legend]
-        L4["On-Disk Layer"]:::storage
-        L5["Background Operations"]:::bg
-        L6["File System Layer"]:::fs
-    end
 ```
 
 ## Internal component

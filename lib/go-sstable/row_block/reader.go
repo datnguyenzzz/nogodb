@@ -49,51 +49,45 @@ func (r *RowBlockReader) Read(
 	bh *block_common.BlockHandle,
 	kind block_common.BlockKind,
 ) (*common.InternalLazyValue, error) {
-
 	if r.bpool == nil {
 		return nil, fmt.Errorf("blockData pool is nil")
 	}
 
-	blockData := r.bpool.Get(int(bh.Length))
-	blockData = blockData[:bh.Length]
-	if err := r.storageReader.ReadAt(blockData, bh.Offset); err != nil {
-		r.bpool.Put(blockData)
+	compressedVal := &common.InternalLazyValue{}
+
+	compressedVal.ReserveBuffer(r.bpool, int(bh.Length))
+	if err := r.storageReader.ReadAt(compressedVal.Value(), bh.Offset); err != nil {
+		compressedVal.Release()
 		return nil, err
 	}
 
 	// Assume we would use CRC32 checksum method for every operation
-	if !r.validateChecksum(common.CRC32Checksum, blockData) {
-		r.bpool.Put(blockData)
+	if !r.validateChecksum(common.CRC32Checksum, compressedVal.Value()) {
+		compressedVal.Release()
 		return nil, common.MismatchedChecksumError
 	}
 
 	// decompress block's data
-
-	compressedLength := bh.Length - block_common.TrailerLen
-	compressor := compression.NewCompressor(
-		compression.CompressionType(blockData[compressedLength]),
-	)
-
-	decompressedLen, err := compressor.DecompressedLen(blockData[:compressedLength])
+	compressor, compressedLength := r.getCompressor(bh, compressedVal)
+	compressedBytes := compressedVal.Value()[:compressedLength]
+	decompressedLen, err := compressor.DecompressedLen(compressedBytes)
 	if err != nil {
-		r.bpool.Put(blockData)
+		compressedVal.Release()
 		return nil, err
 	}
 
-	decompressed := r.bpool.Get(decompressedLen)
-	decompressed = decompressed[:decompressedLen]
-	err = compressor.Decompress(decompressed, blockData[:compressedLength])
-	r.bpool.Put(blockData)
+	decompressedVal := &common.InternalLazyValue{}
+	decompressedVal.ReserveBuffer(r.bpool, decompressedLen)
+
+	err = compressor.Decompress(decompressedVal.Value(), compressedBytes)
+	compressedVal.Release()
 
 	if err != nil {
-		r.bpool.Put(decompressed)
+		decompressedVal.Release()
 		return nil, err
 	}
 
-	lv := &common.InternalLazyValue{}
-	lv.SetInplaceValue(decompressed)
-
-	return lv, nil
+	return decompressedVal, nil
 }
 
 func (r *RowBlockReader) validateChecksum(checksumType common.ChecksumType, blockData []byte) bool {
@@ -114,6 +108,22 @@ func (r *RowBlockReader) validateChecksum(checksumType common.ChecksumType, bloc
 	}
 
 	return true
+}
+
+// getCompressor return the compressor from the compressed block, and actual length
+// of the compressed block. In the compressed data block, we store additional
+// 5 bytes: 1-byte: [Compressor Type] + 4-bytes: [CRC checksum]
+// Reference: lib/go-sstable/row_block/common.go compressToPb()
+func (r *RowBlockReader) getCompressor(
+	bh *block_common.BlockHandle,
+	compressedVal *common.InternalLazyValue,
+) (compressor compression.ICompression, compressedLength int) {
+	compressedLength = int(bh.Length - block_common.TrailerLen)
+	compressor = compression.NewCompressor(
+		compression.CompressionType(compressedVal.Value()[compressedLength]),
+	)
+
+	return compressor, compressedLength
 }
 
 var _ IBlockReader = (*RowBlockReader)(nil)

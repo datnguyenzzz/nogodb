@@ -5,6 +5,7 @@ import (
 
 	"github.com/datnguyenzzz/nogodb/lib/go-bytesbufferpool/predictable_size"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
+	"go.uber.org/zap"
 )
 
 // BlockIterator is an iterator over a single row-based block.
@@ -41,7 +42,12 @@ func (i *BlockIterator) First() *common.InternalKV {
 	i.readEntry()
 	iKV := &common.InternalKV{}
 	iKV.K = *common.DeserializeKey(i.key)
-	iKV.V.SetInplaceValue(i.value)
+	v := common.InternalLazyValue{ValueSource: common.ValueFromBuffer}
+	v.ReserveBuffer(i.bpool, len(i.value))
+	if err := v.SetBufferValue(i.value); err != nil {
+		zap.L().Error("failed to set value", zap.Error(err))
+	}
+	iKV.V = v
 	return iKV
 }
 
@@ -55,7 +61,12 @@ func (i *BlockIterator) Next() *common.InternalKV {
 	i.readEntry()
 	iKV := &common.InternalKV{}
 	iKV.K = *common.DeserializeKey(i.key)
-	iKV.V.SetInplaceValue(i.value)
+	v := common.InternalLazyValue{ValueSource: common.ValueFromBuffer}
+	v.ReserveBuffer(i.bpool, len(i.value))
+	if err := v.SetBufferValue(i.value); err != nil {
+		zap.L().Error("failed to set value", zap.Error(err))
+	}
+	iKV.V = v
 	return iKV
 }
 

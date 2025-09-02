@@ -1,15 +1,61 @@
 package common
 
-type LazyFetcher interface {
+import (
+	"fmt"
+
+	"github.com/datnguyenzzz/nogodb/lib/go-bytesbufferpool/predictable_size"
+)
+
+type ValueSource byte
+
+const (
+	ValueFromUnknown ValueSource = iota
+	ValueFromBuffer
+	ValueFromCache
+)
+
+// Fetcher uses to fetch and/or release the data
+type Fetcher interface {
 	Load() []byte
 	// Release freed associated resources. Release should always success
 	// and can be called multiple times without causing error.
 	Release()
 }
 
+type BufferPoolFetcher struct {
+	pool *predictable_size.PredictablePool
+	val  []byte
+
+	Fetcher
+}
+
+func (b *BufferPoolFetcher) Reserve(size int) {
+	b.val = b.pool.Get(size)
+	b.val = b.val[:size]
+}
+
+func (b *BufferPoolFetcher) Set(val []byte) {
+	b.val = val
+}
+
+func (b *BufferPoolFetcher) Load() []byte {
+	return b.val
+}
+
+func (b *BufferPoolFetcher) Release() {
+	b.pool.Put(b.val)
+	b.val = nil
+}
+
+// InternalLazyValue either points to a block in the block cache (Fetcher != nil),
+// or a buffer that exists outside the block cache allocated from a BufferPool.
+//
+// And the value of the InternalLazyValue might not yet dereference, until caller
+// explicitly load the value
 type InternalLazyValue struct {
-	V       []byte
-	Fetcher LazyFetcher
+	ValueSource   ValueSource
+	BufferFetcher *BufferPoolFetcher
+	CacheFetcher  Fetcher
 }
 
 type InternalKV struct {
@@ -18,25 +64,55 @@ type InternalKV struct {
 }
 
 func (iv *InternalLazyValue) Value() []byte {
-	if iv.Fetcher == nil {
-		return iv.V
+	switch iv.ValueSource {
+	case ValueFromBuffer:
+		return iv.BufferFetcher.Load()
+	case ValueFromCache:
+		return iv.CacheFetcher.Load()
+	default:
+		panic(fmt.Sprintf("InternalLazyValue.Value: unknown value source: %d", iv.ValueSource))
 	}
-
-	return iv.Fetcher.Load()
 }
 
 func (iv *InternalLazyValue) Release() {
-	if iv.Fetcher == nil {
-		iv.V = nil
+	switch iv.ValueSource {
+	case ValueFromBuffer:
+		iv.BufferFetcher.Release()
+	case ValueFromCache:
+		iv.CacheFetcher.Release()
+	default:
+		panic(fmt.Sprintf("InternalLazyValue.Value: unknown value source: %d", iv.ValueSource))
+	}
+}
+
+// ReserveBuffer uses for reserving a define allocated memory from a buffer pool
+func (iv *InternalLazyValue) ReserveBuffer(pool *predictable_size.PredictablePool, size int) {
+	iv.ValueSource = ValueFromBuffer
+	iv.BufferFetcher = &BufferPoolFetcher{
+		pool: pool,
+	}
+	iv.BufferFetcher.Reserve(size)
+}
+
+// SetBufferValue used for manually update the buffered value of the BufferFetcher
+// A caller must use the Reserve function before using this function to load the data into
+// the reserved buffer
+func (iv *InternalLazyValue) SetBufferValue(value []byte) error {
+	if iv.ValueSource != ValueFromBuffer {
+		return fmt.Errorf("value source: %d has not supported this function", iv.ValueSource)
+	}
+	if len(value) != len(iv.BufferFetcher.Load()) {
+		return fmt.Errorf("the buffered capacity is different")
 	}
 
-	iv.Fetcher.Release()
+	iv.BufferFetcher.Set(value)
+	return nil
 }
 
-func (iv *InternalLazyValue) SetInplaceValue(value []byte) {
-	iv.V = value
-}
-
-func (iv *InternalLazyValue) SetLazyFetcher(fetcher LazyFetcher) {
-	iv.Fetcher = fetcher
+func (iv *InternalLazyValue) SetCacheFetcher(fetcher Fetcher) error {
+	if iv.ValueSource != ValueFromCache {
+		return fmt.Errorf("value source: %d has not supported this function", iv.ValueSource)
+	}
+	iv.CacheFetcher = fetcher
+	return nil
 }

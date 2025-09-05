@@ -309,3 +309,225 @@ func Test_HashMap_Delete(t *testing.T) {
 	_, ok = cache.Get(0, 1)
 	assert.False(t, ok)
 }
+
+func Test_HashMap_LRU_Eviction_Order(t *testing.T) {
+	// Create a small cache that can only hold 20 bytes
+	cache := NewMap(
+		WithCacheType(LRU),
+		WithMaxSize(20),
+	)
+
+	// Create test data: each entry is 5 bytes
+	data := [][]byte{
+		{1, 1, 1, 1, 1}, // key 1 - will be evicted first
+		{2, 2, 2, 2, 2}, // key 2 - will be evicted second  
+		{3, 3, 3, 3, 3}, // key 3 - will be evicted third
+		{4, 4, 4, 4, 4}, // key 4 - will remain
+		{5, 5, 5, 5, 5}, // key 5 - will remain (triggers eviction)
+	}
+
+	// Add items in order: 1, 2, 3, 4
+	for i := 0; i < 4; i++ {
+		ok := cache.Set(0, uint64(i+1), data[i])
+		assert.True(t, ok)
+	}
+
+	// Verify all 4 items are present (4 * 5 = 20 bytes, exactly at capacity)
+	assert.Equal(t, int64(20), cache.GetInUsed())
+	for i := 0; i < 4; i++ {
+		_, ok := cache.Get(0, uint64(i+1))
+		assert.True(t, ok, "Key %d should be present", i+1)
+	}
+
+	// Add 5th item - this should evict key 1 (least recently used)
+	ok := cache.Set(0, 5, data[4])
+	assert.True(t, ok)
+
+	// Verify cache is still at capacity
+	assert.Equal(t, int64(20), cache.GetInUsed())
+
+	// Key 1 should be evicted (it was least recently used)
+	_, ok = cache.Get(0, 1)
+	assert.False(t, ok, "Key 1 should have been evicted")
+
+	// Keys 2, 3, 4, 5 should still be present
+	for i := 2; i <= 5; i++ {
+		_, ok := cache.Get(0, uint64(i))
+		assert.True(t, ok, "Key %d should still be present", i)
+	}
+}
+
+func Test_HashMap_LRU_Access_Updates_Priority(t *testing.T) {
+	// Create a cache that can hold 15 bytes
+	cache := NewMap(
+		WithCacheType(LRU),
+		WithMaxSize(15),
+	)
+
+	// Create test data: each entry is 5 bytes
+	data := [][]byte{
+		{1, 1, 1, 1, 1}, // key 1
+		{2, 2, 2, 2, 2}, // key 2  
+		{3, 3, 3, 3, 3}, // key 3
+		{4, 4, 4, 4, 4}, // key 4 - will trigger eviction
+	}
+
+	// Add items 1, 2, 3 (fills cache to capacity)
+	for i := 0; i < 3; i++ {
+		ok := cache.Set(0, uint64(i+1), data[i])
+		assert.True(t, ok)
+	}
+
+	// Access key 1 to make it most recently used
+	// Order should now be: 2 (LRU), 3, 1 (MRU)
+	_, ok := cache.Get(0, 1)
+	assert.True(t, ok)
+
+	// Add key 4 - this should evict key 2 (now the LRU)
+	ok = cache.Set(0, 4, data[3])
+	assert.True(t, ok)
+
+	// Key 2 should be evicted because it became LRU after we accessed key 1
+	_, ok = cache.Get(0, 2)
+	assert.False(t, ok, "Key 2 should have been evicted")
+
+	// Keys 1, 3, 4 should still be present
+	for _, key := range []uint64{1, 3, 4} {
+		_, ok := cache.Get(0, key)
+		assert.True(t, ok, "Key %d should still be present", key)
+	}
+}
+
+func Test_HashMap_LRU_Set_Updates_Priority(t *testing.T) {
+	// Create a cache that can hold 15 bytes
+	cache := NewMap(
+		WithCacheType(LRU),
+		WithMaxSize(15),
+	)
+
+	data1 := []byte{1, 1, 1, 1, 1} // 5 bytes
+	data2 := []byte{2, 2, 2, 2, 2} // 5 bytes
+	data3 := []byte{3, 3, 3, 3, 3} // 5 bytes
+	data4 := []byte{4, 4, 4, 4, 4} // 5 bytes
+	
+	// Add items 1, 2, 3 (fills cache to capacity)
+	cache.Set(0, 1, data1)
+	cache.Set(0, 2, data2)
+	cache.Set(0, 3, data3)
+
+	// Update key 1 (this should make it most recently used)
+	// Order should now be: 2 (LRU), 3, 1 (MRU)
+	cache.Set(0, 1, data1)
+
+	// Add key 4 - this should evict key 2 (LRU)
+	ok := cache.Set(0, 4, data4)
+	assert.True(t, ok)
+
+	// Key 2 should be evicted
+	_, ok = cache.Get(0, 2)
+	assert.False(t, ok, "Key 2 should have been evicted")
+
+	// Keys 1, 3, 4 should still be present
+	for _, key := range []uint64{1, 3, 4} {
+		_, ok := cache.Get(0, key)
+		assert.True(t, ok, "Key %d should still be present", key)
+	}
+}
+
+func Test_HashMap_LRU_Sequential_Eviction(t *testing.T) {
+	// Create a cache that can hold exactly 10 bytes
+	cache := NewMap(
+		WithCacheType(LRU),
+		WithMaxSize(10),
+	)
+
+	// Add 5 items of 2 bytes each (fills cache to capacity)
+	for i := 1; i <= 5; i++ {
+		data := []byte{byte(i), byte(i)}
+		ok := cache.Set(0, uint64(i), data)
+		assert.True(t, ok)
+	}
+
+	assert.Equal(t, int64(10), cache.GetInUsed())
+
+	// Add items 6, 7, 8 - each should evict the oldest item
+	for i := 6; i <= 8; i++ {
+		data := []byte{byte(i), byte(i)}
+		ok := cache.Set(0, uint64(i), data)
+		assert.True(t, ok)
+		
+		// Check that the oldest item was evicted
+		evictedKey := uint64(i - 5)
+		_, ok = cache.Get(0, evictedKey)
+		assert.False(t, ok, "Key %d should have been evicted when adding key %d", evictedKey, i)
+		
+		assert.Equal(t, int64(10), cache.GetInUsed())
+	}
+
+	// Keys 4, 5, 6, 7, 8 should remain
+	for i := 4; i <= 8; i++ {
+		_, ok := cache.Get(0, uint64(i))
+		assert.True(t, ok, "Key %d should still be present", i)
+	}
+}
+
+func Test_HashMap_LRU_Complex_Access_Pattern(t *testing.T) {
+	// Create a cache that can hold 12 bytes
+	cache := NewMap(
+		WithCacheType(LRU),
+		WithMaxSize(12),
+	)
+
+	// Each item is 3 bytes, so we can hold 4 items max
+	data := [][]byte{
+		{1, 1, 1}, // key 1
+		{2, 2, 2}, // key 2
+		{3, 3, 3}, // key 3
+		{4, 4, 4}, // key 4
+		{5, 5, 5}, // key 5
+	}
+
+	// Add keys 1, 2, 3, 4 (fills cache)
+	for i := 0; i < 4; i++ {
+		ok := cache.Set(0, uint64(i+1), data[i])
+		assert.True(t, ok)
+	}
+
+	// Access pattern: 2, 1, 3 (making 4 the LRU)
+	cache.Get(0, 2)
+	cache.Get(0, 1)  
+	cache.Get(0, 3)
+	// LRU order should now be: 4 (LRU), 2, 1, 3 (MRU)
+
+	// Add key 5 - should evict key 4
+	ok := cache.Set(0, 5, data[4])
+	assert.True(t, ok)
+
+	// Key 4 should be evicted
+	_, ok = cache.Get(0, 4)
+	assert.False(t, ok, "Key 4 should have been evicted")
+
+	// Keys 1, 2, 3, 5 should be present
+	for _, key := range []uint64{1, 2, 3, 5} {
+		_, ok := cache.Get(0, key)
+		assert.True(t, ok, "Key %d should still be present", key)
+	}
+
+	// Access key 2 again, then add another item
+	cache.Get(0, 2)
+	// LRU order: 1 (LRU), 3, 5, 2 (MRU)
+
+	data6 := []byte{6, 6, 6}
+	ok = cache.Set(0, 6, data6)
+	assert.True(t, ok)
+
+	// Key 1 should now be evicted
+	_, ok = cache.Get(0, 1)
+	assert.False(t, ok, "Key 1 should have been evicted")
+
+	// Keys 2, 3, 5, 6 should be present  
+	for _, key := range []uint64{2, 3, 5, 6} {
+		_, ok := cache.Get(0, key)
+		assert.True(t, ok, "Key %d should still be present", key)
+	}
+}

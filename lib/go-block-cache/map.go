@@ -113,8 +113,8 @@ func (h *hashMap) Set(fileNum, key uint64, value Value) bool {
 
 func (h *hashMap) Get(fileNum, key uint64) (LazyValue, bool) {
 	h.mu.RLock()
-	defer h.mu.RUnlock()
 	if h.closed {
+		h.mu.RUnlock()
 		return nil, false
 	}
 	var isFrozen bool
@@ -130,11 +130,19 @@ func (h *hashMap) Get(fileNum, key uint64) (LazyValue, bool) {
 		}
 		if node == nil {
 			atomic.AddInt64(&h.stats.statMiss, 1)
+			h.mu.RUnlock()
 			return nil, false
 		}
 
 		atomic.AddInt64(&h.stats.statHit, 1)
 		node.upRef()
+
+		h.mu.RUnlock()
+		if h.cacher != nil {
+			if ok := h.cacher.Promote(node, 0); !ok {
+				return nil, false
+			}
+		}
 		break
 	}
 

@@ -202,7 +202,7 @@ func main() {
 ### High-Concurrency Pattern
 
 ```go
-func workerRoutine(cache IMap, fileNum uint64, wg *sync.WaitGroup) {
+func workerRoutine(cache IBlockCache, fileNum uint64, wg *sync.WaitGroup) {
     defer wg.Done()
     
     for i := 0; i < 1000; i++ {

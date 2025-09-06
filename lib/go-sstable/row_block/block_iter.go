@@ -42,7 +42,7 @@ func (i *BlockIterator) First() *common.InternalKV {
 	i.readEntry()
 	iKV := &common.InternalKV{}
 	iKV.K = *common.DeserializeKey(i.key)
-	v := common.InternalLazyValue{ValueSource: common.ValueFromBuffer}
+	v := common.NewBlankInternalLazyValue(common.ValueFromBuffer)
 	v.ReserveBuffer(i.bpool, len(i.value))
 	if err := v.SetBufferValue(i.value); err != nil {
 		zap.L().Error("failed to set value", zap.Error(err))
@@ -61,7 +61,7 @@ func (i *BlockIterator) Next() *common.InternalKV {
 	i.readEntry()
 	iKV := &common.InternalKV{}
 	iKV.K = *common.DeserializeKey(i.key)
-	v := common.InternalLazyValue{ValueSource: common.ValueFromBuffer}
+	v := common.NewBlankInternalLazyValue(common.ValueFromBuffer)
 	v.ReserveBuffer(i.bpool, len(i.value))
 	if err := v.SetBufferValue(i.value); err != nil {
 		zap.L().Error("failed to set value", zap.Error(err))

@@ -21,6 +21,7 @@ type DataBlockIterator struct {
 	bpool *predictable_size.PredictablePool
 	// filterBH
 	filterBH *block_common.BlockHandle
+	filter   *common.InternalLazyValue
 
 	// secondLevelIndexIter iterator through the 2nd level index block
 	secondLevelIndexBH   *block_common.BlockHandle
@@ -68,6 +69,7 @@ func (i *DataBlockIterator) Prev() *common.InternalKV {
 
 func (i *DataBlockIterator) Close() error {
 	err := i.secondLevelIndexIter.Close()
+	i.blockReader.Release()
 	dataBlockIteratorPool.Put(i)
 	return err
 }
@@ -102,13 +104,23 @@ func (i *DataBlockIterator) readMetaIndexBlock(footer *row_block.Footer) error {
 }
 
 func (i *DataBlockIterator) init2ndLevelIndexBlockIterator() error {
-	// TODO (medium - dat.ngthanh): Should we cache the 2nd level index block ?
+	// TODO (low - dat.ngthanh): Should we cache the 2nd level index block ?
 	secondLevelIndexBuf, err := i.blockReader.Read(i.secondLevelIndexBH, block_common.BlockKindIndex)
 	if err != nil {
 		zap.L().Error("failed to read secondLevelIndexBlock", zap.Error(err))
 		return err
 	}
 	i.secondLevelIndexIter = row_block.NewBlockIterator(i.bpool, common.NewComparer(), secondLevelIndexBuf.Value())
+	return nil
+}
+
+func (i *DataBlockIterator) readFilter() error {
+	var err error
+	i.filter, err = i.blockReader.ReadThroughCache(i.filterBH, block_common.BlockKindFilter)
+	if err != nil {
+		zap.L().Error("failed to read filter", zap.Error(err))
+		return err
+	}
 	return nil
 }
 
@@ -134,15 +146,17 @@ func NewDataBlockIterator(fr go_fs.Readable, opts *options.IteratorOpts) (*DataB
 	if iter.blockReader == nil {
 		iter.blockReader = &row_block.RowBlockReader{}
 	}
-	iter.blockReader.Init(iter.bpool, layoutReader)
+	iter.blockReader.Init(iter.bpool, layoutReader, &opts.CacheOpts)
 
-	// read meta index
 	if err = iter.readMetaIndexBlock(footer); err != nil {
 		return nil, err
 	}
 
-	// init 2nd level index iterator
 	if err = iter.init2ndLevelIndexBlockIterator(); err != nil {
+		return nil, err
+	}
+
+	if err = iter.readFilter(); err != nil {
 		return nil, err
 	}
 

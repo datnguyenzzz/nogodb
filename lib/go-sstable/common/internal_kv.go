@@ -50,12 +50,18 @@ func (b *BufferPoolFetcher) Release() {
 // InternalLazyValue either points to a block in the block cache (Fetcher != nil),
 // or a buffer that exists outside the block cache allocated from a BufferPool.
 //
-// And the value of the InternalLazyValue might not yet dereference, until caller
-// explicitly load the value
+// The value of the InternalLazyValue might not yet dereference, until caller
+// explicitly load the value.
 type InternalLazyValue struct {
 	ValueSource   ValueSource
 	BufferFetcher *BufferPoolFetcher
 	CacheFetcher  Fetcher
+}
+
+func NewBlankInternalLazyValue(s ValueSource) InternalLazyValue {
+	return InternalLazyValue{
+		ValueSource: s,
+	}
 }
 
 type InternalKV struct {
@@ -63,6 +69,7 @@ type InternalKV struct {
 	V InternalLazyValue
 }
 
+// Value loads value
 func (iv *InternalLazyValue) Value() []byte {
 	switch iv.ValueSource {
 	case ValueFromBuffer:
@@ -74,6 +81,7 @@ func (iv *InternalLazyValue) Value() []byte {
 	}
 }
 
+// Release releases the allocated memory to store the value
 func (iv *InternalLazyValue) Release() {
 	switch iv.ValueSource {
 	case ValueFromBuffer:

@@ -5,7 +5,7 @@ type LazyValue interface {
 	Release()
 }
 
-type IMap interface {
+type IBlockCache interface {
 	Get(fileNum, key uint64) (LazyValue, bool)
 	Set(fileNum, key uint64, value Value) bool
 	Delete(fileNum, key uint64) bool

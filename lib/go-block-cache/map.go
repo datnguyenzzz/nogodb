@@ -247,7 +247,7 @@ func (h *hashMap) SetCapacity(capacity int64) {
 	}
 }
 
-func NewMap(opts ...CacheOpt) IMap {
+func NewMap(opts ...CacheOpt) IBlockCache {
 	state := &state{
 		buckets:       make([]bucket, initialBucketSize),
 		bucketMark:    uint32(initialBucketSize - 1),
@@ -277,4 +277,4 @@ func NewMap(opts ...CacheOpt) IMap {
 	return c
 }
 
-var _ IMap = (*hashMap)(nil)
+var _ IBlockCache = (*hashMap)(nil)

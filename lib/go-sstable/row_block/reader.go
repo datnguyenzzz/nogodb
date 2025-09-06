@@ -2,21 +2,80 @@ package row_block
 
 import (
 	"encoding/binary"
+	"errors"
 	"fmt"
 
+	go_block_cache "github.com/datnguyenzzz/nogodb/lib/go-block-cache"
 	"github.com/datnguyenzzz/nogodb/lib/go-bytesbufferpool/predictable_size"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
 	block_common "github.com/datnguyenzzz/nogodb/lib/go-sstable/common/block"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/compression"
+	"github.com/datnguyenzzz/nogodb/lib/go-sstable/options"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/storage"
 )
 
+var (
+	cacheMiss           = errors.New("cache miss")
+	failedUpdateToCache = errors.New("failed to update value to cache")
+)
+
+type blockCacheWrapper struct {
+	fileNum uint64
+	c       go_block_cache.IBlockCache
+}
+
+type lazyValueWrapper struct {
+	lazyValue go_block_cache.LazyValue
+}
+
+func (l *lazyValueWrapper) Load() []byte {
+	return l.lazyValue.Load()
+}
+
+func (l *lazyValueWrapper) Release() {
+	l.lazyValue.Release()
+}
+
+//go:generate mockery --name=IBlockCacheWrapper --case=underscore --disable-version-string
+type IBlockCacheWrapper interface {
+	Get(bh *block_common.BlockHandle) (*common.InternalLazyValue, error)
+	Set(bh *block_common.BlockHandle, val *common.InternalLazyValue) error
+	Close()
+}
+
+func (w *blockCacheWrapper) Get(bh *block_common.BlockHandle) (*common.InternalLazyValue, error) {
+	lazyValue, exist := w.c.Get(w.fileNum, bh.Offset)
+	if !exist {
+		return nil, cacheMiss
+	}
+	val := common.NewBlankInternalLazyValue(common.ValueFromCache)
+	if err := val.SetCacheFetcher(&lazyValueWrapper{lazyValue}); err != nil {
+		return nil, err
+	}
+
+	return &val, nil
+}
+
+func (w *blockCacheWrapper) Set(bh *block_common.BlockHandle, val *common.InternalLazyValue) error {
+	ok := w.c.Set(w.fileNum, bh.Offset, val.Value())
+	if !ok {
+		return failedUpdateToCache
+	}
+	return nil
+}
+
+func (w *blockCacheWrapper) Close() {
+	w.c.Close()
+}
+
+//go:generate mockery --name=IBlockReader --case=underscore --disable-version-string
 type IBlockReader interface {
 	// Read perform read directly from the source without caching
 	Read(bh *block_common.BlockHandle, kind block_common.BlockKind) (*common.InternalLazyValue, error)
 	// ReadThroughCache perform read through cache method
 	ReadThroughCache(bh *block_common.BlockHandle, kind block_common.BlockKind) (*common.InternalLazyValue, error)
-	Init(bpool *predictable_size.PredictablePool, fr storage.ILayoutReader)
+	Init(bpool *predictable_size.PredictablePool, fr storage.ILayoutReader, cacheOpts *options.CacheOptions)
+	Release()
 }
 
 // RowBlockReader reads row-based blocks from a single file,
@@ -25,25 +84,62 @@ type IBlockReader interface {
 type RowBlockReader struct {
 	bpool         *predictable_size.PredictablePool
 	storageReader storage.ILayoutReader
+	blockCache    IBlockCacheWrapper
 }
 
-func (r *RowBlockReader) Init(bpool *predictable_size.PredictablePool, fr storage.ILayoutReader) {
+func (r *RowBlockReader) Init(
+	bpool *predictable_size.PredictablePool,
+	fr storage.ILayoutReader,
+	cacheOpts *options.CacheOptions,
+) {
 	r.bpool = bpool
 	r.storageReader = fr
+	if r.blockCache == nil {
+		c := go_block_cache.NewMap(
+			go_block_cache.WithCacheType(cacheOpts.CacheMethod),
+			go_block_cache.WithMaxSize(cacheOpts.MaxSize),
+		)
+		r.blockCache = &blockCacheWrapper{
+			fileNum: uint64(cacheOpts.FileNum),
+			c:       c,
+		}
+	}
 }
 
-func (r *RowBlockReader) ReadThroughCache(bh *block_common.BlockHandle, kind block_common.BlockKind) (*common.InternalLazyValue, error) {
-	// TODO (high): The read function requires the buffer pool to be available to
-	//  obtain the pre-allocated buffer for handling the read stream.
-	//  An optimization is to have a caching mechanism to cache the value of
-	//  the blockData , aka BlockCache (key: File ID + BlockHandle --> value: []byte)
-	//  Research on how to implement an efficient Block's Cache
-	//  ...
-	//  Wire up with the go-cache
-	panic("implement me")
+func (r *RowBlockReader) Release() {
+	r.blockCache.Close()
+	_ = r.storageReader.Close()
+	r.blockCache = nil
+}
+
+func (r *RowBlockReader) ReadThroughCache(
+	bh *block_common.BlockHandle,
+	kind block_common.BlockKind,
+) (*common.InternalLazyValue, error) {
+	cachedVal, err := r.blockCache.Get(bh)
+	if err == nil {
+		return cachedVal, nil
+	}
+
+	fromStorageVal, err := r.readFromStorage(bh, kind)
+	if err != nil {
+		return nil, err
+	}
+	if err := r.blockCache.Set(bh, fromStorageVal); err != nil {
+		return nil, err
+	}
+
+	return fromStorageVal, nil
 }
 
 func (r *RowBlockReader) Read(
+	bh *block_common.BlockHandle,
+	kind block_common.BlockKind,
+) (*common.InternalLazyValue, error) {
+	return r.readFromStorage(bh, kind)
+}
+
+func (r *RowBlockReader) readFromStorage(
 	bh *block_common.BlockHandle,
 	kind block_common.BlockKind,
 ) (*common.InternalLazyValue, error) {

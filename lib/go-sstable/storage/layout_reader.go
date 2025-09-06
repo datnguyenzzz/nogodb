@@ -10,6 +10,8 @@ type layoutReader struct {
 
 // ILayoutReader is used to perform reads that are related and might benefit from
 // optimizations like read-ahead.
+//
+//go:generate mockery --name=ILayoutReader --case=underscore --disable-version-string
 type ILayoutReader interface {
 	// ReadAt reads len(p) bytes into p starting at offset off.
 	//

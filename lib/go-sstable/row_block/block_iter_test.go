@@ -707,3 +707,188 @@ func TestDataBlockIterator_Last(t *testing.T) {
 		})
 	}
 }
+
+func TestDataBlockIterator_Prev(t *testing.T) {
+	type testCase struct {
+		desc              string
+		inputUserKeys     []string
+		inputValues       []string
+		restartInterval   int
+		initialPosition   int
+		expectedPrevKey   string
+		expectedPrevValue string
+	}
+
+	tests := []testCase{
+		{
+			desc: "#1 - Prev() from first entry (should return same)",
+			inputUserKeys: []string{
+				"apple", "apricot", "avocado", "cherry", "mango",
+			},
+			inputValues: []string{
+				"red", "orange", "green", "red", "yellow",
+			},
+			restartInterval:   2,
+			initialPosition:   0,
+			expectedPrevKey:   "apple",
+			expectedPrevValue: "red",
+		},
+		{
+			desc: "#2 - Prev() from second entry",
+			inputUserKeys: []string{
+				"apple", "apricot", "avocado", "cherry", "mango",
+			},
+			inputValues: []string{
+				"red", "orange", "green", "red", "yellow",
+			},
+			restartInterval:   2,
+			initialPosition:   1,
+			expectedPrevKey:   "apple",
+			expectedPrevValue: "red",
+		},
+		{
+			desc: "#3 - Prev() from middle entry",
+			inputUserKeys: []string{
+				"apple", "apricot", "avocado", "cherry", "mango",
+			},
+			inputValues: []string{
+				"red", "orange", "green", "red", "yellow",
+			},
+			restartInterval:   2,
+			initialPosition:   2,
+			expectedPrevKey:   "apricot",
+			expectedPrevValue: "orange",
+		},
+		{
+			desc: "#4 - Prev() from restart point",
+			inputUserKeys: []string{
+				"apple", "apricot", "avocado", "cherry", "mango", "orange",
+			},
+			inputValues: []string{
+				"red", "orange", "green", "red", "yellow", "orange",
+			},
+			restartInterval:   3,
+			initialPosition:   3,
+			expectedPrevKey:   "avocado",
+			expectedPrevValue: "green",
+		},
+		{
+			desc: "#5 - Prev() from last entry",
+			inputUserKeys: []string{
+				"apple", "apricot", "avocado", "cherry", "mango",
+			},
+			inputValues: []string{
+				"red", "orange", "green", "red", "yellow",
+			},
+			restartInterval:   2,
+			initialPosition:   4,
+			expectedPrevKey:   "cherry",
+			expectedPrevValue: "red",
+		},
+		{
+			desc: "#6 - Single entry block",
+			inputUserKeys: []string{
+				"only",
+			},
+			inputValues: []string{
+				"value",
+			},
+			restartInterval:   1,
+			initialPosition:   0,
+			expectedPrevKey:   "only",
+			expectedPrevValue: "value",
+		},
+		{
+			desc: "#7 - Prev() with restart interval 1 (all entries are restart points)",
+			inputUserKeys: []string{
+				"alpha", "beta", "gamma", "delta",
+			},
+			inputValues: []string{
+				"first", "second", "third", "fourth",
+			},
+			restartInterval:   1,
+			initialPosition:   2,
+			expectedPrevKey:   "beta",
+			expectedPrevValue: "second",
+		},
+		{
+			desc: "#8 - Prev() with large restart interval",
+			inputUserKeys: []string{
+				"a", "b", "c", "d", "e", "f",
+			},
+			inputValues: []string{
+				"1", "2", "3", "4", "5", "6",
+			},
+			restartInterval:   6, // only one restart point at beginning
+			initialPosition:   5,
+			expectedPrevKey:   "e",
+			expectedPrevValue: "5",
+		},
+		{
+			desc: "#9 - Prev() from second restart point",
+			inputUserKeys: []string{
+				"apple", "banana", "cherry", "date", "elderberry", "fig",
+			},
+			inputValues: []string{
+				"red", "yellow", "red", "brown", "purple", "green",
+			},
+			restartInterval:   2, // restart points at 0, 2, 4
+			initialPosition:   4,
+			expectedPrevKey:   "date",
+			expectedPrevValue: "brown",
+		},
+		{
+			desc: "#10 - Two entries, Prev() from second",
+			inputUserKeys: []string{
+				"first", "second",
+			},
+			inputValues: []string{
+				"value1", "value2",
+			},
+			restartInterval:   1,
+			initialPosition:   1,
+			expectedPrevKey:   "first",
+			expectedPrevValue: "value1",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.desc, func(t *testing.T) {
+			// 1. Create block data
+			bp := predictable_size.NewPredictablePool()
+			blk := newBlock(tc.restartInterval, bp)
+
+			for i, userKey := range tc.inputUserKeys {
+				key := makeDummyKey(userKey)
+				value := []byte(tc.inputValues[i])
+				err := blk.WriteEntry(key, value)
+				assert.NoError(t, err, "should not have error writing entry")
+			}
+
+			blockData := make([]byte, blk.EstimateSize())
+			blk.Finish(blockData)
+
+			// 2. Create iterator and position it correctly
+			cmp := common.NewComparer()
+			iter := NewBlockIterator(predictable_size.NewPredictablePool(), cmp, blockData)
+
+			// Position iterator based on test case
+			iter.First()
+			for i := 0; i < tc.initialPosition; i++ {
+				iter.Next()
+			}
+
+			// 3. Call Prev() and verify results
+			prevKV := iter.Prev()
+
+			assert.NotNil(t, prevKV, "Prev() should return non-nil InternalKV")
+			assert.Equal(t, tc.expectedPrevKey, string(prevKV.K.UserKey), "Prev() should return correct key")
+			assert.Equal(t, tc.expectedPrevValue, string(prevKV.V.Value()), "Prev() should return correct value")
+
+			// Verify iterator's internal state
+			actualIterKey := common.DeserializeKey(iter.key)
+			assert.Equal(t, tc.expectedPrevKey, string(actualIterKey.UserKey), "iterator's internal key should match")
+			assert.Equal(t, tc.expectedPrevValue, string(iter.value), "iterator's internal value should match")
+		})
+	}
+}

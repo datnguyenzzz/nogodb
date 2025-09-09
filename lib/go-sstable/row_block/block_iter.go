@@ -27,7 +27,11 @@ type BlockIterator struct {
 	restartPoints []int32
 	// auxiliary
 	cmp common.IComparer
-	// TODO(high): Need exploring how to cache the data
+	// TODO(high): Need to explore how to cache the block, that have been iterated through.
+	//  For example, in the Last() or Prev() function, we will need to jump to certain
+	//  restart points, then keep moving forward until we hit the target offset. This means
+	//  certain blocks will have been iterated through when performing those actions.
+	//  We can cache those blocks to skip re-computation.
 }
 
 func (i *BlockIterator) SeekGTE(key []byte) *common.InternalKV {
@@ -71,8 +75,34 @@ func (i *BlockIterator) Next() *common.InternalKV {
 }
 
 func (i *BlockIterator) Prev() *common.InternalKV {
-	//TODO implement me
-	panic("implement me")
+	// max restart point that < i.offset
+	lo, hi := int32(0), i.numRestarts-1
+	restartPoint := -1
+	for lo <= hi {
+		mid := (lo + hi) >> 1
+		if uint64(i.restartPoints[mid]) < i.offset {
+			restartPoint = int(i.restartPoints[mid])
+			lo = mid + 1
+		} else {
+			hi = mid - 1
+		}
+	}
+
+	if restartPoint == -1 {
+		zap.L().Warn("pointer is already at the First() offset")
+		i.readEntry()
+		return i.toKV()
+	}
+
+	targetOffset := i.offset
+	i.offset = uint64(restartPoint)
+	i.readEntry()
+
+	for i.nextOffset != targetOffset {
+		i.offset = i.nextOffset
+		i.readEntry()
+	}
+	return i.toKV()
 }
 
 func (i *BlockIterator) Close() error {

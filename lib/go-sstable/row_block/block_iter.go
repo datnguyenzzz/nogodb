@@ -22,9 +22,11 @@ type BlockIterator struct {
 	offset        uint64
 	nextOffset    uint64
 	trailerOffset uint64
+	// restarts
+	numRestarts   int32
+	restartPoints []int32
 	// auxiliary
-	numRestarts int32
-	cmp         common.IComparer
+	cmp common.IComparer
 	// TODO(high): Need exploring how to cache the data
 }
 
@@ -40,20 +42,18 @@ func (i *BlockIterator) SeekLT(key []byte) *common.InternalKV {
 
 func (i *BlockIterator) First() *common.InternalKV {
 	i.readEntry()
-	iKV := &common.InternalKV{}
-	iKV.K = *common.DeserializeKey(i.key)
-	v := common.NewBlankInternalLazyValue(common.ValueFromBuffer)
-	v.ReserveBuffer(i.bpool, len(i.value))
-	if err := v.SetBufferValue(i.value); err != nil {
-		zap.L().Error("failed to set value", zap.Error(err))
-	}
-	iKV.V = v
-	return iKV
+	return i.toKV()
 }
 
 func (i *BlockIterator) Last() *common.InternalKV {
-	//TODO implement me
-	panic("implement me")
+	// move offset to the last restart point
+	i.offset = uint64(i.restartPoints[len(i.restartPoints)-1])
+	i.readEntry()
+	for i.nextOffset != i.trailerOffset {
+		i.offset = i.nextOffset
+		i.readEntry()
+	}
+	return i.toKV()
 }
 
 func (i *BlockIterator) Next() *common.InternalKV {
@@ -80,6 +80,18 @@ func (i *BlockIterator) Close() error {
 	i.value = i.value[:0]
 	i.bpool.Put(i.data)
 	return nil
+}
+
+func (i *BlockIterator) toKV() *common.InternalKV {
+	iKV := &common.InternalKV{}
+	iKV.K = *common.DeserializeKey(i.key)
+	v := common.NewBlankInternalLazyValue(common.ValueFromBuffer)
+	v.ReserveBuffer(i.bpool, len(i.value))
+	if err := v.SetBufferValue(i.value); err != nil {
+		zap.L().Error("failed to set value", zap.Error(err))
+	}
+	iKV.V = v
+	return iKV
 }
 
 // readEntry read key, value and nextOffset of the current entry where the iterator points at
@@ -112,12 +124,19 @@ func NewBlockIterator(
 ) *BlockIterator {
 	// refer to the README to understand the data layout
 	numRestarts := int32(binary.LittleEndian.Uint32(block[len(block)-4:]))
+	trailerOffset := uint64(len(block)) - uint64(4*numRestarts) - 4
+	restartPoints := make([]int32, numRestarts)
+	for i := 0; i < int(numRestarts); i++ {
+		restartPoints[i] = int32(binary.LittleEndian.Uint32(block[trailerOffset+uint64(4*i):]))
+	}
+
 	i := &BlockIterator{
 		bpool:         bpool,
 		cmp:           cmp,
 		data:          block,
 		numRestarts:   numRestarts,
-		trailerOffset: uint64(len(block)) - uint64(4*(1+numRestarts)),
+		trailerOffset: trailerOffset,
+		restartPoints: restartPoints,
 		offset:        0,
 	}
 	return i

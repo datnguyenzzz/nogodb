@@ -531,3 +531,179 @@ func TestBlockIterator_Next(t *testing.T) {
 		})
 	}
 }
+
+func TestDataBlockIterator_Last(t *testing.T) {
+	type testCase struct {
+		desc              string
+		inputUserKeys     []string
+		inputValues       []string
+		restartInterval   int
+		expectedLastKey   string
+		expectedLastValue string
+	}
+
+	tests := []testCase{
+		{
+			desc: "#1 - restart interval 2",
+			inputUserKeys: []string{
+				"apple", "apricot", "avocado", "avowed", "cherry", "mango",
+			},
+			inputValues: []string{
+				"red", "orange", "purple", "yellow", "red", "blue",
+			},
+			restartInterval:   2,
+			expectedLastKey:   "mango",
+			expectedLastValue: "blue",
+		},
+		{
+			desc: "#2 - restart interval 1",
+			inputUserKeys: []string{
+				"banana", "berry", "blueberry",
+			},
+			inputValues: []string{
+				"yellow", "red", "blue",
+			},
+			restartInterval:   1,
+			expectedLastKey:   "blueberry",
+			expectedLastValue: "blue",
+		},
+		{
+			desc: "#3 - restart interval 3",
+			inputUserKeys: []string{
+				"grape", "grapefruit", "guava", "kiwi", "lemon", "lime",
+			},
+			inputValues: []string{
+				"purple", "pink", "green", "brown", "yellow", "green",
+			},
+			restartInterval:   3,
+			expectedLastKey:   "lime",
+			expectedLastValue: "green",
+		},
+		{
+			desc: "#4 - single entry",
+			inputUserKeys: []string{
+				"strawberry",
+			},
+			inputValues: []string{
+				"red",
+			},
+			restartInterval:   5,
+			expectedLastKey:   "strawberry",
+			expectedLastValue: "red",
+		},
+		{
+			desc: "#5 - large restart interval",
+			inputUserKeys: []string{
+				"orange", "papaya", "peach", "pear",
+			},
+			inputValues: []string{
+				"orange", "orange", "pink", "green",
+			},
+			restartInterval:   4,
+			expectedLastKey:   "pear",
+			expectedLastValue: "green",
+		},
+		{
+			desc: "#6 - empty last value",
+			inputUserKeys: []string{
+				"key1", "key2", "key3",
+			},
+			inputValues: []string{
+				"value1", "value2", "",
+			},
+			restartInterval:   2,
+			expectedLastKey:   "key3",
+			expectedLastValue: "",
+		},
+		{
+			desc: "#7 - keys with common prefixes",
+			inputUserKeys: []string{
+				"prefix_key_001", "prefix_key_002", "prefix_key_003", "prefix_key_004",
+			},
+			inputValues: []string{
+				"value1", "value2", "value3", "value4",
+			},
+			restartInterval:   3,
+			expectedLastKey:   "prefix_key_004",
+			expectedLastValue: "value4",
+		},
+		{
+			desc: "#8 - very long last key and value",
+			inputUserKeys: []string{
+				"short",
+				"medium_key",
+				"verylongkeyname1234567890abcdefghijklmnopqrstuvwxyz",
+			},
+			inputValues: []string{
+				"small",
+				"medium_value",
+				"verylongvaluecontent1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ",
+			},
+			restartInterval:   2,
+			expectedLastKey:   "verylongkeyname1234567890abcdefghijklmnopqrstuvwxyz",
+			expectedLastValue: "verylongvaluecontent1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ",
+		},
+		{
+			desc: "#9 - two entries only",
+			inputUserKeys: []string{
+				"first", "second",
+			},
+			inputValues: []string{
+				"value1", "value2",
+			},
+			restartInterval:   3,
+			expectedLastKey:   "second",
+			expectedLastValue: "value2",
+		},
+		{
+			desc: "#10 - restart interval equals number of entries",
+			inputUserKeys: []string{
+				"alpha", "beta", "gamma", "delta",
+			},
+			inputValues: []string{
+				"first", "second", "third", "fourth",
+			},
+			restartInterval:   4,
+			expectedLastKey:   "delta",
+			expectedLastValue: "fourth",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.desc, func(t *testing.T) {
+			// 1. Create block data using the existing writer
+			bp := predictable_size.NewPredictablePool()
+			blk := newBlock(tc.restartInterval, bp)
+
+			for i, userKey := range tc.inputUserKeys {
+				key := makeDummyKey(userKey)
+				value := []byte(tc.inputValues[i])
+				err := blk.WriteEntry(key, value)
+				assert.NoError(t, err, "should not have error writing entry")
+			}
+
+			blockData := make([]byte, blk.EstimateSize())
+			blk.Finish(blockData)
+
+			// 2. Create iterator and test Last()
+			cmp := common.NewComparer()
+			iter := NewBlockIterator(predictable_size.NewPredictablePool(), cmp, blockData)
+
+			lastKV := iter.Last()
+
+			assert.NotNil(t, lastKV, "Last() should return non-nil InternalKV")
+			assert.Equal(t, tc.expectedLastKey, string(lastKV.K.UserKey), "Last() should return the last key")
+			assert.Equal(t, tc.expectedLastValue, string(lastKV.V.Value()), "Last() should return the last value")
+			assert.Equal(t, iter.trailerOffset, iter.nextOffset, "nextOffset should equal trailerOffset after Last()")
+
+			// Verify iterator's internal key and value are set to last entry
+			actualIterKey := common.DeserializeKey(iter.key)
+			assert.Equal(t, tc.expectedLastKey, string(actualIterKey.UserKey), "iterator's internal key should match last key")
+			assert.Equal(t, tc.expectedLastValue, string(iter.value), "iterator's internal value should match last value")
+
+			// Verify that Last() positions iterator at the correct restart point or later
+			expectedLastRestartPoint := iter.restartPoints[len(iter.restartPoints)-1]
+			assert.GreaterOrEqual(t, iter.offset, uint64(expectedLastRestartPoint), "iterator offset should be at or after the last restart point")
+		})
+	}
+}

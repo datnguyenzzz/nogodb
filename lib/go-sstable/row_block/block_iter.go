@@ -72,8 +72,44 @@ func (i *BlockIterator) SeekGTE(key []byte) *common.InternalKV {
 }
 
 func (i *BlockIterator) SeekLT(key []byte) *common.InternalKV {
-	//TODO implement me
-	panic("implement me")
+	lo, hi := int32(0), i.numRestarts-1
+	pos := int32(-1)
+	for lo <= hi {
+		mid := (lo + hi) >> 1
+
+		// decode the first key at the restart point
+		blkOffset := i.restartPoints[mid]
+		_, e := binary.Uvarint(i.data[blkOffset:])
+		blkOffset += int32(e)
+		unsharedLen, e := binary.Uvarint(i.data[blkOffset:])
+		blkOffset += int32(e)
+		_, e = binary.Uvarint(i.data[blkOffset:])
+		blkOffset += int32(e)
+
+		k := i.data[blkOffset : uint64(blkOffset)+unsharedLen]
+		if i.cmp.Compare(k, key) >= 0 {
+			pos = mid
+			hi = mid - 1
+		} else {
+			lo = mid + 1
+		}
+	}
+
+	if pos == -1 {
+		_ = i.Last()
+	} else {
+		i.offset = uint64(i.restartPoints[pos])
+	}
+	i.readEntry()
+	for i.cmp.Compare(i.key, key) >= 0 {
+		if i.atTheFirst() {
+			return nil
+		}
+
+		_ = i.Prev()
+	}
+
+	return i.toKV()
 }
 
 func (i *BlockIterator) First() *common.InternalKV {
@@ -111,6 +147,10 @@ func (i *BlockIterator) Next() *common.InternalKV {
 }
 
 func (i *BlockIterator) Prev() *common.InternalKV {
+	if i.atTheFirst() {
+		return i.toKV()
+	}
+
 	// max restart point that < i.offset
 	lo, hi := int32(0), i.numRestarts-1
 	restartPoint := -1
@@ -162,6 +202,10 @@ func (i *BlockIterator) toKV() *common.InternalKV {
 
 func (i *BlockIterator) atTheEnd() bool {
 	return i.offset == i.trailerOffset
+}
+
+func (i *BlockIterator) atTheFirst() bool {
+	return i.offset == 0
 }
 
 // readEntry read key, value and nextOffset of the current entry where the iterator points at

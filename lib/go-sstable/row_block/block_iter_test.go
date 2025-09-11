@@ -892,3 +892,270 @@ func TestDataBlockIterator_Prev(t *testing.T) {
 		})
 	}
 }
+
+func TestDataBlockIterator_SeekGTE(t *testing.T) {
+	type testCase struct {
+		desc               string
+		inputUserKeys      []string
+		inputValues        []string
+		restartInterval    int
+		seekKey            string
+		expectedFoundKey   string
+		expectedFoundValue string
+		isNotFound         bool
+	}
+
+	tests := []testCase{
+		{
+			desc: "#1 - Seek exact match at first key",
+			inputUserKeys: []string{
+				"apple", "apricot", "avocado", "cherry", "mango",
+			},
+			inputValues: []string{
+				"red", "orange", "green", "red", "yellow",
+			},
+			restartInterval:    2,
+			seekKey:            "apple",
+			expectedFoundKey:   "apple",
+			expectedFoundValue: "red",
+		},
+		{
+			desc: "#2 - Seek exact match at middle key",
+			inputUserKeys: []string{
+				"apple", "apricot", "avocado", "cherry", "mango",
+			},
+			inputValues: []string{
+				"red", "orange", "green", "red", "yellow",
+			},
+			restartInterval:    2,
+			seekKey:            "avocado",
+			expectedFoundKey:   "avocado",
+			expectedFoundValue: "green",
+		},
+		{
+			desc: "#3 - Seek exact match at last key",
+			inputUserKeys: []string{
+				"apple", "apricot", "avocado", "cherry", "mango",
+			},
+			inputValues: []string{
+				"red", "orange", "green", "red", "yellow",
+			},
+			restartInterval:    2,
+			seekKey:            "mango",
+			expectedFoundKey:   "mango",
+			expectedFoundValue: "yellow",
+		},
+		{
+			desc: "#4 - Seek between keys (should find next greater key)",
+			inputUserKeys: []string{
+				"apple", "apricot", "avocado", "cherry", "mango",
+			},
+			inputValues: []string{
+				"red", "orange", "green", "red", "yellow",
+			},
+			restartInterval:    2,
+			seekKey:            "car",    // "car" > "avocado" but < "cherry"
+			expectedFoundKey:   "cherry", // first key >= "car"
+			expectedFoundValue: "red",
+		},
+		{
+			desc: "#5 - Seek key smaller than first (should return first)",
+			inputUserKeys: []string{
+				"apple", "apricot", "avocado", "cherry", "mango",
+			},
+			inputValues: []string{
+				"red", "orange", "green", "red", "yellow",
+			},
+			restartInterval:    2,
+			seekKey:            "aaa", // before "apple"
+			expectedFoundKey:   "apple",
+			expectedFoundValue: "red",
+		},
+		{
+			desc: "#6 - Seek key larger than last",
+			inputUserKeys: []string{
+				"apple", "apricot", "avocado", "cherry", "mango",
+			},
+			inputValues: []string{
+				"red", "orange", "green", "red", "yellow",
+			},
+			restartInterval: 2,
+			seekKey:         "zebra", // after "mango"
+			isNotFound:      true,
+		},
+		{
+			desc: "#7 - Seek at restart point",
+			inputUserKeys: []string{
+				"apple", "apricot", "avocado", "cherry", "mango", "orange",
+			},
+			inputValues: []string{
+				"red", "orange", "green", "red", "yellow", "orange",
+			},
+			restartInterval:    3, // restart points at 0, 3 (cherry)
+			seekKey:            "cherry",
+			expectedFoundKey:   "cherry",
+			expectedFoundValue: "red",
+		},
+		{
+			desc: "#8 - Single entry block",
+			inputUserKeys: []string{
+				"single",
+			},
+			inputValues: []string{
+				"value",
+			},
+			restartInterval:    1,
+			seekKey:            "single",
+			expectedFoundKey:   "single",
+			expectedFoundValue: "value",
+		},
+		{
+			desc: "#9 - Single entry block, seek smaller",
+			inputUserKeys: []string{
+				"single",
+			},
+			inputValues: []string{
+				"value",
+			},
+			restartInterval:    1,
+			seekKey:            "aaa",
+			expectedFoundKey:   "single",
+			expectedFoundValue: "value",
+		},
+		{
+			desc: "#10 - Single entry block, seek larger",
+			inputUserKeys: []string{
+				"single",
+			},
+			inputValues: []string{
+				"value",
+			},
+			restartInterval: 1,
+			seekKey:         "zzz",
+			isNotFound:      true,
+		},
+		{
+			desc: "#11 - Keys with common prefixes",
+			inputUserKeys: []string{
+				"prefix_key_001", "prefix_key_002", "prefix_key_003", "prefix_key_004",
+			},
+			inputValues: []string{
+				"value1", "value2", "value3", "value4",
+			},
+			restartInterval:    2,
+			seekKey:            "prefix_key_002",
+			expectedFoundKey:   "prefix_key_002",
+			expectedFoundValue: "value2",
+		},
+		{
+			desc: "#12 - Seek between prefixed keys",
+			inputUserKeys: []string{
+				"prefix_key_001", "prefix_key_003", "prefix_key_005", "prefix_key_007",
+			},
+			inputValues: []string{
+				"value1", "value3", "value5", "value7",
+			},
+			restartInterval:    2,
+			seekKey:            "prefix_key_004", // between 003 and 005
+			expectedFoundKey:   "prefix_key_005",
+			expectedFoundValue: "value5",
+		},
+		{
+			desc: "#13 - Restart interval 1 (all entries are restart points)",
+			inputUserKeys: []string{
+				"alpha", "beta", "gamma", "delta", "epsilon",
+			},
+			inputValues: []string{
+				"1", "2", "3", "4", "5",
+			},
+			restartInterval:    1,
+			seekKey:            "gamma",
+			expectedFoundKey:   "gamma",
+			expectedFoundValue: "3",
+		},
+		{
+			desc: "#14 - Large restart interval",
+			inputUserKeys: []string{
+				"a", "b", "c", "d", "e", "f", "g", "h",
+			},
+			inputValues: []string{
+				"1", "2", "3", "4", "5", "6", "7", "8",
+			},
+			restartInterval:    8, // single restart point
+			seekKey:            "e",
+			expectedFoundKey:   "e",
+			expectedFoundValue: "5",
+		},
+		{
+			desc: "#15 - Seek between restart points",
+			inputUserKeys: []string{
+				"apple", "banana", "cherry", "date", "elderberry", "fig",
+			},
+			inputValues: []string{
+				"red", "yellow", "red", "brown", "purple", "green",
+			},
+			restartInterval:    2,         // restart points at 0, 2, 4
+			seekKey:            "coconut", // between cherry and date
+			expectedFoundKey:   "date",
+			expectedFoundValue: "brown",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.desc, func(t *testing.T) {
+			// 1. Create block data
+			bp := predictable_size.NewPredictablePool()
+			blk := newBlock(tc.restartInterval, bp)
+
+			for i, userKey := range tc.inputUserKeys {
+				key := makeDummyKey(userKey)
+				value := []byte(tc.inputValues[i])
+				err := blk.WriteEntry(key, value)
+				assert.NoError(t, err, "should not have error writing entry")
+			}
+
+			blockData := make([]byte, blk.EstimateSize())
+			blk.Finish(blockData)
+
+			// 2. Create iterator and test SeekGTE
+			cmp := common.NewComparer()
+			iter := NewBlockIterator(predictable_size.NewPredictablePool(), cmp, blockData)
+
+			seekKV := iter.SeekGTE([]byte(tc.seekKey))
+
+			// 3. Verify results
+			if tc.isNotFound {
+				assert.Nil(t, seekKV)
+			} else {
+				assert.Equal(t, tc.expectedFoundKey, string(seekKV.K.UserKey), "SeekGTE() should return correct key")
+				assert.Equal(t, tc.expectedFoundValue, string(seekKV.V.Value()), "SeekGTE() should return correct value")
+
+				// Verify iterator's internal state matches
+				actualIterKey := common.DeserializeKey(iter.key)
+				assert.Equal(t, tc.expectedFoundKey, string(actualIterKey.UserKey), "iterator's internal key should match found key")
+				assert.Equal(t, tc.expectedFoundValue, string(iter.value), "iterator's internal value should match found value")
+
+				// Verify that the found key is indeed >= seek key
+				cmpResult := cmp.Compare([]byte(tc.expectedFoundKey), []byte(tc.seekKey))
+				assert.GreaterOrEqual(t, cmpResult, 0, "found key should be >= seek key")
+
+				// Additional verification: ensure this is the first key >= seek key
+				// by checking that there's no smaller key >= seek key in our input
+				foundIndex := -1
+				for i, inputKey := range tc.inputUserKeys {
+					if inputKey == tc.expectedFoundKey {
+						foundIndex = i
+						break
+					}
+				}
+				assert.NotEqual(t, -1, foundIndex, "found key should exist in input keys")
+
+				// Verify this is truly the first key >= seek key by checking no earlier key qualifies
+				for i := 0; i < foundIndex; i++ {
+					prevKeyCmp := cmp.Compare([]byte(tc.inputUserKeys[i]), []byte(tc.seekKey))
+					assert.Less(t, prevKeyCmp, 0, "all keys before found key should be < seek key, but key %s at index %d is not < %s", tc.inputUserKeys[i], i, tc.seekKey)
+				}
+			}
+		})
+	}
+}

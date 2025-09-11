@@ -35,8 +35,40 @@ type BlockIterator struct {
 }
 
 func (i *BlockIterator) SeekGTE(key []byte) *common.InternalKV {
-	//TODO implement me
-	panic("implement me")
+	lo, hi := int32(0), i.numRestarts-1
+	var pos int32
+	for lo <= hi {
+		mid := (lo + hi) >> 1
+
+		// decode the first key at the restart point
+		blkOffset := i.restartPoints[mid]
+		_, e := binary.Uvarint(i.data[blkOffset:])
+		blkOffset += int32(e)
+		unsharedLen, e := binary.Uvarint(i.data[blkOffset:])
+		blkOffset += int32(e)
+		_, e = binary.Uvarint(i.data[blkOffset:])
+		blkOffset += int32(e)
+
+		k := i.data[blkOffset : uint64(blkOffset)+unsharedLen]
+		if i.cmp.Compare(k, key) <= 0 {
+			pos = mid
+			lo = mid + 1
+		} else {
+			hi = mid - 1
+		}
+	}
+
+	i.offset = uint64(i.restartPoints[pos])
+	i.readEntry()
+	for i.cmp.Compare(i.key, key) < 0 {
+		if i.atTheEnd() {
+			return nil
+		}
+
+		_ = i.Next()
+	}
+
+	return i.toKV()
 }
 
 func (i *BlockIterator) SeekLT(key []byte) *common.InternalKV {
@@ -61,6 +93,10 @@ func (i *BlockIterator) Last() *common.InternalKV {
 }
 
 func (i *BlockIterator) Next() *common.InternalKV {
+	if i.atTheEnd() {
+		// already at the endpoint of the block
+		return i.toKV()
+	}
 	i.offset = i.nextOffset
 	i.readEntry()
 	iKV := &common.InternalKV{}
@@ -122,6 +158,10 @@ func (i *BlockIterator) toKV() *common.InternalKV {
 	}
 	iKV.V = v
 	return iKV
+}
+
+func (i *BlockIterator) atTheEnd() bool {
+	return i.offset == i.trailerOffset
 }
 
 // readEntry read key, value and nextOffset of the current entry where the iterator points at

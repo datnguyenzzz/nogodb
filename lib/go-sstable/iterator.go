@@ -10,5 +10,5 @@ import (
 
 // NewSingularIterator returns an iterator for the singular keys in the SSTable
 func NewSingularIterator(r go_fs.Readable, opts *options.IteratorOpts) (IIterator, error) {
-	return iterators.NewDataBlockIterator(r, opts)
+	return iterators.NewIterator(r, opts)
 }

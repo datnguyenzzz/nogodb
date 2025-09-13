@@ -14,10 +14,10 @@ import (
 	"go.uber.org/zap"
 )
 
-// DataBlockIterator reads the 2nd-level index block and creates and
+// DataIterator reads the 2nd-level index block and creates and
 // initializes an iterator over the 1st-level index, by which subsequently
 // iterate over the datablock within the requested boundary [lower_bound, upper_bound]
-type DataBlockIterator struct {
+type DataIterator struct {
 	bpool *predictable_size.PredictablePool
 	// filterBH
 	filterBH *block_common.BlockHandle
@@ -29,52 +29,61 @@ type DataBlockIterator struct {
 	blockReader          row_block.IBlockReader
 }
 
+func (i *DataIterator) SeekPrefixGE(prefix, key []byte) *common.InternalIterator {
+	//TODO implement me
+	panic("implement me")
+}
+
 var dataBlockIteratorPool = sync.Pool{
 	New: func() interface{} {
-		return &DataBlockIterator{
+		return &DataIterator{
 			bpool: predictable_size.NewPredictablePool(),
 		}
 	},
 }
 
-func (i *DataBlockIterator) SeekGTE(key []byte) *common.InternalKV {
+func (i *DataIterator) SeekGTE(key []byte) *common.InternalKV {
+	// 1. Seek GTE of the 2nd level index to get index key ≥ search key
+	// 2. Load index key and 1st-level index block handle
+	// 3. Read data block from the given 1st-level index block
+	// 4. seek data block to get key ≥ search key
 	//TODO implement me
 	panic("implement me")
 }
 
-func (i *DataBlockIterator) SeekLT(key []byte) *common.InternalKV {
+func (i *DataIterator) SeekLT(key []byte) *common.InternalKV {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (i *DataBlockIterator) First() *common.InternalKV {
+func (i *DataIterator) First() *common.InternalKV {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (i *DataBlockIterator) Last() *common.InternalKV {
+func (i *DataIterator) Last() *common.InternalKV {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (i *DataBlockIterator) Next() *common.InternalKV {
+func (i *DataIterator) Next() *common.InternalKV {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (i *DataBlockIterator) Prev() *common.InternalKV {
+func (i *DataIterator) Prev() *common.InternalKV {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (i *DataBlockIterator) Close() error {
+func (i *DataIterator) Close() error {
 	err := i.secondLevelIndexIter.Close()
 	i.blockReader.Release()
 	dataBlockIteratorPool.Put(i)
 	return err
 }
 
-func (i *DataBlockIterator) readMetaIndexBlock(footer *row_block.Footer) error {
+func (i *DataIterator) readMetaIndexBlock(footer *row_block.Footer) error {
 	// TODO (medium - dat.ngthanh): Should we cache the metaIndex block ?
 	// Read and decode the meta index block
 	metaIndexBuf, err := i.blockReader.Read(footer.GetMetaIndex(), block_common.BlockKindMetaIntex)
@@ -103,7 +112,7 @@ func (i *DataBlockIterator) readMetaIndexBlock(footer *row_block.Footer) error {
 	return nil
 }
 
-func (i *DataBlockIterator) init2ndLevelIndexBlockIterator() error {
+func (i *DataIterator) init2ndLevelIndexBlockIterator() error {
 	// TODO (low - dat.ngthanh): Should we cache the 2nd level index block ?
 	secondLevelIndexBuf, err := i.blockReader.Read(i.secondLevelIndexBH, block_common.BlockKindIndex)
 	if err != nil {
@@ -114,7 +123,7 @@ func (i *DataBlockIterator) init2ndLevelIndexBlockIterator() error {
 	return nil
 }
 
-func (i *DataBlockIterator) readFilter() error {
+func (i *DataIterator) readFilter() error {
 	var err error
 	i.filter, err = i.blockReader.ReadThroughCache(i.filterBH, block_common.BlockKindFilter)
 	if err != nil {
@@ -124,8 +133,8 @@ func (i *DataBlockIterator) readFilter() error {
 	return nil
 }
 
-func NewDataBlockIterator(fr go_fs.Readable, opts *options.IteratorOpts) (*DataBlockIterator, error) {
-	iter := dataBlockIteratorPool.Get().(*DataBlockIterator)
+func NewIterator(fr go_fs.Readable, opts *options.IteratorOpts) (*DataIterator, error) {
+	iter := dataBlockIteratorPool.Get().(*DataIterator)
 	var err error
 	var footer *row_block.Footer
 	var layoutReader storage.ILayoutReader
@@ -163,4 +172,4 @@ func NewDataBlockIterator(fr go_fs.Readable, opts *options.IteratorOpts) (*DataB
 	return iter, nil
 }
 
-var _ common.InternalIterator = (*DataBlockIterator)(nil)
+var _ common.InternalIterator = (*DataIterator)(nil)

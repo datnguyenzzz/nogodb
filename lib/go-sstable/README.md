@@ -154,4 +154,19 @@ top-level index block is the encoded block handle of the lower-level blocks,
 ...
 [index block - 1st level]
 [index block - 2nd level]
+
+
+1st level index:
++-----------+---------------------------+
+|    key    |           value           |
++-----------+---------------------------+
+| index_key | data block handle encoded |
++-----------+---------------------------+
+
+2nd level index:
++-----------+--------------------------------------+
+|    key    |                value                 |
++-----------+--------------------------------------+
+| index_key | 1st-level index block handle encoded |
++-----------+--------------------------------------+
 ```

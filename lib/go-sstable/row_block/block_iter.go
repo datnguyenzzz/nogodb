@@ -8,12 +8,19 @@ import (
 	"go.uber.org/zap"
 )
 
+type IBlockIterator interface {
+	common.InternalIterator
+	// IsLT verify whether the key of the current point is < a search key
+	IsLT(key []byte) bool
+	IsClosed() bool
+}
+
 // BlockIterator is an iterator over a single row-based block.
 // BlockIterator will still return even if the record has tombstone mark
 type BlockIterator struct {
 	bpool *predictable_size.PredictablePool
 	// data represents entire data of the block
-	data []byte
+	data *common.InternalLazyValue
 	// key represents key of the current entry
 	key []byte
 	// value represents value of the current entry
@@ -34,6 +41,10 @@ type BlockIterator struct {
 	//  We can cache those blocks to skip re-computation.
 }
 
+func (i *BlockIterator) IsLT(key []byte) bool {
+	return i.cmp.Compare(i.key, key) < 0
+}
+
 func (i *BlockIterator) SeekPrefixGE(prefix, key []byte) *common.InternalIterator {
 	//TODO implement me
 	panic("Block Iterator doesn't support SeekPrefixGE, this kind of function should be handled in the higher level iteration")
@@ -47,14 +58,14 @@ func (i *BlockIterator) SeekGTE(key []byte) *common.InternalKV {
 
 		// decode the first key at the restart point
 		blkOffset := i.restartPoints[mid]
-		_, e := binary.Uvarint(i.data[blkOffset:])
+		_, e := binary.Uvarint(i.data.Value()[blkOffset:])
 		blkOffset += int32(e)
-		unsharedLen, e := binary.Uvarint(i.data[blkOffset:])
+		unsharedLen, e := binary.Uvarint(i.data.Value()[blkOffset:])
 		blkOffset += int32(e)
-		_, e = binary.Uvarint(i.data[blkOffset:])
+		_, e = binary.Uvarint(i.data.Value()[blkOffset:])
 		blkOffset += int32(e)
 
-		k := i.data[blkOffset : uint64(blkOffset)+unsharedLen]
+		k := i.data.Value()[blkOffset : uint64(blkOffset)+unsharedLen]
 		if i.cmp.Compare(k, key) <= 0 {
 			pos = mid
 			lo = mid + 1
@@ -84,14 +95,14 @@ func (i *BlockIterator) SeekLT(key []byte) *common.InternalKV {
 
 		// decode the first key at the restart point
 		blkOffset := i.restartPoints[mid]
-		_, e := binary.Uvarint(i.data[blkOffset:])
+		_, e := binary.Uvarint(i.data.Value()[blkOffset:])
 		blkOffset += int32(e)
-		unsharedLen, e := binary.Uvarint(i.data[blkOffset:])
+		unsharedLen, e := binary.Uvarint(i.data.Value()[blkOffset:])
 		blkOffset += int32(e)
-		_, e = binary.Uvarint(i.data[blkOffset:])
+		_, e = binary.Uvarint(i.data.Value()[blkOffset:])
 		blkOffset += int32(e)
 
-		k := i.data[blkOffset : uint64(blkOffset)+unsharedLen]
+		k := i.data.Value()[blkOffset : uint64(blkOffset)+unsharedLen]
 		if i.cmp.Compare(k, key) >= 0 {
 			pos = mid
 			hi = mid - 1
@@ -187,10 +198,19 @@ func (i *BlockIterator) Prev() *common.InternalKV {
 }
 
 func (i *BlockIterator) Close() error {
-	i.key = i.key[:0]
-	i.value = i.value[:0]
-	i.bpool.Put(i.data)
+	i.data.Release()
+	i.data = nil
+	i.key = nil
+	i.value = nil
+	i.offset = 0
+	i.nextOffset = 0
+	i.numRestarts = 0
+	i.restartPoints = nil
 	return nil
+}
+
+func (i *BlockIterator) IsClosed() bool {
+	return i.data == nil
 }
 
 func (i *BlockIterator) toKV() *common.InternalKV {
@@ -216,21 +236,21 @@ func (i *BlockIterator) atTheFirst() bool {
 // readEntry read key, value and nextOffset of the current entry where the iterator points at
 func (i *BlockIterator) readEntry() {
 	blkOffset := i.offset
-	sharedLen, e := binary.Uvarint(i.data[blkOffset:])
+	sharedLen, e := binary.Uvarint(i.data.Value()[blkOffset:])
 	blkOffset += uint64(e)
-	unsharedLen, e := binary.Uvarint(i.data[blkOffset:])
+	unsharedLen, e := binary.Uvarint(i.data.Value()[blkOffset:])
 	blkOffset += uint64(e)
-	valueLen, e := binary.Uvarint(i.data[blkOffset:])
+	valueLen, e := binary.Uvarint(i.data.Value()[blkOffset:])
 	blkOffset += uint64(e)
 	if len(i.key) == 0 {
 		// the very first of the block
-		i.key = i.data[blkOffset : blkOffset+unsharedLen]
+		i.key = i.data.Value()[blkOffset : blkOffset+unsharedLen]
 	} else {
-		i.key = append(i.key[:sharedLen], i.data[blkOffset:blkOffset+unsharedLen]...)
+		i.key = append(i.key[:sharedLen], i.data.Value()[blkOffset:blkOffset+unsharedLen]...)
 	}
 	i.key = i.key[:len(i.key):len(i.key)]
 	blkOffset += unsharedLen
-	i.value = i.data[blkOffset : blkOffset+valueLen]
+	i.value = i.data.Value()[blkOffset : blkOffset+valueLen]
 	i.value = i.value[:len(i.value):len(i.value)]
 	blkOffset += valueLen
 	i.nextOffset = blkOffset
@@ -239,9 +259,10 @@ func (i *BlockIterator) readEntry() {
 func NewBlockIterator(
 	bpool *predictable_size.PredictablePool,
 	cmp common.IComparer,
-	block []byte,
+	data *common.InternalLazyValue,
 ) *BlockIterator {
 	// refer to the README to understand the data layout
+	block := data.Value()
 	numRestarts := int32(binary.LittleEndian.Uint32(block[len(block)-4:]))
 	trailerOffset := uint64(len(block)) - uint64(4*numRestarts) - 4
 	restartPoints := make([]int32, numRestarts)
@@ -252,7 +273,7 @@ func NewBlockIterator(
 	i := &BlockIterator{
 		bpool:         bpool,
 		cmp:           cmp,
-		data:          block,
+		data:          data,
 		numRestarts:   numRestarts,
 		trailerOffset: trailerOffset,
 		restartPoints: restartPoints,
@@ -261,4 +282,4 @@ func NewBlockIterator(
 	return i
 }
 
-var _ common.InternalIterator = (*BlockIterator)(nil)
+var _ IBlockIterator = (*BlockIterator)(nil)

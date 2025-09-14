@@ -18,6 +18,9 @@ import (
 // initializes an iterator over the 1st-level index, by which subsequently
 // iterate over the datablock within the requested boundary [lower_bound, upper_bound]
 type DataIterator struct {
+	lower, upper []byte
+	cmp          common.IComparer
+
 	bpool *predictable_size.PredictablePool
 	// filterBH
 	filterBH *block_common.BlockHandle
@@ -25,13 +28,8 @@ type DataIterator struct {
 
 	// secondLevelIndexIter iterator through the 2nd level index block
 	secondLevelIndexBH   *block_common.BlockHandle
-	secondLevelIndexIter common.InternalIterator
+	secondLevelIndexIter row_block.IBlockIterator
 	blockReader          row_block.IBlockReader
-}
-
-func (i *DataIterator) SeekPrefixGE(prefix, key []byte) *common.InternalIterator {
-	//TODO implement me
-	panic("implement me")
 }
 
 var dataBlockIteratorPool = sync.Pool{
@@ -42,12 +40,23 @@ var dataBlockIteratorPool = sync.Pool{
 	},
 }
 
+func (i *DataIterator) SeekPrefixGE(prefix, key []byte) *common.InternalIterator {
+	//TODO implement me
+	panic("implement me")
+}
+
 func (i *DataIterator) SeekGTE(key []byte) *common.InternalKV {
 	// 1. Seek GTE of the 2nd level index to get index key ≥ search key
-	// 2. Load index key and 1st-level index block handle
+	// 2. Seek GTE of the 1st level index to get index key ≥ search key
 	// 3. Read data block from the given 1st-level index block
 	// 4. seek data block to get key ≥ search key
-	//TODO implement me
+	// Important notes:
+	//  - Ensure the data (lazyValue) is released properly once the block is no longer used
+
+	if i.cmp.Compare(key, i.lower) < 0 {
+		key = i.lower
+	}
+
 	panic("implement me")
 }
 
@@ -91,7 +100,7 @@ func (i *DataIterator) readMetaIndexBlock(footer *row_block.Footer) error {
 		zap.L().Error("failed to read metaIndexBlock", zap.Error(err))
 		return err
 	}
-	blkIter := row_block.NewBlockIterator(i.bpool, common.NewComparer(), metaIndexBuf.Value())
+	blkIter := row_block.NewBlockIterator(i.bpool, common.NewComparer(), metaIndexBuf)
 	for iter := blkIter.First(); iter != nil; iter = blkIter.Next() {
 		val := iter.V.Value()
 		bh := &block_common.BlockHandle{}
@@ -119,7 +128,7 @@ func (i *DataIterator) init2ndLevelIndexBlockIterator() error {
 		zap.L().Error("failed to read secondLevelIndexBlock", zap.Error(err))
 		return err
 	}
-	i.secondLevelIndexIter = row_block.NewBlockIterator(i.bpool, common.NewComparer(), secondLevelIndexBuf.Value())
+	i.secondLevelIndexIter = row_block.NewBlockIterator(i.bpool, i.cmp, secondLevelIndexBuf)
 	return nil
 }
 
@@ -133,7 +142,7 @@ func (i *DataIterator) readFilter() error {
 	return nil
 }
 
-func NewIterator(fr go_fs.Readable, opts *options.IteratorOpts) (*DataIterator, error) {
+func NewIterator(fr go_fs.Readable, cmp common.IComparer, opts *options.IteratorOpts) (*DataIterator, error) {
 	iter := dataBlockIteratorPool.Get().(*DataIterator)
 	var err error
 	var footer *row_block.Footer
@@ -145,6 +154,9 @@ func NewIterator(fr go_fs.Readable, opts *options.IteratorOpts) (*DataIterator, 
 		}
 	}()
 
+	iter.lower = opts.Lower
+	iter.upper = opts.Upper
+	iter.cmp = cmp
 	layoutReader = storage.NewLayoutReader(fr)
 	fullSize := fr.Size()
 	footer, err = row_block.ReadFooter(layoutReader, fullSize)

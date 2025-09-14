@@ -170,3 +170,46 @@ top-level index block is the encoded block handle of the lower-level blocks,
 | index_key | 1st-level index block handle encoded |
 +-----------+--------------------------------------+
 ```
+
+```
+Illustration of the layout 
+
+Data Block Section
++---------+---------+---------+---------+---------+---------+---------+
+| entry 1 | entry 2 |   ...   |   ...   |   ...   | entry N | trailer |
++---------+---------+---------+---------+---------+---------+---------+
+                   /                   /                 
+  +---------------+   +---------------+
+  |   1st-level   |   |   1st-level   |
+  |  index key 1  |   |  index key 2  |
+  +---------------+   +---------------+
+  | Current block |   | Current block |
+  |    handle     |   |    handle     |   
+  +---------------+   +---------------+
+  
+1st level Index Section
++-----------------+-----------------+--------+-----------------+
+| 1st-level index | 1st-level index |   ...  | 1st-level index |
+|     entry 1     |     entry 2     |        |     entry K     |
++-----------------+-----------------+--------+-----------------+
+                                   /
+                  +---------------+
+                  |   2nd-level   |  
+                  |  index key 1  | 
+                  +---------------+
+                  | Current block |
+                  |    handle     |
+                  +---------------+
+
+2nd level Index Section
++-----------------+-----------------+--------+-----------------+
+| 2nd-level index | 2nd-level index |   ...  | 2nd-level index |
+|     entry 1     |     entry 2     |        |     entry K     |
++-----------------+-----------------+--------+-----------------+
+ \
+   +----------+
+   |  Footer  |
+   +----------+
+   |  Offset  |
+   +----------+
+```

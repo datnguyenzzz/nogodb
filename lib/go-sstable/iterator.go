@@ -2,6 +2,7 @@ package go_sstable
 
 import (
 	go_fs "github.com/datnguyenzzz/nogodb/lib/go-fs"
+	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/iterators"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/options"
 )
@@ -10,5 +11,5 @@ import (
 
 // NewSingularIterator returns an iterator for the singular keys in the SSTable
 func NewSingularIterator(r go_fs.Readable, opts *options.IteratorOpts) (IIterator, error) {
-	return iterators.NewIterator(r, opts)
+	return iterators.NewIterator(r, common.NewComparer(), opts)
 }

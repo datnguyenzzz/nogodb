@@ -171,7 +171,10 @@ func TestDataBlockIterator_readEntry(t *testing.T) {
 			cmp := common.NewComparer()
 
 			for _, entry := range tc.testEntries {
-				iter := NewBlockIterator(predictable_size.NewPredictablePool(), cmp, blockData)
+				lz := common.NewBlankInternalLazyValue(common.ValueFromBuffer)
+				lz.ReserveBuffer(bp, len(blockData))
+				_ = lz.SetBufferValue(blockData)
+				iter := NewBlockIterator(predictable_size.NewPredictablePool(), cmp, &lz)
 				iter.offset = entry.offset
 
 				iter.readEntry()
@@ -316,7 +319,10 @@ func TestDataBlockIterator_First(t *testing.T) {
 
 			// 2. Create iterator and test First()
 			cmp := common.NewComparer()
-			iter := NewBlockIterator(predictable_size.NewPredictablePool(), cmp, blockData)
+			lz := common.NewBlankInternalLazyValue(common.ValueFromBuffer)
+			lz.ReserveBuffer(bp, len(blockData))
+			_ = lz.SetBufferValue(blockData)
+			iter := NewBlockIterator(predictable_size.NewPredictablePool(), cmp, &lz)
 
 			firstKV := iter.First()
 
@@ -495,7 +501,10 @@ func TestBlockIterator_Next(t *testing.T) {
 
 			// 2. Create iterator and test sequential Next() calls
 			cmp := common.NewComparer()
-			iter := NewBlockIterator(predictable_size.NewPredictablePool(), cmp, blockData)
+			lz := common.NewBlankInternalLazyValue(common.ValueFromBuffer)
+			lz.ReserveBuffer(bp, len(blockData))
+			_ = lz.SetBufferValue(blockData)
+			iter := NewBlockIterator(predictable_size.NewPredictablePool(), cmp, &lz)
 
 			firstKV := iter.First()
 			assert.NotNil(t, firstKV, "First() should return non-nil InternalKV")
@@ -687,7 +696,10 @@ func TestDataBlockIterator_Last(t *testing.T) {
 
 			// 2. Create iterator and test Last()
 			cmp := common.NewComparer()
-			iter := NewBlockIterator(predictable_size.NewPredictablePool(), cmp, blockData)
+			lz := common.NewBlankInternalLazyValue(common.ValueFromBuffer)
+			lz.ReserveBuffer(bp, len(blockData))
+			_ = lz.SetBufferValue(blockData)
+			iter := NewBlockIterator(predictable_size.NewPredictablePool(), cmp, &lz)
 
 			lastKV := iter.Last()
 
@@ -870,7 +882,10 @@ func TestDataBlockIterator_Prev(t *testing.T) {
 
 			// 2. Create iterator and position it correctly
 			cmp := common.NewComparer()
-			iter := NewBlockIterator(predictable_size.NewPredictablePool(), cmp, blockData)
+			lz := common.NewBlankInternalLazyValue(common.ValueFromBuffer)
+			lz.ReserveBuffer(bp, len(blockData))
+			_ = lz.SetBufferValue(blockData)
+			iter := NewBlockIterator(predictable_size.NewPredictablePool(), cmp, &lz)
 
 			// Position iterator based on test case
 			iter.First()
@@ -1119,7 +1134,10 @@ func TestDataBlockIterator_SeekGTE(t *testing.T) {
 
 			// 2. Create iterator and test SeekGTE
 			cmp := common.NewComparer()
-			iter := NewBlockIterator(predictable_size.NewPredictablePool(), cmp, blockData)
+			lz := common.NewBlankInternalLazyValue(common.ValueFromBuffer)
+			lz.ReserveBuffer(bp, len(blockData))
+			_ = lz.SetBufferValue(blockData)
+			iter := NewBlockIterator(predictable_size.NewPredictablePool(), cmp, &lz)
 
 			seekKV := iter.SeekGTE([]byte(tc.seekKey))
 
@@ -1156,6 +1174,236 @@ func TestDataBlockIterator_SeekGTE(t *testing.T) {
 					assert.Less(t, prevKeyCmp, 0, "all keys before found key should be < seek key, but key %s at index %d is not < %s", tc.inputUserKeys[i], i, tc.seekKey)
 				}
 			}
+		})
+	}
+}
+
+func TestBlockIterator_Close(t *testing.T) {
+	type testCase struct {
+		desc            string
+		inputUserKeys   []string
+		inputValues     []string
+		restartInterval int
+		setupOperation  string // "none", "first", "last", "next", "seekgte", "multiple"
+	}
+
+	tests := []testCase{
+		{
+			desc: "#1 - Close after initialization only",
+			inputUserKeys: []string{
+				"apple", "banana", "cherry",
+			},
+			inputValues: []string{
+				"red", "yellow", "red",
+			},
+			restartInterval: 2,
+			setupOperation:  "none",
+		},
+		{
+			desc: "#2 - Close after First()",
+			inputUserKeys: []string{
+				"apple", "banana", "cherry", "date",
+			},
+			inputValues: []string{
+				"red", "yellow", "red", "brown",
+			},
+			restartInterval: 2,
+			setupOperation:  "first",
+		},
+		{
+			desc: "#3 - Close after Last()",
+			inputUserKeys: []string{
+				"alpha", "beta", "gamma", "delta", "epsilon",
+			},
+			inputValues: []string{
+				"1", "2", "3", "4", "5",
+			},
+			restartInterval: 3,
+			setupOperation:  "last",
+		},
+		{
+			desc: "#4 - Close after Next() operations",
+			inputUserKeys: []string{
+				"key1", "key2", "key3", "key4", "key5", "key6",
+			},
+			inputValues: []string{
+				"val1", "val2", "val3", "val4", "val5", "val6",
+			},
+			restartInterval: 2,
+			setupOperation:  "next",
+		},
+		{
+			desc: "#5 - Close after SeekGTE()",
+			inputUserKeys: []string{
+				"apple", "apricot", "banana", "cherry", "grape", "mango",
+			},
+			inputValues: []string{
+				"red", "orange", "yellow", "red", "purple", "yellow",
+			},
+			restartInterval: 2,
+			setupOperation:  "seekgte",
+		},
+		{
+			desc: "#6 - Close after multiple operations",
+			inputUserKeys: []string{
+				"a", "b", "c", "d", "e", "f", "g", "h", "i", "j",
+			},
+			inputValues: []string{
+				"1", "2", "3", "4", "5", "6", "7", "8", "9", "10",
+			},
+			restartInterval: 3,
+			setupOperation:  "multiple",
+		},
+		{
+			desc: "#7 - Close with single entry block",
+			inputUserKeys: []string{
+				"single",
+			},
+			inputValues: []string{
+				"value",
+			},
+			restartInterval: 1,
+			setupOperation:  "first",
+		},
+		{
+			desc: "#8 - Close with large restart interval",
+			inputUserKeys: []string{
+				"key1", "key2", "key3", "key4", "key5",
+			},
+			inputValues: []string{
+				"value1", "value2", "value3", "value4", "value5",
+			},
+			restartInterval: 5, // All entries in one restart segment
+			setupOperation:  "multiple",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.desc, func(t *testing.T) {
+			// 1. Create block data
+			bp := predictable_size.NewPredictablePool()
+			blk := newBlock(tc.restartInterval, bp)
+
+			for i, userKey := range tc.inputUserKeys {
+				key := makeDummyKey(userKey)
+				value := []byte(tc.inputValues[i])
+				err := blk.WriteEntry(key, value)
+				assert.NoError(t, err, "should not have error writing entry")
+			}
+
+			blockData := make([]byte, blk.EstimateSize())
+			blk.Finish(blockData)
+
+			// 2. Create iterator
+			cmp := common.NewComparer()
+			lz := common.NewBlankInternalLazyValue(common.ValueFromBuffer)
+			lz.ReserveBuffer(bp, len(blockData))
+			_ = lz.SetBufferValue(blockData)
+			iter := NewBlockIterator(predictable_size.NewPredictablePool(), cmp, &lz)
+
+			// Capture initial state to verify it gets reset
+			assert.NotNil(t, iter.data, "data should not be nil before Close()")
+			assert.False(t, iter.IsClosed(), "iterator should not be closed initially")
+
+			// 3. Perform setup operations based on test case
+			switch tc.setupOperation {
+			case "first":
+				kv := iter.First()
+				assert.NotNil(t, kv, "First() should return non-nil")
+				assert.NotNil(t, iter.key, "key should be set after First()")
+				assert.NotNil(t, iter.value, "value should be set after First()")
+				assert.Greater(t, iter.nextOffset, uint64(0), "nextOffset should be > 0 after First()")
+
+			case "last":
+				kv := iter.Last()
+				assert.NotNil(t, kv, "Last() should return non-nil")
+				assert.NotNil(t, iter.key, "key should be set after Last()")
+				assert.NotNil(t, iter.value, "value should be set after Last()")
+				assert.Equal(t, iter.trailerOffset, iter.nextOffset, "nextOffset should equal trailerOffset after Last()")
+
+			case "next":
+				iter.First()
+				for i := 0; i < 2 && iter.nextOffset < iter.trailerOffset; i++ {
+					kv := iter.Next()
+					assert.NotNil(t, kv, "Next() should return non-nil")
+				}
+				assert.NotNil(t, iter.key, "key should be set after Next() operations")
+				assert.NotNil(t, iter.value, "value should be set after Next() operations")
+
+			case "seekgte":
+				seekKey := tc.inputUserKeys[len(tc.inputUserKeys)/2] // Seek to middle key
+				kv := iter.SeekGTE([]byte(seekKey))
+				assert.NotNil(t, kv, "SeekGTE() should return non-nil")
+				assert.NotNil(t, iter.key, "key should be set after SeekGTE()")
+				assert.NotNil(t, iter.value, "value should be set after SeekGTE()")
+
+			case "multiple":
+				// Perform a series of operations
+				iter.First()
+				iter.Next()
+				iter.Last()
+				seekKey := tc.inputUserKeys[0]
+				iter.SeekGTE([]byte(seekKey))
+				assert.NotNil(t, iter.key, "key should be set after multiple operations")
+				assert.NotNil(t, iter.value, "value should be set after multiple operations")
+
+			case "none":
+				// No operations, just verify initial state
+				// Iterator should still be in initial state
+			}
+
+			// Store references to verify cleanup (before they get set to nil)
+			originalData := iter.data
+			hadKey := len(iter.key) > 0
+			hadValue := len(iter.value) > 0
+			originalOffset := iter.offset
+			originalNextOffset := iter.nextOffset
+			originalNumRestarts := iter.numRestarts
+			hadRestartPoints := len(iter.restartPoints) > 0
+
+			// 4. Call Close() and verify return value
+			err := iter.Close()
+			assert.NoError(t, err, "Close() should not return an error")
+
+			// 5. Verify all fields are properly reset
+			assert.Nil(t, iter.data, "data should be nil after Close()")
+			assert.Nil(t, iter.key, "key should be nil after Close()")
+			assert.Nil(t, iter.value, "value should be nil after Close()")
+			assert.Equal(t, uint64(0), iter.offset, "offset should be 0 after Close()")
+			assert.Equal(t, uint64(0), iter.nextOffset, "nextOffset should be 0 after Close()")
+			assert.Equal(t, int32(0), iter.numRestarts, "numRestarts should be 0 after Close()")
+			assert.Nil(t, iter.restartPoints, "restartPoints should be nil after Close()")
+
+			// 6. Verify IsClosed() returns true
+			assert.True(t, iter.IsClosed(), "IsClosed() should return true after Close()")
+
+			// 7. Verify that the fields were actually set before Close() (for non-"none" cases)
+			if tc.setupOperation != "none" {
+				assert.NotNil(t, originalData, "original data should not have been nil")
+				if tc.setupOperation != "none" {
+					// For operations that set key/value, verify they were set
+					switch tc.setupOperation {
+					case "first", "last", "next", "seekgte", "multiple":
+						assert.True(t, hadKey, "key should have been set before Close() for operation: %s", tc.setupOperation)
+						assert.True(t, hadValue, "value should have been set before Close() for operation: %s", tc.setupOperation)
+					}
+				}
+			}
+
+			// Store original values for verification
+			_ = originalOffset
+			_ = originalNextOffset
+			_ = originalNumRestarts
+			_ = hadRestartPoints
+
+			// 8. Verify all fields remain nil/zero after second Close()
+			assert.Nil(t, iter.data, "data should remain nil after second Close()")
+			assert.Nil(t, iter.key, "key should remain nil after second Close()")
+			assert.Nil(t, iter.value, "value should remain nil after second Close()")
+			assert.Equal(t, uint64(0), iter.offset, "offset should remain 0 after second Close()")
+			assert.Equal(t, uint64(0), iter.nextOffset, "nextOffset should remain 0 after second Close()")
+			assert.Equal(t, int32(0), iter.numRestarts, "numRestarts should remain 0 after second Close()")
+			assert.Nil(t, iter.restartPoints, "restartPoints should remain nil after second Close()")
 		})
 	}
 }
@@ -1423,7 +1671,10 @@ func TestDataBlockIterator_SeekLT(t *testing.T) {
 
 			// 2. Create iterator and test SeekLT
 			cmp := common.NewComparer()
-			iter := NewBlockIterator(predictable_size.NewPredictablePool(), cmp, blockData)
+			lz := common.NewBlankInternalLazyValue(common.ValueFromBuffer)
+			lz.ReserveBuffer(bp, len(blockData))
+			_ = lz.SetBufferValue(blockData)
+			iter := NewBlockIterator(predictable_size.NewPredictablePool(), cmp, &lz)
 
 			seekKV := iter.SeekLT([]byte(tc.seekKey))
 

@@ -44,7 +44,7 @@ var dataBlockIteratorPool = sync.Pool{
 	},
 }
 
-func (i *DataIterator) SeekPrefixGE(prefix, key []byte) *common.InternalIterator {
+func (i *DataIterator) SeekPrefixGTE(prefix, key []byte) *common.InternalIterator {
 	//TODO implement me
 	panic("implement me")
 }

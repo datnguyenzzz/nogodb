@@ -45,7 +45,7 @@ func (i *BlockIterator) IsLT(key []byte) bool {
 	return i.cmp.Compare(i.key, key) < 0
 }
 
-func (i *BlockIterator) SeekPrefixGE(prefix, key []byte) *common.InternalIterator {
+func (i *BlockIterator) SeekPrefixGTE(prefix, key []byte) *common.InternalIterator {
 	//TODO implement me
 	panic("Block Iterator doesn't support SeekPrefixGE, this kind of function should be handled in the higher level iteration")
 }

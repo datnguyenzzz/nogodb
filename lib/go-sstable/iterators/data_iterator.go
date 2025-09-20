@@ -19,9 +19,8 @@ import (
 // initializes an iterator over the 1st-level index, by which subsequently
 // iterate over the datablock within the requested boundary [lower_bound, upper_bound]
 type DataIterator struct {
-	lower, upper []byte
-	cmp          common.IComparer
-	blockReader  row_block.IBlockReader
+	cmp         common.IComparer
+	blockReader row_block.IBlockReader
 
 	bpool *predictable_size.PredictablePool
 	// filter
@@ -57,10 +56,6 @@ func (i *DataIterator) SeekGTE(key []byte) *common.InternalKV {
 	// 4. seek data block to get key ≥ search key
 	// Important notes:
 	//  - Ensure the data (lazyValue) is released properly once the block is no longer used
-
-	if i.cmp.Compare(key, i.lower) < 0 {
-		key = i.lower
-	}
 
 	panic("implement me")
 }
@@ -191,8 +186,6 @@ func NewIterator(fr go_fs.Readable, cmp common.IComparer, opts *options.Iterator
 		}
 	}()
 
-	iter.lower = opts.Lower
-	iter.upper = opts.Upper
 	iter.cmp = cmp
 	layoutReader = storage.NewLayoutReader(fr)
 	fullSize := fr.Size()

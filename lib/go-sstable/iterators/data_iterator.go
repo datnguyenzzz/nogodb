@@ -1,6 +1,7 @@
 package iterators
 
 import (
+	"errors"
 	"fmt"
 	"sync"
 
@@ -20,16 +21,20 @@ import (
 type DataIterator struct {
 	lower, upper []byte
 	cmp          common.IComparer
+	blockReader  row_block.IBlockReader
 
 	bpool *predictable_size.PredictablePool
-	// filterBH
+	// filter
 	filterBH *block_common.BlockHandle
 	filter   *common.InternalLazyValue
 
-	// secondLevelIndexIter iterator through the 2nd level index block
-	secondLevelIndexBH   *block_common.BlockHandle
+	// block handlers
+	secondLevelIndexBH *block_common.BlockHandle
+
+	// Iterators
 	secondLevelIndexIter row_block.IBlockIterator
-	blockReader          row_block.IBlockReader
+	firstLevelIndexIter  row_block.IBlockIterator
+	dataBlockIter        row_block.IBlockIterator
 }
 
 var dataBlockIteratorPool = sync.Pool{
@@ -46,8 +51,8 @@ func (i *DataIterator) SeekPrefixGE(prefix, key []byte) *common.InternalIterator
 }
 
 func (i *DataIterator) SeekGTE(key []byte) *common.InternalKV {
-	// 1. Seek GTE of the 2nd level index to get index key ≥ search key
-	// 2. Seek GTE of the 1st level index to get index key ≥ search key
+	// 1. Seek LTE of the 2nd level index to get index key ≤ search key
+	// 2. Seek LTE of the 1st level index to get index key ≤ search key
 	// 3. Read data block from the given 1st-level index block
 	// 4. seek data block to get key ≥ search key
 	// Important notes:
@@ -60,7 +65,7 @@ func (i *DataIterator) SeekGTE(key []byte) *common.InternalKV {
 	panic("implement me")
 }
 
-func (i *DataIterator) SeekLT(key []byte) *common.InternalKV {
+func (i *DataIterator) SeekLTE(key []byte) *common.InternalKV {
 	//TODO implement me
 	panic("implement me")
 }
@@ -86,7 +91,12 @@ func (i *DataIterator) Prev() *common.InternalKV {
 }
 
 func (i *DataIterator) Close() error {
-	err := i.secondLevelIndexIter.Close()
+	var err error
+	err = errors.Join(
+		i.secondLevelIndexIter.Close(),
+		i.firstLevelIndexIter.Close(),
+		i.dataBlockIter.Close(),
+	)
 	i.blockReader.Release()
 	dataBlockIteratorPool.Put(i)
 	return err
@@ -118,6 +128,33 @@ func (i *DataIterator) readMetaIndexBlock(footer *row_block.Footer) error {
 		}
 	}
 
+	return nil
+}
+
+// init1stLevelIndexBlockIterator init a 1st-level index iterator from the given 2nd-level index
+// The newly created 1st-level index iterator is unpositioned, and also closed the dataBlockIter
+func (i *DataIterator) init1stLevelIndexBlockIterator(secondLvlIndex *common.InternalKV) error {
+	// Close the current iterators to move the new sections
+	if err := errors.Join(
+		i.firstLevelIndexIter.Close(),
+		i.dataBlockIter.Close(),
+	); err != nil {
+		return err
+	}
+
+	firstLevelBh := &block_common.BlockHandle{}
+	n := firstLevelBh.DecodeFrom(secondLvlIndex.V.Value())
+	if n != len(secondLvlIndex.V.Value()) {
+		return fmt.Errorf("failed to decode the 1st level index block")
+	}
+
+	firstLevelIndex, err := i.blockReader.Read(firstLevelBh, block_common.BlockKindIndex)
+	if err != nil {
+		zap.L().Error("failed to read 1st level index block", zap.Error(err))
+		return err
+	}
+
+	i.firstLevelIndexIter = row_block.NewBlockIterator(i.bpool, common.NewComparer(), firstLevelIndex)
 	return nil
 }
 

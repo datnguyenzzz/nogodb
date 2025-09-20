@@ -1078,14 +1078,14 @@ func TestDataBlockIterator_SeekGTE(t *testing.T) {
 		{
 			desc: "#13 - Restart interval 1 (all entries are restart points)",
 			inputUserKeys: []string{
-				"alpha", "beta", "gamma", "delta", "epsilon",
+				"alpha", "beta", "delta", "epsilon", "gamma",
 			},
 			inputValues: []string{
 				"1", "2", "3", "4", "5",
 			},
 			restartInterval:    1,
-			seekKey:            "gamma",
-			expectedFoundKey:   "gamma",
+			seekKey:            "delta",
+			expectedFoundKey:   "delta",
 			expectedFoundValue: "3",
 		},
 		{
@@ -1139,7 +1139,10 @@ func TestDataBlockIterator_SeekGTE(t *testing.T) {
 			_ = lz.SetBufferValue(blockData)
 			iter := NewBlockIterator(predictable_size.NewPredictablePool(), cmp, &lz)
 
-			seekKV := iter.SeekGTE([]byte(tc.seekKey))
+			seekKey := makeDummyKey(tc.seekKey)
+			buf := make([]byte, seekKey.Size())
+			seekKey.SerializeTo(buf)
+			seekKV := iter.SeekGTE(buf)
 
 			// 3. Verify results
 			if tc.isNotFound {
@@ -1408,7 +1411,7 @@ func TestBlockIterator_Close(t *testing.T) {
 	}
 }
 
-func TestDataBlockIterator_SeekLT(t *testing.T) {
+func TestDataBlockIterator_SeekLTE(t *testing.T) {
 	type testCase struct {
 		desc               string
 		inputUserKeys      []string
@@ -1447,7 +1450,7 @@ func TestDataBlockIterator_SeekLT(t *testing.T) {
 			expectedFoundValue: "yellow",
 		},
 		{
-			desc: "#3 - Seek exact match (should return previous key)",
+			desc: "#3 - Seek exact match",
 			inputUserKeys: []string{
 				"apple", "apricot", "avocado", "cherry", "mango",
 			},
@@ -1456,8 +1459,8 @@ func TestDataBlockIterator_SeekLT(t *testing.T) {
 			},
 			restartInterval:    2,
 			seekKey:            "cherry",
-			expectedFoundKey:   "avocado",
-			expectedFoundValue: "green",
+			expectedFoundKey:   "cherry",
+			expectedFoundValue: "red",
 		},
 		{
 			desc: "#4 - Seek between keys (should find largest key < target)",
@@ -1473,16 +1476,17 @@ func TestDataBlockIterator_SeekLT(t *testing.T) {
 			expectedFoundValue: "green",
 		},
 		{
-			desc: "#5 - Seek exact match at first key (should return nil)",
+			desc: "#5 - Seek exact match at first key",
 			inputUserKeys: []string{
 				"apple", "apricot", "avocado", "cherry", "mango",
 			},
 			inputValues: []string{
 				"red", "orange", "green", "red", "yellow",
 			},
-			restartInterval: 2,
-			seekKey:         "apple",
-			isNotFound:      true,
+			restartInterval:    2,
+			seekKey:            "apple",
+			expectedFoundKey:   "apple",
+			expectedFoundValue: "red",
 		},
 		{
 			desc: "#6 - Seek exact match at last key",
@@ -1494,8 +1498,8 @@ func TestDataBlockIterator_SeekLT(t *testing.T) {
 			},
 			restartInterval:    2,
 			seekKey:            "mango",
-			expectedFoundKey:   "cherry",
-			expectedFoundValue: "red",
+			expectedFoundKey:   "mango",
+			expectedFoundValue: "yellow",
 		},
 		{
 			desc: "#7 - Seek at restart point",
@@ -1507,8 +1511,8 @@ func TestDataBlockIterator_SeekLT(t *testing.T) {
 			},
 			restartInterval:    3, // restart points at 0, 3 (cherry)
 			seekKey:            "cherry",
-			expectedFoundKey:   "avocado",
-			expectedFoundValue: "green",
+			expectedFoundKey:   "cherry",
+			expectedFoundValue: "red",
 		},
 		{
 			desc: "#8 - Single entry block, seek same key",
@@ -1518,9 +1522,10 @@ func TestDataBlockIterator_SeekLT(t *testing.T) {
 			inputValues: []string{
 				"value",
 			},
-			restartInterval: 1,
-			seekKey:         "single",
-			isNotFound:      true,
+			restartInterval:    1,
+			seekKey:            "single",
+			expectedFoundKey:   "single",
+			expectedFoundValue: "value",
 		},
 		{
 			desc: "#9 - Single entry block, seek smaller",
@@ -1557,8 +1562,8 @@ func TestDataBlockIterator_SeekLT(t *testing.T) {
 			},
 			restartInterval:    2,
 			seekKey:            "prefix_key_003",
-			expectedFoundKey:   "prefix_key_002",
-			expectedFoundValue: "value2",
+			expectedFoundKey:   "prefix_key_003",
+			expectedFoundValue: "value3",
 		},
 		{
 			desc: "#12 - Seek between prefixed keys",
@@ -1583,8 +1588,8 @@ func TestDataBlockIterator_SeekLT(t *testing.T) {
 			},
 			restartInterval:    1,
 			seekKey:            "delta",
-			expectedFoundKey:   "beta",
-			expectedFoundValue: "2",
+			expectedFoundKey:   "delta",
+			expectedFoundValue: "3",
 		},
 		{
 			desc: "#14 - Large restart interval",
@@ -1596,8 +1601,8 @@ func TestDataBlockIterator_SeekLT(t *testing.T) {
 			},
 			restartInterval:    8, // single restart point
 			seekKey:            "e",
-			expectedFoundKey:   "d",
-			expectedFoundValue: "4",
+			expectedFoundKey:   "e",
+			expectedFoundValue: "5",
 		},
 		{
 			desc: "#15 - Seek between restart points",
@@ -1622,8 +1627,8 @@ func TestDataBlockIterator_SeekLT(t *testing.T) {
 			},
 			restartInterval:    1,
 			seekKey:            "second",
-			expectedFoundKey:   "first",
-			expectedFoundValue: "value1",
+			expectedFoundKey:   "second",
+			expectedFoundValue: "value2",
 		},
 		{
 			desc: "#17 - Two entries, seek between",
@@ -1676,7 +1681,10 @@ func TestDataBlockIterator_SeekLT(t *testing.T) {
 			_ = lz.SetBufferValue(blockData)
 			iter := NewBlockIterator(predictable_size.NewPredictablePool(), cmp, &lz)
 
-			seekKV := iter.SeekLT([]byte(tc.seekKey))
+			seekKey := makeDummyKey(tc.seekKey)
+			buf := make([]byte, seekKey.Size())
+			seekKey.SerializeTo(buf)
+			seekKV := iter.SeekLTE(buf)
 
 			// 3. Verify results
 			if tc.isNotFound {
@@ -1691,9 +1699,9 @@ func TestDataBlockIterator_SeekLT(t *testing.T) {
 				assert.Equal(t, tc.expectedFoundKey, string(actualIterKey.UserKey), "iterator's internal key should match found key")
 				assert.Equal(t, tc.expectedFoundValue, string(iter.value), "iterator's internal value should match found value")
 
-				// Verify that the found key is indeed < seek key
+				// Verify that the found key is indeed <= seek key
 				cmpResult := cmp.Compare([]byte(tc.expectedFoundKey), []byte(tc.seekKey))
-				assert.Less(t, cmpResult, 0, "found key should be < seek key")
+				assert.LessOrEqual(t, cmpResult, 0, "found key should be <= seek key")
 
 				// Additional verification: ensure this is the largest key < seek key
 				// by checking that there's no larger key < seek key in our input

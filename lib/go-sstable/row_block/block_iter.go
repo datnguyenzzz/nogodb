@@ -87,7 +87,7 @@ func (i *BlockIterator) SeekGTE(key []byte) *common.InternalKV {
 	return i.toKV()
 }
 
-func (i *BlockIterator) SeekLT(key []byte) *common.InternalKV {
+func (i *BlockIterator) SeekLTE(key []byte) *common.InternalKV {
 	lo, hi := int32(0), i.numRestarts-1
 	pos := int32(-1)
 	for lo <= hi {
@@ -117,7 +117,7 @@ func (i *BlockIterator) SeekLT(key []byte) *common.InternalKV {
 		i.offset = uint64(i.restartPoints[pos])
 	}
 	i.readEntry()
-	for i.cmp.Compare(i.key, key) >= 0 {
+	for i.cmp.Compare(i.key, key) > 0 {
 		if i.atTheFirst() {
 			return nil
 		}

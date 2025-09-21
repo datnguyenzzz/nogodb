@@ -30,6 +30,10 @@ type DataIterator struct {
 	// block handlers
 	secondLevelIndexBH *block_common.BlockHandle
 
+	// indexes
+	secondLevelIndex *common.InternalKV
+	firstLevelIndex  *common.InternalKV
+
 	// Iterators
 	secondLevelIndexIter common.InternalIterator
 	firstLevelIndexIter  common.InternalIterator
@@ -49,15 +53,97 @@ func (i *DataIterator) SeekPrefixGTE(prefix, key []byte) *common.InternalIterato
 	panic("implement me")
 }
 
+// SeekGTE
+// TODO(high) - Untested
+// TODO(med) - The code looks repetitive, need to refactor this
 func (i *DataIterator) SeekGTE(key []byte) *common.InternalKV {
-	// 1. Seek LTE of the 2nd level index to get index key ≤ search key
-	// 2. Seek LTE of the 1st level index to get index key ≤ search key
-	// 3. Read data block from the given 1st-level index block
-	// 4. seek data block to get key ≥ search key
 	// Important notes:
 	//  - Ensure the data (lazyValue) is released properly once the block is no longer used
 
-	panic("implement me")
+	// 1. Seek LTE of the 2nd level index to get index key ≤ search key
+	if err := i.seekGTE2ndLevelIndex(key); err != nil {
+		return nil
+	}
+
+	firstLvlIndexBH := &block_common.BlockHandle{}
+	secondLvlIndexVal := i.secondLevelIndex.V.Value()
+	if n := firstLvlIndexBH.DecodeFrom(secondLvlIndexVal); n != len(secondLvlIndexVal) {
+		zap.L().Error("failed to fully decode the 2nd-level index")
+		return nil
+	}
+	firstLvlIndexBlock, err := i.blockReader.ReadThroughCache(firstLvlIndexBH, block_common.BlockKindIndex)
+	if err != nil {
+		zap.L().Error("failed to read the first-level index block", zap.Error(err))
+		return nil
+	}
+	i.firstLevelIndexIter = row_block.NewBlockIterator(i.bpool, i.cmp, firstLvlIndexBlock)
+
+	// 2. Seek LTE of the 1st level index to get index key ≤ search key
+	if err := i.seek1stLevelIndex(key); err != nil {
+		return nil
+	}
+	dataBlockBh := &block_common.BlockHandle{}
+	firstLvlIndexVal := i.firstLevelIndex.V.Value()
+	if n := dataBlockBh.DecodeFrom(firstLvlIndexVal); n != len(firstLvlIndexVal) {
+		zap.L().Error("failed to fully decode the first-level index")
+		return nil
+	}
+	dataBlock, err := i.blockReader.ReadThroughCache(dataBlockBh, block_common.BlockKindData)
+	if err != nil {
+		zap.L().Error("failed to read the data block", zap.Error(err))
+		return nil
+	}
+
+	i.dataBlockIter = row_block.NewBlockIterator(i.bpool, i.cmp, dataBlock)
+
+	// 3. seek data block to get key ≥ search key
+	return i.dataBlockIter.SeekGTE(key)
+}
+
+func (i *DataIterator) seekGTE2ndLevelIndex(key []byte) error {
+	newIndex := i.secondLevelIndexIter.SeekLTE(key)
+	if newIndex == nil {
+		return fmt.Errorf("failed to seek 2nd-level index")
+	}
+
+	if newIndex == i.secondLevelIndex {
+		return nil
+	}
+
+	i.secondLevelIndex = newIndex
+	if err := i.firstLevelIndexIter.Close(); err != nil {
+		zap.L().Error("failed to close the current first-level index", zap.Error(err))
+		return err
+	}
+	if err := i.dataBlockIter.Close(); err != nil {
+		zap.L().Error("failed to close the current data block", zap.Error(err))
+		return err
+	}
+
+	i.dataBlockIter = nil
+	i.firstLevelIndexIter = nil
+	i.firstLevelIndex = nil
+	return nil
+}
+
+func (i *DataIterator) seek1stLevelIndex(key []byte) error {
+	newIndex := i.firstLevelIndexIter.SeekLTE(key)
+	if newIndex == nil {
+		return fmt.Errorf("failed to seek 1st-level index")
+	}
+
+	if newIndex == i.firstLevelIndex {
+		return nil
+	}
+
+	i.firstLevelIndex = newIndex
+	if err := i.dataBlockIter.Close(); err != nil {
+		zap.L().Error("failed to close the current data block", zap.Error(err))
+		return err
+	}
+
+	i.dataBlockIter = nil
+	return nil
 }
 
 func (i *DataIterator) SeekLTE(key []byte) *common.InternalKV {
@@ -97,6 +183,8 @@ func (i *DataIterator) Close() error {
 	i.secondLevelIndexIter = nil
 	i.firstLevelIndexIter = nil
 	i.dataBlockIter = nil
+	i.secondLevelIndex = nil
+	i.firstLevelIndex = nil
 	return err
 }
 

@@ -8,13 +8,6 @@ import (
 	"go.uber.org/zap"
 )
 
-type IBlockIterator interface {
-	common.InternalIterator
-	// IsLT verify whether the key of the current point is < a search key
-	IsLT(key []byte) bool
-	IsClosed() bool
-}
-
 // BlockIterator is an iterator over a single row-based block.
 // BlockIterator will still return even if the record has tombstone mark
 type BlockIterator struct {
@@ -39,10 +32,6 @@ type BlockIterator struct {
 	//  restart points, then keep moving forward until we hit the target offset. This means
 	//  certain blocks will have been iterated through when performing those actions.
 	//  We can cache those blocks to skip re-computation.
-}
-
-func (i *BlockIterator) IsLT(key []byte) bool {
-	return i.cmp.Compare(i.key, key) < 0
 }
 
 func (i *BlockIterator) SeekPrefixGTE(prefix, key []byte) *common.InternalIterator {
@@ -282,4 +271,4 @@ func NewBlockIterator(
 	return i
 }
 
-var _ IBlockIterator = (*BlockIterator)(nil)
+var _ common.InternalIterator = (*BlockIterator)(nil)

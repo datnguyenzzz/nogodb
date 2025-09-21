@@ -31,9 +31,9 @@ type DataIterator struct {
 	secondLevelIndexBH *block_common.BlockHandle
 
 	// Iterators
-	secondLevelIndexIter row_block.IBlockIterator
-	firstLevelIndexIter  row_block.IBlockIterator
-	dataBlockIter        row_block.IBlockIterator
+	secondLevelIndexIter common.InternalIterator
+	firstLevelIndexIter  common.InternalIterator
+	dataBlockIter        common.InternalIterator
 }
 
 var dataBlockIteratorPool = sync.Pool{
@@ -94,7 +94,14 @@ func (i *DataIterator) Close() error {
 	)
 	i.blockReader.Release()
 	dataBlockIteratorPool.Put(i)
+	i.secondLevelIndexIter = nil
+	i.firstLevelIndexIter = nil
+	i.dataBlockIter = nil
 	return err
+}
+
+func (i *DataIterator) IsClosed() bool {
+	return i.secondLevelIndexIter == nil || i.secondLevelIndexIter.IsClosed()
 }
 
 func (i *DataIterator) readMetaIndexBlock(footer *row_block.Footer) error {

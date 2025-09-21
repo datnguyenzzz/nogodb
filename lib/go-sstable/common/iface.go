@@ -41,4 +41,5 @@ type InternalIterator interface {
 	// Close closes the iterator and returns any accumulated error. Exhausting
 	// all the key/value pairs in a table is not considered to be an error.
 	Close() error
+	IsClosed() bool
 }

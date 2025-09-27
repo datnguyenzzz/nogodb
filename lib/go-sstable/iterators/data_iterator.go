@@ -9,6 +9,7 @@ import (
 	go_fs "github.com/datnguyenzzz/nogodb/lib/go-fs"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
 	block_common "github.com/datnguyenzzz/nogodb/lib/go-sstable/common/block"
+	"github.com/datnguyenzzz/nogodb/lib/go-sstable/filter"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/options"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/row_block"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/storage"
@@ -18,6 +19,8 @@ import (
 // DataIterator reads the 2nd-level index block and creates and
 // initializes an iterator over the 1st-level index, by which subsequently
 // iterate over the datablock within the requested boundary [lower_bound, upper_bound]
+//
+// Todo (med) - Optimisation: Make all functions of DataIterator to be monotonic
 type DataIterator struct {
 	cmp         common.IComparer
 	blockReader row_block.IBlockReader
@@ -25,7 +28,7 @@ type DataIterator struct {
 	bpool *predictable_size.PredictablePool
 	// filter
 	filterBH *block_common.BlockHandle
-	filter   *common.InternalLazyValue
+	filter   filter.IRead
 
 	// block handlers
 	secondLevelIndexBH *block_common.BlockHandle
@@ -48,13 +51,19 @@ var dataBlockIteratorPool = sync.Pool{
 	},
 }
 
-func (i *DataIterator) SeekPrefixGTE(prefix, key []byte) *common.InternalIterator {
-	//TODO implement me
-	panic("implement me")
+// SeekPrefixGTE the prefix is only used for checking with the bloom filter of the SSTable.
+// but not used later while iterating. Hence, we can use the existing iterator position
+// it did not fail bloom filter matching.
+func (i *DataIterator) SeekPrefixGTE(prefix, key []byte) *common.InternalKV {
+	if !i.filter.MayContain(prefix) {
+		// don't invalidate the indexes and data block, the other iterator might still read it
+		return nil
+	}
+	return i.SeekGTE(key)
 }
 
 // SeekGTE
-// TODO(high) - Untested
+// TODO(high) - Untested - to write the integration tests, involving write then read
 // TODO(med) - The code looks repetitive, need to refactor this
 func (i *DataIterator) SeekGTE(key []byte) *common.InternalKV {
 	// Important notes:
@@ -260,12 +269,13 @@ func (i *DataIterator) init2ndLevelIndexBlockIterator() error {
 }
 
 func (i *DataIterator) readFilter() error {
-	var err error
-	i.filter, err = i.blockReader.ReadThroughCache(i.filterBH, block_common.BlockKindFilter)
+	filterBlock, err := i.blockReader.ReadThroughCache(i.filterBH, block_common.BlockKindFilter)
 	if err != nil {
 		zap.L().Error("failed to read filter", zap.Error(err))
 		return err
 	}
+
+	i.filter = filter.NewFilterReader(filter.BloomFilter, filterBlock.Value())
 	return nil
 }
 

@@ -34,7 +34,7 @@ type BlockIterator struct {
 	//  We can cache those blocks to skip re-computation.
 }
 
-func (i *BlockIterator) SeekPrefixGTE(prefix, key []byte) *common.InternalIterator {
+func (i *BlockIterator) SeekPrefixGTE(prefix, key []byte) *common.InternalKV {
 	//TODO implement me
 	panic("Block Iterator doesn't support SeekPrefixGE, this kind of function should be handled in the higher level iteration")
 }

@@ -11,6 +11,7 @@ type layoutWriter struct {
 	offset uint64
 }
 
+//go:generate mockery --name=ILayoutWriter --case=underscore --disable-version-string
 type ILayoutWriter interface {
 	// WritePhysicalBlock write a physicalBlock to the file system, and return BlockHandle
 	// which contains the offset before writing, and data length

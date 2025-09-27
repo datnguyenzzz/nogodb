@@ -15,7 +15,7 @@ type IRead interface {
 	// MayContain returns whether the encoded filter may contain given key.
 	// False positives are possible, where it returns true for keys not in the
 	// original set.
-	MayContain(filter, key []byte) bool
+	MayContain(key []byte) bool
 }
 
 type IWriter interface {
@@ -35,11 +35,28 @@ func NewFilterWriter(method Method) IWriter {
 	}
 }
 
-func NewFilterReader(method Method) IRead {
+type Reader struct {
+	bl     go_blocked_bloom_filter.IFilter
+	filter []byte
+}
+
+func (r *Reader) Name() string {
+	return r.bl.Name()
+}
+
+func (r *Reader) MayContain(key []byte) bool {
+	return r.bl.MayContain(r.filter, key)
+}
+
+// NewFilterReader Caller should build the filter first by using the IWriter
+// the pass the built filter into the reader
+func NewFilterReader(method Method, filter []byte) IRead {
 	switch method {
 	case BloomFilter:
-		return go_blocked_bloom_filter.NewBloomFilter()
+		return &Reader{bl: go_blocked_bloom_filter.NewBloomFilter(), filter: filter}
 	default:
 		panic("unsupported / unknown filtering method")
 	}
 }
+
+var _ IRead = (*Reader)(nil)

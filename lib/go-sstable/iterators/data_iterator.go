@@ -161,8 +161,87 @@ func (i *DataIterator) SeekLTE(key []byte) *common.InternalKV {
 }
 
 func (i *DataIterator) First() *common.InternalKV {
-	//TODO implement me
-	panic("implement me")
+	if err := i.first2ndLevelIndex(); err != nil {
+		return nil
+	}
+
+	// move the 1st-level index to first position
+	if err := i.first1stLevelIndex(); err != nil {
+		return nil
+	}
+
+	return i.dataBlockIter.First()
+}
+
+// first2ndLevelIndex move the 2nd-level index to its first position
+// and rebuild the i.firstIndexIter
+func (i *DataIterator) first2ndLevelIndex() error {
+	// move the 2nd-level index to the first position
+	first2ndIndex := i.secondLevelIndexIter.First()
+	if first2ndIndex == nil {
+		zap.L().Error("failed to move to the first position of 2nd-level index")
+		return nil
+	}
+	if first2ndIndex != i.secondLevelIndex {
+		_ = i.firstLevelIndexIter.Close()
+		_ = i.dataBlockIter.Close()
+		i.firstLevelIndexIter = nil
+		i.firstLevelIndex = nil
+		i.dataBlockIter = nil
+	}
+
+	i.secondLevelIndex = first2ndIndex
+	if i.firstLevelIndexIter == nil {
+		firstLvlIndexBH := &block_common.BlockHandle{}
+		secondLvlIndexVal := i.secondLevelIndex.V.Value()
+		if n := firstLvlIndexBH.DecodeFrom(secondLvlIndexVal); n != len(secondLvlIndexVal) {
+			zap.L().Error("failed to fully decode the 2nd-level index")
+			return nil
+		}
+		firstLvlIndexBlock, err := i.blockReader.ReadThroughCache(firstLvlIndexBH, block_common.BlockKindIndex)
+		if err != nil {
+			zap.L().Error("failed to read the first-level index block", zap.Error(err))
+			return nil
+		}
+		i.firstLevelIndexIter = row_block.NewBlockIterator(i.bpool, i.cmp, firstLvlIndexBlock)
+	}
+
+	return nil
+}
+
+// first1stLevelIndex move the 1st-level index to its first position
+// and rebuild the i.dataBlockIter
+func (i *DataIterator) first1stLevelIndex() error {
+	first1stIndex := i.firstLevelIndexIter.First()
+	if first1stIndex == nil {
+		zap.L().Error("failed to move to the first position of 1st-level index")
+		return nil
+	}
+	if first1stIndex != i.firstLevelIndex {
+		_ = i.dataBlockIter.Close()
+		i.dataBlockIter = nil
+	}
+
+	i.firstLevelIndex = first1stIndex
+
+	// move the data iterator to the first position
+	if i.dataBlockIter == nil {
+		dataBlockBh := &block_common.BlockHandle{}
+		firstLvlIndexVal := i.firstLevelIndex.V.Value()
+		if n := dataBlockBh.DecodeFrom(firstLvlIndexVal); n != len(firstLvlIndexVal) {
+			zap.L().Error("failed to fully decode the first-level index")
+			return nil
+		}
+		dataBlock, err := i.blockReader.ReadThroughCache(dataBlockBh, block_common.BlockKindData)
+		if err != nil {
+			zap.L().Error("failed to read the data block", zap.Error(err))
+			return nil
+		}
+
+		i.dataBlockIter = row_block.NewBlockIterator(i.bpool, i.cmp, dataBlock)
+	}
+
+	return nil
 }
 
 func (i *DataIterator) Last() *common.InternalKV {

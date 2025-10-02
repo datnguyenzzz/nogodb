@@ -537,6 +537,10 @@ func TestBlockIterator_Next(t *testing.T) {
 
 			// Verify we've read all entries and are at or near the trailer
 			assert.LessOrEqual(t, iter.nextOffset, iter.trailerOffset, "final nextOffset should not exceed trailer offset")
+
+			// If we trigger the next() at the last position, the returned internalKV is nil
+			nextKV := iter.Next()
+			assert.Nil(t, nextKV)
 		})
 	}
 }
@@ -740,10 +744,8 @@ func TestDataBlockIterator_Prev(t *testing.T) {
 			inputValues: []string{
 				"red", "orange", "green", "red", "yellow",
 			},
-			restartInterval:   2,
-			initialPosition:   0,
-			expectedPrevKey:   "apple",
-			expectedPrevValue: "red",
+			restartInterval: 2,
+			initialPosition: 0,
 		},
 		{
 			desc: "#2 - Prev() from second entry",
@@ -805,10 +807,8 @@ func TestDataBlockIterator_Prev(t *testing.T) {
 			inputValues: []string{
 				"value",
 			},
-			restartInterval:   1,
-			initialPosition:   0,
-			expectedPrevKey:   "only",
-			expectedPrevValue: "value",
+			restartInterval: 1,
+			initialPosition: 0,
 		},
 		{
 			desc: "#7 - Prev() with restart interval 1 (all entries are restart points)",
@@ -896,14 +896,18 @@ func TestDataBlockIterator_Prev(t *testing.T) {
 			// 3. Call Prev() and verify results
 			prevKV := iter.Prev()
 
-			assert.NotNil(t, prevKV, "Prev() should return non-nil InternalKV")
-			assert.Equal(t, tc.expectedPrevKey, string(prevKV.K.UserKey), "Prev() should return correct key")
-			assert.Equal(t, tc.expectedPrevValue, string(prevKV.V.Value()), "Prev() should return correct value")
+			if len(tc.expectedPrevKey) == 0 {
+				assert.Nil(t, prevKV, "Prev() should return nil InternalKV")
+			} else {
+				assert.NotNil(t, prevKV, "Prev() should return non-nil InternalKV")
+				assert.Equal(t, tc.expectedPrevKey, string(prevKV.K.UserKey), "Prev() should return correct key")
+				assert.Equal(t, tc.expectedPrevValue, string(prevKV.V.Value()), "Prev() should return correct value")
 
-			// Verify iterator's internal state
-			actualIterKey := common.DeserializeKey(iter.key)
-			assert.Equal(t, tc.expectedPrevKey, string(actualIterKey.UserKey), "iterator's internal key should match")
-			assert.Equal(t, tc.expectedPrevValue, string(iter.value), "iterator's internal value should match")
+				// Verify iterator's internal state
+				actualIterKey := common.DeserializeKey(iter.key)
+				assert.Equal(t, tc.expectedPrevKey, string(actualIterKey.UserKey), "iterator's internal key should match")
+				assert.Equal(t, tc.expectedPrevValue, string(iter.value), "iterator's internal value should match")
+			}
 		})
 	}
 }

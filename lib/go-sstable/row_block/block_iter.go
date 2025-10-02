@@ -66,11 +66,9 @@ func (i *BlockIterator) SeekGTE(key []byte) *common.InternalKV {
 	i.offset = uint64(i.restartPoints[pos])
 	i.readEntry()
 	for i.cmp.Compare(i.key, key) < 0 {
-		if i.atTheEnd() {
+		if next := i.Next(); next == nil {
 			return nil
 		}
-
-		_ = i.Next()
 	}
 
 	return i.toKV()
@@ -134,9 +132,9 @@ func (i *BlockIterator) Last() *common.InternalKV {
 }
 
 func (i *BlockIterator) Next() *common.InternalKV {
-	if i.atTheEnd() {
+	if i.nextOffset == i.trailerOffset {
 		// already at the endpoint of the block
-		return i.toKV()
+		return nil
 	}
 	i.offset = i.nextOffset
 	i.readEntry()
@@ -153,7 +151,7 @@ func (i *BlockIterator) Next() *common.InternalKV {
 
 func (i *BlockIterator) Prev() *common.InternalKV {
 	if i.atTheFirst() {
-		return i.toKV()
+		return nil
 	}
 
 	// max restart point that < i.offset

@@ -31,14 +31,14 @@ func newRequest(tokens float64) *request {
 	}
 }
 
-func (r *request) setReady() {
+func (r *request) signal() {
 	select {
 	case r.ready <- struct{}{}:
 	default:
 	}
 }
 
-func (r *request) waitReady(mu *sync.Mutex) {
+func (r *request) wait(mu *sync.Mutex) {
 	// release the lock so other threads can continue the work
 	// during this one is still waiting
 	mu.Unlock()
@@ -138,7 +138,7 @@ func (arl *AdaptiveRateLimiter) WaitN(ctx context.Context, n int) error {
 		timeUntilNextRefillUs := arl.getNextRefillAt() - time.Now().UnixMicro()
 		if timeUntilNextRefillUs > 0 {
 			if arl.isWaitingUntilNextRefill {
-				r.waitReady(&arl.mu)
+				r.wait(&arl.mu)
 			} else {
 				waitUntilUs := time.Now().UnixMicro() + timeUntilNextRefillUs
 				arl.numDrained++
@@ -153,7 +153,7 @@ func (arl *AdaptiveRateLimiter) WaitN(ctx context.Context, n int) error {
 		if r.requestedTokens == 0 {
 			if arl.queue.Len() > 0 {
 				frontReq := arl.queue.Front().Value.(*request)
-				frontReq.setReady()
+				frontReq.signal()
 			}
 		}
 	}
@@ -177,7 +177,7 @@ func (arl *AdaptiveRateLimiter) refillAndGrants() {
 		availableTokens -= nextRequest.requestedTokens
 		nextRequest.requestedTokens = 0
 		arl.queue.Remove(arl.queue.Front())
-		nextRequest.setReady()
+		nextRequest.signal()
 	}
 
 	arl.setAvailableTokens(availableTokens)
@@ -199,7 +199,6 @@ func (arl *AdaptiveRateLimiter) tune() {
 	if time.Now().Sub(arl.lastTunedAt).Microseconds() < arl.refillPerTune*arl.getRefillPeriodUs() {
 		return
 	}
-	//fmt.Printf("diff: %v -- numDrained: %v \n", time.Now().Sub(arl.tunedTime).Seconds(), arl.numDrained)
 
 	prevTunedTime := arl.lastTunedAt
 	arl.lastTunedAt = time.Now()
@@ -225,7 +224,6 @@ func (arl *AdaptiveRateLimiter) tune() {
 	default:
 		newLimit = prevLimit
 	}
-	//fmt.Printf("drainedPct: %v -- newLimit: %v -- elapsedInterval: %v -- numDrained: %v \n", drainedPct, newLimit, elapsedInterval, arl.numDrained)
 
 	if newLimit != prevLimit {
 		arl.SetLimitPerSec(newLimit)

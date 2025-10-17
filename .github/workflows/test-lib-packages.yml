@@ -25,6 +25,7 @@ jobs:
           - go-fs
           - go-sstable
           - go-wal
+          - go-adaptive-rate-limiter
 
     steps:
     - uses: actions/checkout@v4

@@ -287,8 +287,8 @@ func TestAdaptiveRateLimiter_Tune(t *testing.T) {
 			numDrained:          0,
 			timeSinceLastTune:   20 * time.Second,
 			expectLimitIncrease: false,
-			expectLimitDecrease: true,
-			expectMinLimit:      false,
+			expectLimitDecrease: false,
+			expectMinLimit:      true,
 		},
 		{
 			desc:                "medium usage maintains limit",

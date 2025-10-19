@@ -213,6 +213,8 @@ func (arl *AdaptiveRateLimiter) tune() {
 	var newLimit int64
 
 	switch {
+	case drainedPct == 0:
+		newLimit = arl.minLimit
 	case drainedPct < lowWatermarkPct:
 		sanitizedPrevLimit := min(prevLimit, math.MaxInt64/100) // prevent from overflow
 		newLimit = max(arl.minLimit, sanitizedPrevLimit*100/int64(100+arl.adjustFactorPct))

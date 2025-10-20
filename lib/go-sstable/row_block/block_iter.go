@@ -131,8 +131,10 @@ func (i *BlockIterator) Last() *common.InternalKV {
 	return i.toKV()
 }
 
+// Next move the cursor to the next entry position of the block
+// returns nil if the current position is already at the end
 func (i *BlockIterator) Next() *common.InternalKV {
-	if i.nextOffset == i.trailerOffset {
+	if i.atTheEnd() {
 		// already at the endpoint of the block
 		return nil
 	}
@@ -213,7 +215,7 @@ func (i *BlockIterator) toKV() *common.InternalKV {
 }
 
 func (i *BlockIterator) atTheEnd() bool {
-	return i.offset == i.trailerOffset
+	return i.nextOffset == i.trailerOffset
 }
 
 func (i *BlockIterator) atTheFirst() bool {
@@ -243,6 +245,8 @@ func (i *BlockIterator) readEntry() {
 	i.nextOffset = blkOffset
 }
 
+// NewBlockIterator creates an iterator over a given data block
+// and set the cursor at the first position
 func NewBlockIterator(
 	bpool *predictable_size.PredictablePool,
 	cmp common.IComparer,

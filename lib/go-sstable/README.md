@@ -175,6 +175,8 @@ top-level index block is the encoded block handle of the lower-level blocks,
 Illustration of the layout 
 
 Data Block Section
+
+<- Block threshold ><- Block threshold ->
 +---------+---------+---------+---------+---------+---------+---------+
 | entry 1 | entry 2 |   ...   |   ...   |   ...   | entry N | trailer |
 +---------+---------+---------+---------+---------+---------+---------+
@@ -188,6 +190,8 @@ Data Block Section
   +---------------+   +---------------+
   
 1st level Index Section
+
+<---     Block threshold         --->
 +-----------------+-----------------+--------+-----------------+
 | 1st-level index | 1st-level index |   ...  | 1st-level index |
 |     entry 1     |     entry 2     |        |     entry K     |

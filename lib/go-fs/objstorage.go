@@ -4,17 +4,26 @@ import (
 	"io"
 )
 
-type FileType byte
+type ObjectType byte
 
 const (
-	TypeManifest FileType = iota
+	TypeManifest ObjectType = iota
 	TypeTable
 	TypeWAL
 )
 
+type Location byte
+
+const (
+	InMemory Location = iota
+	LocalFile
+	Remote
+)
+
 type FileDesc struct {
-	Type FileType
+	Type ObjectType
 	Num  int64
+	Loc  Location
 }
 
 // Writable is the handle for a storage object that is open for writing.
@@ -49,4 +58,21 @@ type Readable interface {
 // An object is conceptually like a large immutable file. The main use of
 // objects is for storing sstables; in the future it could also be used for blob
 // storage.
-type Storage interface{}
+type Storage interface {
+	// Open opens an existing object with the given 'file descriptor' read-only.
+	Open(objType ObjectType, num int64) (Readable, FileDesc, error)
+
+	// Create creates a new object and opens it for writing.
+	//
+	// The object is not guaranteed to be durable (accessible in case of crashes)
+	// until Sync is called.
+	Create(objType ObjectType, num int64) (Writable, FileDesc, error)
+
+	// LookUp returns the metadata of an object that is already exists
+	// it doesn't perform any I/O operations
+	LookUp(objType ObjectType, num int64) (FileDesc, error)
+
+	Remove(objType ObjectType, num int64) error
+
+	Close() error
+}

@@ -47,13 +47,16 @@ graph TB
 
     subgraph BackgroundOps["Background Operations"]
         style BackgroundOps padding:15px
-        Compaction["Compaction Job"]:::bg
-        FlushOps["Flush Operations"]:::bg
+        Compaction["Compaction"]:::bg
+        FlushOps["Flush"]:::bg
+        Pacer["Pacing Controller"]:::bg
     end
 
     subgraph FileSystem["File System Layer"]
         style FileSystem padding:15px
         FSAbstract["File System Abstraction"]:::fs
+        RemoteStore["Remote Object Store"]:::fs
+        LocalFile["Local File Store"]:::fs
     end
 
 %% Main flow connections (consistent arrow direction left to right)
@@ -77,12 +80,16 @@ graph TB
     BlockIndex <-.-> SSTFiles
     BloomFilter <-.-> SSTFiles
 
-    SSTFiles --> Compaction
     MemTable --> FlushOps
-    FlushOps --> SSTFiles
+    FlushOps --> Pacer
+    Compaction --> Pacer
+    Pacer --> SSTFiles
 
     SSTFiles -->|Buffered Write| FSAbstract
     WALog -->|Buffered Write| FSAbstract
+    FSAbstract <-.-> RemoteStore
+    FSAbstract <-.-> LocalFile
+    
     SSTFiles -.-> ManFile
 
 %% Click events only on existing nodes
@@ -93,11 +100,15 @@ graph TB
     click BlockCache "https://github.com/datnguyenzzz/nogodb/tree/master/lib/go-block-cache"
     click BloomFilter "https://github.com/datnguyenzzz/nogodb/tree/master/lib/go-blocked-bloom-filter"
     click BlockIndex "xyz"
+    click BlockData "xyz"
     click SSTFiles "https://github.com/datnguyenzzz/nogodb/tree/master/lib/go-sstable"
     click WALog "https://github.com/datnguyenzzz/nogodb/tree/master/lib/go-wal"
     click Compaction "xyz"
     click FlushOps "xyz"
+    click Pacer "https://github.com/datnguyenzzz/nogodb/tree/master/lib/go-adaptive-rate-limiter"
     click FSAbstract "https://github.com/datnguyenzzz/nogodb/tree/master/lib/go-fs"
+    click RemoteStore "xyz"
+    click LocalFile "xyz"
 
 %% Styles for groups
     classDef api fill:#FFE5CC,stroke:#FF9933,stroke-width:2px;
@@ -115,33 +126,6 @@ graph TB
 - [`Status: Done`] [Cache - A hash map for caching block](lib/go-block-cache/README.md)
 - [`Status: In Progress`] [Sort String Table](lib/go-sstable/README.md)
 - [`Status: Not Yet Started`] [Virtual File System](lib/go-fs)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 ## Test Coverage
 

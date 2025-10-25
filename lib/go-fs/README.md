@@ -1,3 +1,4 @@
 ### Provide an interface for writing to either: 
+- In-memory
 - Local File system
-- External object store (eg. S3, ...)
+- Remote object store (eg. S3, ...)

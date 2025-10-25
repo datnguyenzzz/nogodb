@@ -27,10 +27,10 @@ var _ ILayoutWriter = (*layoutWriter)(nil)
 // -- Implementations -- \\
 
 func (w *layoutWriter) WritePhysicalBlock(pb block.PhysicalBlock) (block.BlockHandle, error) {
-	if err := w.fsWritable.Write(pb.Data); err != nil {
+	if _, err := w.fsWritable.Write(pb.Data); err != nil {
 		return block.BlockHandle{}, err
 	}
-	if err := w.fsWritable.Write(pb.Trailer[:]); err != nil {
+	if _, err := w.fsWritable.Write(pb.Trailer[:]); err != nil {
 		return block.BlockHandle{}, err
 	}
 
@@ -45,7 +45,7 @@ func (w *layoutWriter) WritePhysicalBlock(pb block.PhysicalBlock) (block.BlockHa
 }
 
 func (w *layoutWriter) WriteRawBytes(b []byte) (block.BlockHandle, error) {
-	if err := w.fsWritable.Write(b); err != nil {
+	if _, err := w.fsWritable.Write(b); err != nil {
 		return block.BlockHandle{}, err
 	}
 

@@ -33,8 +33,9 @@ graph TB
         style Memory padding:15px
         BlockCache["Block Cache"]:::memory
         MemTable["MemTable"]:::memory
-        BloomFilter["Block Bloom Filter"]:::memory
-        BlockIndex["Block Index"]:::memory
+        BloomFilter["Bloom Filter"]:::memory
+        BlockIndex["Indexes"]:::memory
+        BlockData["Data"]:::memory
     end
 
     subgraph Storage["On-Disk Layer"]
@@ -71,7 +72,8 @@ graph TB
 
     BlockCache <-.-> BloomFilter
     BlockCache <-.-> BlockIndex
-    BlockCache <-.-> SSTFiles
+    BlockCache <-.-> BlockData
+    BlockData <-.-> SSTFiles
     BlockIndex <-.-> SSTFiles
     BloomFilter <-.-> SSTFiles
 

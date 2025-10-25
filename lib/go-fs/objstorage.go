@@ -1,16 +1,30 @@
 package go_fs
 
-import "context"
+import (
+	"io"
+)
+
+type FileType byte
+
+const (
+	TypeManifest FileType = iota
+	TypeTable
+	TypeWAL
+)
+
+type FileDesc struct {
+	Type FileType
+	Num  int64
+}
 
 // Writable is the handle for a storage object that is open for writing.
 type Writable interface {
-	// Write writes len(p) bytes from p to the underlying object. The data is not
+	// io.Write writes len(p) bytes from p to the underlying object. The data is not
 	// guaranteed to be durable until Finish is called.
 	//
-	// Note that Write *is* allowed to modify the slice passed in, whether
-	// temporarily or permanently. Callers of Write need to take this into
-	// account.
-	Write(p []byte) error
+	// io.Write make sure that the error will be not nil, if n < len(p)
+
+	io.WriteCloser
 
 	// Finish completes the object and makes the data durable.
 	// No further calls are allowed after calling Finish.
@@ -24,12 +38,15 @@ type Writable interface {
 
 // Readable is the handle for a storage object that is open for reading.
 type Readable interface {
-	// ReadAt reads len(p) bytes into p starting at offset off.
-	//
-	// Does not return partial results; if off + len(p) is past the end of the
-	// object, an error is returned.
-	ReadAt(ctx context.Context, p []byte, off int64) error
-	Close() error
+	io.ReaderAt
+	io.ReadSeeker
 
 	Size() uint64
 }
+
+// Storage is a singleton object used to access and manage objects.
+//
+// An object is conceptually like a large immutable file. The main use of
+// objects is for storing sstables; in the future it could also be used for blob
+// storage.
+type Storage interface{}

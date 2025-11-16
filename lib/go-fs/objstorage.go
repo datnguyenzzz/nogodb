@@ -1,6 +1,7 @@
 package go_fs
 
 import (
+	"errors"
 	"io"
 )
 
@@ -26,6 +27,17 @@ type FileDesc struct {
 	Loc  Location
 }
 
+var (
+	errFileNotFound = errors.New("file not found")
+	errFileIsOpened = errors.New("file is opened")
+	errFileIsClosed = errors.New("file is closed")
+	errFileExists   = errors.New("file exists")
+)
+
+type Syncer interface {
+	Sync() error
+}
+
 // Writable is the handle for a storage object that is open for writing.
 type Writable interface {
 	// io.Write writes len(p) bytes from p to the underlying object. The data is not
@@ -34,6 +46,7 @@ type Writable interface {
 	// io.Write make sure that the error will be not nil, if n < len(p)
 
 	io.WriteCloser
+	Syncer
 
 	// Finish completes the object and makes the data durable.
 	// No further calls are allowed after calling Finish.

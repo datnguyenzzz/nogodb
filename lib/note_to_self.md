@@ -2,7 +2,7 @@
 
 - [x] Finished implementing writer + iterator for the sstable  
 - [ ] Implement go-fs with the basic file operations
-  - [ ] In-mem
+  - [x] In-mem
   - [ ] On local disk
   - [ ] Remote storage
 - [ ] Wire the go-sstable/writer + reader to use the go-fs

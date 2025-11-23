@@ -25,8 +25,8 @@ type ILayoutReader interface {
 // Implementations \\
 
 func (l layoutReader) ReadAt(p []byte, off uint64) error {
-	//TODO implement me
-	panic("implement me")
+	_, err := l.fsReader.ReadAt(p, int64(off))
+	return err
 }
 
 func (l layoutReader) Close() error {

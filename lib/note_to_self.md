@@ -2,12 +2,12 @@
 
 - [x] Finished implementing writer + iterator for the sstable  
 - [ ] Implement go-fs with the basic file operations
-  - [x] In-mem
-  - [ ] On local disk
-  - [ ] Remote storage
-- [ ] Wire the go-sstable/writer + reader to use the go-fs
-- [ ] Add an exhaustive functional tests (writer --> iterator) for the sstable
-- [ ] Refactor go-wal to use go-fs
+  - [x] P0: In-mem
+  - [ ] P1: On local disk
+  - [ ] P1: Remote storage
+- [x] P0: Wire the go-sstable/writer + reader to use the go-fs
+- [ ] P0: Add an exhaustive functional tests (writer --> iterator) for the sstable
+- [ ] P0: Refactor go-wal to use go-fs
 
 -- Next Milestone
 

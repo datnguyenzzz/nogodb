@@ -203,7 +203,7 @@ func Test_WriteEntry_Error(t *testing.T) {
 
 	// 3. Assert that an error is returned
 	err := blk.WriteEntry(key, value)
-	assert.Equal(t, common.ClientInvalidRequestError, err, "should return error when buffer exceeds maximum offset")
+	assert.ErrorIs(t, err, common.InternalServerError, "should return internal error when buffer exceeds maximum offset")
 
 	// 4. Assert that entry count was not incremented
 	assert.Zero(t, blk.EntryCount(), "entry count should not be incremented when an error occurs")

@@ -30,6 +30,8 @@ func (p *PhysicalBlock) SetTrailer(auxiliary byte, checksum uint32) {
 	p.Trailer = trailer
 }
 
+const MaxBlockHandleBytes = 2 * binary.MaxVarintLen64
+
 // BlockHandle is the file offset and length of a block.
 type BlockHandle struct {
 	// Offset identifies the offset of the block within the file.

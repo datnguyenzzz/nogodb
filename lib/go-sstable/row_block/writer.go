@@ -86,7 +86,7 @@ func (rw *RowBlockWriter) Close() error {
 			return err
 		}
 		// save the filter block location to the meta index block
-		var encodedBH []byte
+		encodedBH := make([]byte, block.MaxBlockHandleBytes)
 		_ = bh.EncodeInto(encodedBH)
 		err = rw.metaIndexBlock.WriteEntry(
 			common.MakeMetaIndexKey(block.BlockKindFilter),
@@ -104,6 +104,7 @@ func (rw *RowBlockWriter) Close() error {
 	}
 	// write the meta index block
 	metaIndexRaw := rw.bytesBufferPool.Get(rw.metaIndexBlock.EstimateSize())
+	metaIndexRaw = metaIndexRaw[:rw.metaIndexBlock.EstimateSize()]
 	rw.metaIndexBlock.Finish(metaIndexRaw)
 	compressor := rw.compressors[block.BlockKindIndex]
 	pb := compressToPb(compressor, rw.checksumer, metaIndexRaw)
@@ -171,6 +172,7 @@ func (rw *RowBlockWriter) doFlush(key common.InternalKey) error {
 	prevKey := rw.dataBlock.CurKey()
 	// 1. Finish the data block, write the serialised data into the buffer
 	uncompressed := rw.bytesBufferPool.Get(rw.dataBlock.EstimateSize())
+	uncompressed = uncompressed[:rw.dataBlock.EstimateSize()]
 	rw.dataBlock.Finish(uncompressed)
 
 	// 2. Get the task from the pool and compute the physical format

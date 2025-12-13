@@ -2,6 +2,7 @@ package row_block
 
 import (
 	"encoding/binary"
+	"fmt"
 
 	"github.com/datnguyenzzz/nogodb/lib/go-bytesbufferpool/predictable_size"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
@@ -107,7 +108,7 @@ func (d *rowBlockBuf) Finish(buf []byte) {
 
 func (d *rowBlockBuf) writeToBuf(value []byte) error {
 	if len(d.buf) > maximumRestartOffset {
-		return common.ClientInvalidRequestError
+		return fmt.Errorf("%w the rowBlockBuf buffer is suspected to be too large - %d", common.InternalServerError, len(d.buf))
 	}
 
 	// 1. Compute shared or restart point

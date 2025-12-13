@@ -59,7 +59,7 @@ func (w *indexWriter) add(key *common.InternalKey, bh *block2.BlockHandle) error
 	if err := w.mightFlushToMem(key); err != nil {
 		return err
 	}
-	var encoded []byte
+	encoded := make([]byte, block2.MaxBlockHandleBytes)
 	n := bh.EncodeInto(encoded)
 	encoded = encoded[:n]
 	return w.firstLevelBlock.WriteEntry(*key, encoded)
@@ -92,6 +92,7 @@ func (w *indexWriter) flushFirstLevelIndexToMem(key *common.InternalKey) {
 		entries: w.firstLevelBlock.EntryCount(),
 	}
 	uncompressed := w.bytesBufferPool.Get(w.firstLevelBlock.EstimateSize())
+	uncompressed = uncompressed[:w.firstLevelBlock.EstimateSize()]
 	w.firstLevelBlock.Finish(uncompressed)
 	idx.finishedBlock = uncompressed
 	w.firstLevelIndices = append(w.firstLevelIndices, idx)
@@ -111,7 +112,7 @@ func (w *indexWriter) buildIndex() error {
 		}
 		// 2. Write the encoded value of the 1-level index block handle
 		// into buffer
-		var encodedBH []byte
+		encodedBH := make([]byte, block2.MaxBlockHandleBytes)
 		_ = bh.EncodeInto(encodedBH)
 		if err := w.secondLevelBlock.WriteEntry(*idx.key, encodedBH); err != nil {
 			return err
@@ -120,13 +121,14 @@ func (w *indexWriter) buildIndex() error {
 
 	// 3. Build and Write the 2-level index buffer to the storage
 	uncompressed := w.bytesBufferPool.Get(w.secondLevelBlock.EstimateSize())
+	uncompressed = uncompressed[:w.secondLevelBlock.EstimateSize()]
 	w.secondLevelBlock.Finish(uncompressed)
 	pb := compressToPb(w.compressor, w.checksumer, uncompressed)
 	bh, err := w.storageWriter.WritePhysicalBlock(*pb)
 	if err != nil {
 		// save the block location of the 2-level index to the index
 		// key - 1 byte indicate block kind , value - varint encoded of the block handle
-		var encodedBH []byte
+		encodedBH := make([]byte, block2.MaxBlockHandleBytes)
 		_ = bh.EncodeInto(encodedBH)
 		err := w.metaIndexBlock.WriteEntry(
 			common.MakeMetaIndexKey(block2.BlockKindIndex),
@@ -160,6 +162,7 @@ func newIndexWriter(
 		// The index block also use the row oriented layout.
 		// And its restart interval is 1, aka every entry is a restart point.
 		firstLevelBlock:   newBlock(1, bufferPool),
+		secondLevelBlock:  newBlock(1, bufferPool),
 		comparer:          comparer,
 		compressor:        compressor,
 		checksumer:        checksumer,

@@ -26,6 +26,7 @@ func NewPredictablePool() *PredictablePool {
 	}
 }
 
+// Get the buffer from the pool. Note that the buffer always has 0 size
 func (p *PredictablePool) Get(dataLen int) []byte {
 	id, poolCap := getPoolIDAndCapacity(dataLen)
 	for i := 0; i < 1; i++ {

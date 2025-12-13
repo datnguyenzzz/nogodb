@@ -56,7 +56,7 @@ The cache consists of several key components working together:
 1. **HashMap (`hashMap`)**: Main interface providing thread-safe operations
 2. **State Management (`state`)**: Handles bucket array resizing and migration 
 3. **Bucket (`bucket`)**: Individual hash buckets containing sorted key-value nodes
-4. **KV Nodes (`kv`)**: Individual cache entries with reference counting
+4. **KV Nodes (`kvType`)**: Individual cache entries with reference counting
 5. **LRU Cache (`lru`)**: Manages memory pressure and eviction policies
 6. **LazyValue (`handle`)**: Memory-efficient value access with cleanup
 

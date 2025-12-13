@@ -92,6 +92,7 @@ Illustration of a typical data block:
 +---------------+---------------+---------------+---------------+---------+
 ```
 
+Key/Value Entry layout:
 ```
           +---- key len ----+
          /                   \

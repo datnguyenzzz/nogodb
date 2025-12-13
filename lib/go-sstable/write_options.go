@@ -2,7 +2,6 @@ package go_sstable
 
 import (
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
-	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common/block"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/compression"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/options"
 )
@@ -13,12 +12,8 @@ var DefaultWriteOpt = &options.BlockWriteOpt{
 	BlockRestartInterval: 16,
 	BlockSize:            4 * 1024,
 	BlockSizeThreshold:   0.9,
-	Compression: map[block.BlockKind]compression.CompressionType{
-		block.BlockKindData:   compression.SnappyCompression,
-		block.BlockKindIndex:  compression.SnappyCompression,
-		block.BlockKindFilter: compression.SnappyCompression,
-	},
-	TableFormat: common.RowBlockedBaseTableFormat,
+	DefaultCompression:   compression.SnappyCompression,
+	TableFormat:          common.RowBlockedBaseTableFormat,
 }
 
 func WithBlockRestartInterval(interval int) WriteOptFn {

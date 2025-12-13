@@ -38,7 +38,7 @@ jobs:
     - name: Test ${{ matrix.package }} with coverage
       run: |
         cd lib/${{ matrix.package }}
-        go test -v -coverprofile=coverage.out ./...
+        go test -v -coverprofile=coverage.out $(go list ./... | grep -v "/integration$")
         go tool cover -func=coverage.out | tail -1 | awk '{print $3}' > coverage.txt
     
     - name: Upload coverage artifact

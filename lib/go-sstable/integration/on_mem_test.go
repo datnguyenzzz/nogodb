@@ -18,7 +18,7 @@ const (
 	mB = kB * 1024
 )
 
-func Test_Writer_No_Errors(t *testing.T) {
+func Test_Integration_Writer_No_Errors(t *testing.T) {
 	type param struct {
 		name      string
 		restart   int

@@ -438,7 +438,7 @@ func NewIterator(fr go_fs.Readable, cmp common.IComparer, opts *options.Iterator
 	if iter.blockReader == nil {
 		iter.blockReader = &row_block.RowBlockReader{}
 	}
-	iter.blockReader.Init(iter.bpool, layoutReader, &opts.CacheOpts)
+	iter.blockReader.Init(iter.bpool, layoutReader, opts.CacheOpts)
 
 	if err = iter.readMetaIndexBlock(footer); err != nil {
 		return nil, err

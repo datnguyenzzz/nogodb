@@ -12,6 +12,7 @@ import (
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/compression"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/options"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/storage"
+	"go.uber.org/zap"
 )
 
 var (
@@ -19,6 +20,7 @@ var (
 	failedUpdateToCache = errors.New("failed to update value to cache")
 )
 
+// blockCacheWrapper a block cache with key = [file_num + offset], value = data[offset:offset + length]
 type blockCacheWrapper struct {
 	fileNum uint64
 	c       go_block_cache.IBlockCache
@@ -94,7 +96,7 @@ func (r *RowBlockReader) Init(
 ) {
 	r.bpool = bpool
 	r.storageReader = fr
-	if r.blockCache == nil {
+	if r.blockCache == nil && cacheOpts != nil {
 		c := go_block_cache.NewMap(
 			go_block_cache.WithCacheType(cacheOpts.CacheMethod),
 			go_block_cache.WithMaxSize(cacheOpts.MaxSize),
@@ -116,6 +118,11 @@ func (r *RowBlockReader) ReadThroughCache(
 	bh *block_common.BlockHandle,
 	kind block_common.BlockKind,
 ) (*common.InternalLazyValue, error) {
+	if r.blockCache == nil {
+		zap.L().Warn("ReadThroughCache, Block cache is not enabled, fall back!")
+		return r.readFromStorage(bh, kind)
+	}
+
 	cachedVal, err := r.blockCache.Get(bh)
 	if err == nil {
 		return cachedVal, nil

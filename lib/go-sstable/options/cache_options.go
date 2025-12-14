@@ -6,8 +6,7 @@ import (
 )
 
 const (
-	defaultCacheMethod = go_block_cache.LRU
-	defaultMaxSize     = 8 * 1024 * 1024 // 8MiB
+	defaultCacheSize = 2 * 1024 * 1024 // 2mB
 )
 
 type CacheOptions struct {

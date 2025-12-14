@@ -7,6 +7,7 @@
   - [ ] P2: Remote storage
 - [x] P0: Wire the go-sstable/writer + reader to use the go-fs
 - [ ] P0: Add an exhaustive functional tests (writer --> iterator) for the sstable
+- [ ] P1: Add benchmark tests for Iterator + Writer
 - [ ] P0: Refactor go-wal to use go-fs
 
 -- Next Milestone

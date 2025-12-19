@@ -61,6 +61,7 @@ func (rw *RowBlockWriter) Close() error {
 
 	// Flush the last (current) data block to the storage
 	if rw.dataBlock.EntryCount() > 0 {
+		// create an index with key ≥ currentKey
 		if err := rw.doFlush(common.InternalKey{}); err != nil {
 			return err
 		}
@@ -87,10 +88,10 @@ func (rw *RowBlockWriter) Close() error {
 		}
 		// save the filter block location to the meta index block
 		encodedBH := make([]byte, block.MaxBlockHandleBytes)
-		_ = bh.EncodeInto(encodedBH)
+		n := bh.EncodeInto(encodedBH)
 		err = rw.metaIndexBlock.WriteEntry(
 			common.MakeMetaIndexKey(block.BlockKindFilter),
-			encodedBH,
+			encodedBH[:n],
 		)
 		if err != nil {
 			zap.L().Error("failed to write filter to the metaIndexBlock", zap.Error(err))

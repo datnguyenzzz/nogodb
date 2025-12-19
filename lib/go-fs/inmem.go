@@ -27,6 +27,10 @@ func (mr memReader) Size() uint64 {
 	return uint64(mr.Len())
 }
 
+func (mr memReader) Close() error {
+	return nil
+}
+
 type memWriter struct {
 	*memFile
 }

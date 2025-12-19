@@ -113,8 +113,8 @@ func (w *indexWriter) buildIndex() error {
 		// 2. Write the encoded value of the 1-level index block handle
 		// into buffer
 		encodedBH := make([]byte, block2.MaxBlockHandleBytes)
-		_ = bh.EncodeInto(encodedBH)
-		if err := w.secondLevelBlock.WriteEntry(*idx.key, encodedBH); err != nil {
+		n := bh.EncodeInto(encodedBH)
+		if err := w.secondLevelBlock.WriteEntry(*idx.key, encodedBH[:n]); err != nil {
 			return err
 		}
 	}
@@ -125,14 +125,14 @@ func (w *indexWriter) buildIndex() error {
 	w.secondLevelBlock.Finish(uncompressed)
 	pb := compressToPb(w.compressor, w.checksumer, uncompressed)
 	bh, err := w.storageWriter.WritePhysicalBlock(*pb)
-	if err != nil {
+	if err == nil {
 		// save the block location of the 2-level index to the index
 		// key - 1 byte indicate block kind , value - varint encoded of the block handle
 		encodedBH := make([]byte, block2.MaxBlockHandleBytes)
-		_ = bh.EncodeInto(encodedBH)
+		n := bh.EncodeInto(encodedBH)
 		err := w.metaIndexBlock.WriteEntry(
 			common.MakeMetaIndexKey(block2.BlockKindIndex),
-			encodedBH,
+			encodedBH[:n],
 		)
 		if err != nil {
 			zap.L().Error("failed to write the 2-level index block to the meta index", zap.Error(err))

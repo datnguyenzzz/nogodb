@@ -62,6 +62,13 @@ func (i *DataIterator) SeekPrefixGTE(prefix, key []byte) *common.InternalKV {
 	return i.SeekGTE(key)
 }
 
+// TODO -- Need to re-think on the SeekGTE logic
+// The index (1st + 2nd levels) have the last index, but not the first
+// For example: (i+1-th key > index key ≥ i-th key )
+// Data:  1 2 3 4 5 6 7 8 9 10 11
+// L1  :       3   5   7   9     [12]
+// L2  :           5       9     [12]
+
 // SeekGTE
 // TODO(high) - Untested - to write the integration tests, involving write then read
 // TODO(med) - The code looks repetitive, need to refactor this
@@ -266,11 +273,15 @@ func (i *DataIterator) Prev() *common.InternalKV {
 
 func (i *DataIterator) Close() error {
 	var err error
-	err = errors.Join(
-		i.secondLevelIndexIter.Close(),
-		i.firstLevelIndexIter.Close(),
-		i.dataBlockIter.Close(),
-	)
+	if i.secondLevelIndexIter != nil {
+		err = errors.Join(i.secondLevelIndexIter.Close())
+	}
+	if i.firstLevelIndexIter != nil {
+		err = errors.Join(i.firstLevelIndexIter.Close())
+	}
+	if i.dataBlockIter != nil {
+		err = errors.Join(i.dataBlockIter.Close())
+	}
 	i.blockReader.Release()
 	dataBlockIteratorPool.Put(i)
 	i.secondLevelIndexIter = nil
@@ -298,7 +309,7 @@ func (i *DataIterator) readMetaIndexBlock(footer *row_block.Footer) error {
 	for iter := blkIter.First(); iter != nil; iter = blkIter.Next() {
 		val := iter.V.Value()
 		bh := &block_common.BlockHandle{}
-		if sz := bh.DecodeFrom(val); sz != len(val) {
+		if sz := bh.DecodeFrom(val); sz <= 0 {
 			zap.L().Error("failed to decode block, corrupted size", zap.Any("block", i))
 			return fmt.Errorf("failed to decode block, corrupted size. %w", common.InternalServerError)
 		}
@@ -328,7 +339,7 @@ func (i *DataIterator) init1stLevelIndexBlockIterator(secondLvlIndex *common.Int
 
 	firstLevelBh := &block_common.BlockHandle{}
 	n := firstLevelBh.DecodeFrom(secondLvlIndex.V.Value())
-	if n != len(secondLvlIndex.V.Value()) {
+	if n <= 0 {
 		return fmt.Errorf("failed to decode the 1st level index block")
 	}
 
@@ -367,7 +378,7 @@ func (i *DataIterator) readFilter() error {
 func (i *DataIterator) loadDataBlockIter() error {
 	dataBlockBh := &block_common.BlockHandle{}
 	firstLvlIndexVal := i.firstLevelIndex.V.Value()
-	if n := dataBlockBh.DecodeFrom(firstLvlIndexVal); n != len(firstLvlIndexVal) {
+	if n := dataBlockBh.DecodeFrom(firstLvlIndexVal); n <= 0 {
 		zap.L().Error("failed to fully decode the first-level index")
 		return fmt.Errorf("failed to fully decode the first-level index. %w", common.InternalServerError)
 	}
@@ -384,7 +395,7 @@ func (i *DataIterator) loadDataBlockIter() error {
 func (i *DataIterator) load1stIndexBlockIter() error {
 	firstLvlIndexBH := &block_common.BlockHandle{}
 	secondLvlIndexVal := i.secondLevelIndex.V.Value()
-	if n := firstLvlIndexBH.DecodeFrom(secondLvlIndexVal); n != len(secondLvlIndexVal) {
+	if n := firstLvlIndexBH.DecodeFrom(secondLvlIndexVal); n <= 0 {
 		zap.L().Error("failed to fully decode the 2nd-level index")
 		return fmt.Errorf("failed to fully decode the 2nd-level index. %w", common.InternalServerError)
 	}
@@ -420,12 +431,6 @@ func NewIterator(fr go_fs.Readable, cmp common.IComparer, opts *options.Iterator
 	var err error
 	var footer *row_block.Footer
 	var layoutReader storage.ILayoutReader
-	defer func() {
-		if err != nil {
-			_ = layoutReader.Close()
-			_ = iter.Close()
-		}
-	}()
 
 	iter.cmp = cmp
 	layoutReader = storage.NewLayoutReader(fr)

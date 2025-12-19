@@ -64,6 +64,7 @@ type Readable interface {
 	io.ReadSeeker
 
 	Size() uint64
+	Close() error
 }
 
 // Storage is a singleton object used to access and manage objects.

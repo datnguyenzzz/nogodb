@@ -23,7 +23,7 @@ type InternalIterator interface {
 	// that has the defined prefix for faster looking up
 	SeekPrefixGTE(prefix, key []byte) *InternalKV
 
-	// SeekLTE moves the iterator to the last key/value pair whose key ≥ to the given key.
+	// SeekLTE moves the iterator to the last key/value pair whose key ≤ to the given key.
 	SeekLTE(key []byte) *InternalKV
 
 	// First moves the iterator the first key/value pair.

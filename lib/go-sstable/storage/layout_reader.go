@@ -30,8 +30,7 @@ func (l layoutReader) ReadAt(p []byte, off uint64) error {
 }
 
 func (l layoutReader) Close() error {
-	//TODO implement me
-	panic("implement me")
+	return l.fsReader.Close()
 }
 
 func NewLayoutReader(fsReader go_fs.Readable) ILayoutReader {

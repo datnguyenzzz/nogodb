@@ -54,7 +54,9 @@ func ReadFooter(
 
 		metaIndexBuf := buf[len(buf)-common.TableFooterSize[version]:]
 		metaIndexBH := &block.BlockHandle{}
-		_ = metaIndexBH.DecodeFrom(metaIndexBuf)
+		if n := metaIndexBH.DecodeFrom(metaIndexBuf); n <= 0 {
+			return nil, fmt.Errorf("%w failed to decode the meta index buf", common.InternalServerError)
+		}
 
 		return &Footer{
 			version:     version,

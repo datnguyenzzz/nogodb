@@ -23,7 +23,7 @@ func Test_BlockHandle(t *testing.T) {
 		{
 			name:   "offset is 0, length is not 0",
 			offset: 0,
-			length: 100,
+			length: 1000,
 		},
 		{
 			name:   "length is 0, offset is not 0",
@@ -34,6 +34,21 @@ func Test_BlockHandle(t *testing.T) {
 			name:   "both are not 0",
 			offset: 1000,
 			length: 1000,
+		},
+		{
+			name:   "offset is 0, length is not 0, less than 1 byte",
+			offset: 0,
+			length: 10,
+		},
+		{
+			name:   "length is 0, offset is not 0, less than 1 byte",
+			offset: 10,
+			length: 0,
+		},
+		{
+			name:   "both are not 0, less than 1 byte",
+			offset: 10,
+			length: 10,
 		},
 	}
 

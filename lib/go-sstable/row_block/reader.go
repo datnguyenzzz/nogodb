@@ -109,7 +109,9 @@ func (r *RowBlockReader) Init(
 }
 
 func (r *RowBlockReader) Release() {
-	r.blockCache.Close()
+	if r.blockCache != nil {
+		r.blockCache.Close()
+	}
 	_ = r.storageReader.Close()
 	r.blockCache = nil
 }

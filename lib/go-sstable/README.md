@@ -186,8 +186,8 @@ Data Block Section
   |   1st-level   |   |   1st-level   |
   |  index key 1  |   |  index key 2  |
   +---------------+   +---------------+
-  | Current block |   | Current block |
-  |    handle     |   |    handle     |   
+  | block handle  |   | block handle  |
+  | start of entry|   | start of entry|   
   +---------------+   +---------------+
   
 1st level Index Section
@@ -202,8 +202,8 @@ Data Block Section
                   |   2nd-level   |            |   2nd-level   |
                   |  index key 1  |            |  index key 2  |
                   +---------------+            +---------------+
-                  | Current block |            | Current block |
-                  |    handle     |            |    handle     |
+                  | block handle  |            | block handle  |
+                  | start of entry|            | start of entry|
                   +---------------+            +---------------+
 
 2nd level Index Section

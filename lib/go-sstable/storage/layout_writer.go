@@ -14,7 +14,7 @@ type layoutWriter struct {
 //go:generate mockery --name=ILayoutWriter --case=underscore --disable-version-string
 type ILayoutWriter interface {
 	// WritePhysicalBlock write a physicalBlock to the file system, and return BlockHandle
-	// which contains the offset before writing, and data length
+	// which contains the offset BEFORE writing, and data length
 	WritePhysicalBlock(b block.PhysicalBlock) (block.BlockHandle, error)
 	WriteRawBytes(b []byte) (block.BlockHandle, error)
 	// Abort aborts writing the table, aborting the underlying writable too.

@@ -43,7 +43,7 @@ func newIndexedIterator(
 }
 
 func (ii *indexedIterator) SetIndexAndLoad(index *common.InternalKV) error {
-	if ii.index != index {
+	if ii.index != nil && ii.index.Compare(ii.cmp, index) != 0 {
 		if err := ii.Close(); err != nil {
 			return err
 		}

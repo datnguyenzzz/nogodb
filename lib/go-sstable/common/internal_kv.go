@@ -69,6 +69,14 @@ type InternalKV struct {
 	V InternalLazyValue
 }
 
+func (kv *InternalKV) Compare(comparer IComparer, another *InternalKV) int {
+	if c := kv.K.Compare(comparer, &another.K); c != 0 {
+		return c
+	}
+
+	return kv.V.Compare(comparer, &another.V)
+}
+
 // Value loads value
 func (iv *InternalLazyValue) Value() []byte {
 	switch iv.ValueSource {
@@ -123,4 +131,8 @@ func (iv *InternalLazyValue) SetCacheFetcher(fetcher Fetcher) error {
 	}
 	iv.CacheFetcher = fetcher
 	return nil
+}
+
+func (iv *InternalLazyValue) Compare(comparer IComparer, lv *InternalLazyValue) int {
+	return comparer.Compare(iv.Value(), lv.Value())
 }

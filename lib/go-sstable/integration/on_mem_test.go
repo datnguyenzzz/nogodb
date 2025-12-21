@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	go_block_cache "github.com/datnguyenzzz/nogodb/lib/go-block-cache"
+	"github.com/datnguyenzzz/nogodb/lib/go-bytesbufferpool/predictable_size"
 	go_fs "github.com/datnguyenzzz/nogodb/lib/go-fs"
 	go_sstable "github.com/datnguyenzzz/nogodb/lib/go-sstable"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
@@ -116,23 +117,34 @@ func Test_Integration_Writer_No_Errors(t *testing.T) {
 	}
 }
 
-func Test_Iterator_Seeking_Ops(t *testing.T) {
+func Test_Iterator_Seeking_Ops_single_table(t *testing.T) {
 	type param struct {
-		name       string
-		restart    int
-		blockSize  int
-		isUnique   bool
-		cacheSize  int // 0 means no cache
-		sampleSize int
+		name        string
+		restart     int
+		blockSize   int
+		isUnique    bool
+		cacheSize   int // 0 means no cache
+		sampleSize  int
+		asyncWriter bool
 	}
 
 	tests := []param{
 		{
-			name:       "volume = 1, small block, disable block cache",
-			isUnique:   true,
-			restart:    5,
-			blockSize:  2 * kB,
-			sampleSize: 1,
+			name:        "volume = 1, small block, block cache disabled",
+			isUnique:    true,
+			restart:     5,
+			blockSize:   2 * kB,
+			sampleSize:  1,
+			asyncWriter: false,
+		},
+		{
+			name:        "volume = 1, small block, block cache enabled",
+			isUnique:    true,
+			restart:     5,
+			blockSize:   2 * kB,
+			cacheSize:   2 * kB,
+			sampleSize:  1,
+			asyncWriter: false,
 		},
 		//{
 		//	name:      "small block, all keys are unique, disable block cache",
@@ -190,7 +202,9 @@ func Test_Iterator_Seeking_Ops(t *testing.T) {
 					options.WithBlockCacheSize(int64(tc.cacheSize)),
 				}
 			}
+			sharedBufferPool := predictable_size.NewPredictablePool()
 			iter, err := go_sstable.NewSingularIterator(
+				sharedBufferPool,
 				fileReadable,
 				iterOpts...,
 			)
@@ -201,9 +215,14 @@ func Test_Iterator_Seeking_Ops(t *testing.T) {
 				assert.NoError(t, err)
 			}()
 
-			for _, expectedKV := range sample {
+			for i, expectedKV := range sample {
 				// SeekGTE with an exact key
 				kv := iter.SeekGTE(expectedKV.key)
+				assert.Equal(t, expectedKV.key, kv.K.UserKey, "SeekGTE with an exact key: key must match")
+				assert.Equal(t, expectedKV.value, kv.V.Value(), "SeekGTE with an exact key: value must match")
+
+				// SeekGTEPrefix with an exact key
+				kv = iter.SeekPrefixGTE(expectedKV.key, expectedKV.key)
 				assert.Equal(t, expectedKV.key, kv.K.UserKey, "SeekGTE with an exact key: key must match")
 				assert.Equal(t, expectedKV.value, kv.V.Value(), "SeekGTE with an exact key: value must match")
 
@@ -214,6 +233,17 @@ func Test_Iterator_Seeking_Ops(t *testing.T) {
 				kv = iter.SeekGTE(k)
 				assert.Equal(t, expectedKV.key, kv.K.UserKey, "SeekGTE with smaller key: key must match")
 				assert.Equal(t, expectedKV.value, kv.V.Value(), "SeekGTE with smaller key: key must value")
+
+				// SeekGTE with bigger key
+				k = make([]byte, len(expectedKV.key))
+				copy(k, expectedKV.key)
+				k[0] += 1
+				kv = iter.SeekGTE(k)
+				if i == len(sample)-1 {
+					assert.Nil(t, kv, "SeekGTE with bigger key: must be not found")
+				} else {
+					panic("[integration test] implement me !")
+				}
 			}
 		})
 	}

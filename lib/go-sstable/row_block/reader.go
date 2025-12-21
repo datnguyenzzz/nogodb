@@ -96,7 +96,7 @@ func (r *RowBlockReader) Init(
 ) {
 	r.bpool = bpool
 	r.storageReader = fr
-	if r.blockCache == nil && cacheOpts != nil {
+	if cacheOpts != nil {
 		c := go_block_cache.NewMap(
 			go_block_cache.WithCacheType(cacheOpts.CacheMethod),
 			go_block_cache.WithMaxSize(cacheOpts.MaxSize),

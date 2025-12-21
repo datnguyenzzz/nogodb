@@ -127,9 +127,7 @@ type DataIterator struct {
 
 var dataBlockIteratorPool = sync.Pool{
 	New: func() interface{} {
-		return &DataIterator{
-			bpool: predictable_size.NewPredictablePool(),
-		}
+		return &DataIterator{}
 	},
 }
 
@@ -398,12 +396,18 @@ func (i *DataIterator) readFilter() error {
 	return nil
 }
 
-func NewIterator(fr go_fs.Readable, cmp common.IComparer, opts *options.IteratorOpts) (*DataIterator, error) {
+func NewIterator(
+	bpool *predictable_size.PredictablePool, // shared buffer pool across iterator
+	fr go_fs.Readable,
+	cmp common.IComparer,
+	opts *options.IteratorOpts,
+) (*DataIterator, error) {
 	iter := dataBlockIteratorPool.Get().(*DataIterator)
 	var err error
 	var footer *row_block.Footer
 	var layoutReader storage.ILayoutReader
 
+	iter.bpool = bpool
 	iter.cmp = cmp
 	layoutReader = storage.NewLayoutReader(fr)
 	fullSize := fr.Size()

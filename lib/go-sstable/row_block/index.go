@@ -7,6 +7,7 @@ import (
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
 	block2 "github.com/datnguyenzzz/nogodb/lib/go-sstable/common/block"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/compression"
+	"github.com/datnguyenzzz/nogodb/lib/go-sstable/options"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/storage"
 	"go.uber.org/zap"
 )
@@ -157,12 +158,13 @@ func newIndexWriter(
 	storageWriter storage.ILayoutWriter,
 	metaIndexBlock *rowBlockBuf,
 	bufferPool *predictable_size.PredictablePool,
+	opts options.BlockWriteOpt,
 ) *indexWriter {
 	return &indexWriter{
 		// The index block also use the row oriented layout.
 		// And its restart interval is 1, aka every entry is a restart point.
-		firstLevelBlock:   newBlock(1, bufferPool),
-		secondLevelBlock:  newBlock(1, bufferPool),
+		firstLevelBlock:   newBlock(1, bufferPool, opts.BlockSize),
+		secondLevelBlock:  newBlock(1, bufferPool, opts.BlockSize),
 		comparer:          comparer,
 		compressor:        compressor,
 		checksumer:        checksumer,

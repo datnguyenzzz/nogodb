@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/go-faker/faker/v4"
-	"github.com/google/uuid"
 )
 
 type kvType struct {
@@ -20,21 +19,14 @@ type kvType struct {
 func generateKV(size int, isUnique bool) []kvType {
 	res := make([]kvType, 0, size)
 
-	if isUnique {
-		// generate list of KV, which is key is unique
-		for i := 0; i < size; i++ {
-			id := uuid.New()
-			k, _ := id.MarshalBinary()
-			res = append(res, kvType{k, []byte(randomQuote())})
+	// generate a list of key–value pairs such that adjacent keys share some common bytes.
+	for i := 0; i < size; i++ {
+		res = append(res, kvType{[]byte(randomQuote()), []byte(randomQuote())})
+		if i == 0 {
+			continue
 		}
-	} else {
-		// generate a list of key–value pairs such that adjacent keys share some common bytes.
-		for i := 0; i < size; i++ {
-			res = append(res, kvType{[]byte(randomQuote()), []byte(randomQuote())})
-			if i == 0 {
-				continue
-			}
 
+		if !isUnique {
 			res[i].key = generateKeyFromAnotherKey(res[i-1].key)
 		}
 	}

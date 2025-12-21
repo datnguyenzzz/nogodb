@@ -153,7 +153,7 @@ func TestDataBlockIterator_readEntry(t *testing.T) {
 		t.Run(tc.desc, func(t *testing.T) {
 			// 1. Create block data using the existing writer
 			bp := predictable_size.NewPredictablePool()
-			blk := newBlock(tc.restartInterval, bp)
+			blk := newBlock(tc.restartInterval, bp, 1024*1024)
 
 			// Write all entries to the block
 			for i, userKey := range tc.inputUserKeys {
@@ -305,7 +305,7 @@ func TestDataBlockIterator_First(t *testing.T) {
 		t.Run(tc.desc, func(t *testing.T) {
 			// 1. Create block data using the existing writer
 			bp := predictable_size.NewPredictablePool()
-			blk := newBlock(tc.restartInterval, bp)
+			blk := newBlock(tc.restartInterval, bp, 1024*1024)
 
 			for i, userKey := range tc.inputUserKeys {
 				key := makeDummyKey(userKey)
@@ -487,7 +487,7 @@ func TestBlockIterator_Next(t *testing.T) {
 		t.Run(tc.desc, func(t *testing.T) {
 			// 1. Create block data using the existing writer
 			bp := predictable_size.NewPredictablePool()
-			blk := newBlock(tc.restartInterval, bp)
+			blk := newBlock(tc.restartInterval, bp, 1024*1024)
 
 			for i, userKey := range tc.inputUserKeys {
 				key := makeDummyKey(userKey)
@@ -686,7 +686,7 @@ func TestDataBlockIterator_Last(t *testing.T) {
 		t.Run(tc.desc, func(t *testing.T) {
 			// 1. Create block data using the existing writer
 			bp := predictable_size.NewPredictablePool()
-			blk := newBlock(tc.restartInterval, bp)
+			blk := newBlock(tc.restartInterval, bp, 1024*1024)
 
 			for i, userKey := range tc.inputUserKeys {
 				key := makeDummyKey(userKey)
@@ -868,7 +868,7 @@ func TestDataBlockIterator_Prev(t *testing.T) {
 		t.Run(tc.desc, func(t *testing.T) {
 			// 1. Create block data
 			bp := predictable_size.NewPredictablePool()
-			blk := newBlock(tc.restartInterval, bp)
+			blk := newBlock(tc.restartInterval, bp, 1024*1024)
 
 			for i, userKey := range tc.inputUserKeys {
 				key := makeDummyKey(userKey)
@@ -1124,7 +1124,7 @@ func TestDataBlockIterator_SeekGTE(t *testing.T) {
 		t.Run(tc.desc, func(t *testing.T) {
 			// 1. Create block data
 			bp := predictable_size.NewPredictablePool()
-			blk := newBlock(tc.restartInterval, bp)
+			blk := newBlock(tc.restartInterval, bp, 1024*1024)
 
 			for i, userKey := range tc.inputUserKeys {
 				key := makeDummyKey(userKey)
@@ -1289,7 +1289,7 @@ func TestBlockIterator_Close(t *testing.T) {
 		t.Run(tc.desc, func(t *testing.T) {
 			// 1. Create block data
 			bp := predictable_size.NewPredictablePool()
-			blk := newBlock(tc.restartInterval, bp)
+			blk := newBlock(tc.restartInterval, bp, 1024*1024)
 
 			for i, userKey := range tc.inputUserKeys {
 				key := makeDummyKey(userKey)
@@ -1666,7 +1666,7 @@ func TestDataBlockIterator_SeekLTE(t *testing.T) {
 		t.Run(tc.desc, func(t *testing.T) {
 			// 1. Create block data
 			bp := predictable_size.NewPredictablePool()
-			blk := newBlock(tc.restartInterval, bp)
+			blk := newBlock(tc.restartInterval, bp, 1024*1024)
 
 			for i, userKey := range tc.inputUserKeys {
 				key := makeDummyKey(userKey)

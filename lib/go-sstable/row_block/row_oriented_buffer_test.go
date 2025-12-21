@@ -135,7 +135,7 @@ func Test_WriteEntry_Then_Finish(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.desc, func(t *testing.T) {
 			bp := predictable_size.NewPredictablePool()
-			blk := newBlock(tc.restartInterval, bp)
+			blk := newBlock(tc.restartInterval, bp, 1024*1024)
 			n := len(tc.inputUserKeys)
 			for i := 0; i < n; i++ {
 				key := makeDummyKey(tc.inputUserKeys[i])
@@ -191,7 +191,7 @@ func (m *MockFlushDecider) ShouldFlush(sizeBefore, sizeAfter int) bool {
 func Test_WriteEntry_Error(t *testing.T) {
 	// Setup
 	bp := predictable_size.NewPredictablePool()
-	blk := newBlock(2, bp)
+	blk := newBlock(2, bp, 1024*1024)
 
 	// 1. Modify the buffer to exceed the maximum offset allowed
 	// The maximumRestartOffset is 2^31 - 1, so we're making the buffer exceed that
@@ -240,7 +240,7 @@ func Test_Release(t *testing.T) {
 	realBp := predictable_size.NewPredictablePool()
 
 	// Create a test block
-	blk := newBlock(2, realBp)
+	blk := newBlock(2, realBp, 1024*1024)
 
 	// Create a mock pool and modify the implementation to use it
 	mockPool := new(MockPredictablePool)
@@ -274,7 +274,7 @@ func Test_Release(t *testing.T) {
 func Test_CleanUpForReuse(t *testing.T) {
 	// Setup
 	bp := predictable_size.NewPredictablePool()
-	blk := newBlock(2, bp)
+	blk := newBlock(2, bp, 1024*1024)
 
 	// 1. Add data to the block
 	key := makeDummyKey("test-key")
@@ -354,7 +354,7 @@ func Test_EstimateSize(t *testing.T) {
 		t.Run(tc.desc, func(t *testing.T) {
 			// Setup
 			bp := predictable_size.NewPredictablePool()
-			blk := newBlock(2, bp)
+			blk := newBlock(2, bp, 1024*1024)
 
 			// Set the buffer and restart offsets for testing
 			blk.buf = make([]byte, tc.bufSize)

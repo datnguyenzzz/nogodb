@@ -214,9 +214,9 @@ func (d *rowBlockBuf) Release() {
 	d.bufferPool.Put(d.buf)
 }
 
-func newBlock(restartInterval int, bufferPool *predictable_size.PredictablePool) *rowBlockBuf {
+func newBlock(restartInterval int, bufferPool *predictable_size.PredictablePool, maxBlockSize int) *rowBlockBuf {
 	d := &rowBlockBuf{
-		buf:        bufferPool.Get(maximumRestartOffset),
+		buf:        bufferPool.Get(maxBlockSize),
 		bufferPool: bufferPool,
 	}
 	d.restartInterval = restartInterval

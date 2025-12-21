@@ -194,7 +194,7 @@ func (rw *RowBlockWriter) doFlush(key common.InternalKey) error {
 	// 5. Reset the current data block for the next subsequent writes
 	rw.dataBlock.CleanUpForReuse()
 	rw.dataBlock.Release()
-	rw.dataBlock = newBlock(rw.opts.BlockRestartInterval, rw.bytesBufferPool)
+	rw.dataBlock = newBlock(rw.opts.BlockRestartInterval, rw.bytesBufferPool, rw.opts.BlockSize)
 
 	return nil
 }
@@ -214,11 +214,11 @@ func NewRowBlockWriter(w go_fs.Writable, opts options.BlockWriteOpt, version com
 	flushDecider := common.NewFlushDecider(opts.BlockSize, opts.BlockSizeThreshold)
 	storageWriter := storage.NewLayoutWriter(w)
 	bp := predictable_size.NewPredictablePool()
-	metaIndexBlock := newBlock(1, bp)
+	metaIndexBlock := newBlock(1, bp, opts.BlockSize)
 	return &RowBlockWriter{
 		opts:           opts,
 		storageWriter:  storageWriter,
-		dataBlock:      newBlock(opts.BlockRestartInterval, bp),
+		dataBlock:      newBlock(opts.BlockRestartInterval, bp, opts.BlockSize),
 		metaIndexBlock: metaIndexBlock,
 		indexWriter: newIndexWriter(
 			comparer,
@@ -228,6 +228,7 @@ func NewRowBlockWriter(w go_fs.Writable, opts options.BlockWriteOpt, version com
 			storageWriter,
 			metaIndexBlock,
 			bp,
+			opts,
 		),
 		comparer:        comparer,
 		filterWriter:    filter.NewFilterWriter(filter.BloomFilter), // Use bloom filter as a default method

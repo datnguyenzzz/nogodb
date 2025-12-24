@@ -140,15 +140,7 @@ func (i *BlockIterator) Next() *common.InternalKV {
 	}
 	i.offset = i.nextOffset
 	i.readEntry()
-	iKV := &common.InternalKV{}
-	iKV.K = *common.DeserializeKey(i.key)
-	v := common.NewBlankInternalLazyValue(common.ValueFromBuffer)
-	v.ReserveBuffer(i.bpool, len(i.value))
-	if err := v.SetBufferValue(i.value); err != nil {
-		zap.L().Error("failed to set value", zap.Error(err))
-	}
-	iKV.V = v
-	return iKV
+	return i.toKV()
 }
 
 func (i *BlockIterator) Prev() *common.InternalKV {
@@ -233,14 +225,14 @@ func (i *BlockIterator) readEntry() {
 	blkOffset += uint64(e)
 	if len(i.key) == 0 {
 		// the very first of the block
-		i.key = i.data.Value()[blkOffset : blkOffset+unsharedLen]
+		i.key = make([]byte, unsharedLen)
+		copy(i.key, i.data.Value()[blkOffset:blkOffset+unsharedLen])
 	} else {
 		i.key = append(i.key[:sharedLen], i.data.Value()[blkOffset:blkOffset+unsharedLen]...)
 	}
-	i.key = i.key[:len(i.key):len(i.key)]
 	blkOffset += unsharedLen
-	i.value = i.data.Value()[blkOffset : blkOffset+valueLen]
-	i.value = i.value[:len(i.value):len(i.value)]
+	i.value = make([]byte, valueLen)
+	copy(i.value, i.data.Value()[blkOffset:blkOffset+valueLen])
 	blkOffset += valueLen
 	i.nextOffset = blkOffset
 }

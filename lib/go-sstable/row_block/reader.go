@@ -171,8 +171,7 @@ func (r *RowBlockReader) readFromStorage(
 
 	// decompress block's data
 	compressor, compressedLength := r.getCompressor(bh, compressedVal)
-	compressedBytes := compressedVal.Value()[:compressedLength]
-	decompressedLen, err := compressor.DecompressedLen(compressedBytes)
+	decompressedLen, err := compressor.DecompressedLen(compressedVal.Value()[:compressedLength])
 	if err != nil {
 		compressedVal.Release()
 		return nil, err
@@ -181,7 +180,7 @@ func (r *RowBlockReader) readFromStorage(
 	decompressedVal := &common.InternalLazyValue{}
 	decompressedVal.ReserveBuffer(r.bpool, decompressedLen)
 
-	err = compressor.Decompress(decompressedVal.Value(), compressedBytes)
+	err = compressor.Decompress(decompressedVal.Value(), compressedVal.Value()[:compressedLength])
 	compressedVal.Release()
 
 	if err != nil {

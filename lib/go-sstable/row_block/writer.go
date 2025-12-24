@@ -115,6 +115,7 @@ func (rw *RowBlockWriter) Close() error {
 		return err
 	}
 	rw.bytesBufferPool.Put(metaIndexRaw)
+	metaIndexRaw = nil
 
 	// write Footer
 	footer := &Footer{
@@ -182,7 +183,7 @@ func (rw *RowBlockWriter) doFlush(key common.InternalKey) error {
 	task.storageWriter = rw.storageWriter
 	task.physical = compressToPb(rw.compressors[block.BlockKindData], rw.checksumer, uncompressed)
 	// inputs for index writer
-	task.indexKey = rw.indexWriter.createKey(prevKey, &key)
+	task.indexKey = prevKey
 	task.indexWriter = rw.indexWriter
 
 	// 3. Put the task into queue that is running on another go-routine
@@ -191,6 +192,7 @@ func (rw *RowBlockWriter) doFlush(key common.InternalKey) error {
 
 	// 4. Put the uncompressed buffer back to the bytes buffer pool
 	rw.bytesBufferPool.Put(uncompressed)
+	uncompressed = nil
 	// 5. Reset the current data block for the next subsequent writes
 	rw.dataBlock.CleanUpForReuse()
 	rw.dataBlock.Release()

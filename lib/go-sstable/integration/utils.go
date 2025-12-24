@@ -15,6 +15,25 @@ type kvType struct {
 	value []byte
 }
 
+func generateBytes(lo, hi []byte) []byte {
+	if len(lo) == 0 {
+		return []byte{0}
+	}
+	res := make([]byte, len(lo))
+	copy(res, lo)
+
+	for i := len(res) - 1; i >= 0; i-- {
+		if res[i] < byte(255) {
+			res[i] += 1
+			for j := i + 1; j < len(res); j++ {
+				res[j] = 0
+			}
+			break
+		}
+	}
+	return res
+}
+
 // generateKV Generate list of kvType in an increasing order of key
 func generateKV(size int, isUnique bool) []kvType {
 	res := make([]kvType, 0, size)

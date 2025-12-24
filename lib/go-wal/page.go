@@ -147,7 +147,10 @@ func (p *Page) Write(ctx context.Context, data []byte) (*Position, int64, error)
 	wBuf := writeBufferPool.Get(neededSpaces)
 
 	// put back (and reset) when finish using the buffer
-	defer writeBufferPool.Put(wBuf)
+	defer func() {
+		writeBufferPool.Put(wBuf)
+		wBuf = nil
+	}()
 
 	// 1. Manage to write the data onto the already allocated buffer
 	rec, size, err := p.writeToMemBuffer(ctx, data, &wBuf)

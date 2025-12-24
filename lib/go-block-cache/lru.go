@@ -78,6 +78,7 @@ func (l *lru) Promote(node *kv, diffSize int64) bool {
 	if node.log == nil {
 		// the key/value pair is updated for the first time
 		if node.size > l.capacity {
+			zap.L().Error("node is bigger than eviction value")
 			return false
 		}
 

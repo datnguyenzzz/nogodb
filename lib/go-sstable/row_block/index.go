@@ -40,17 +40,7 @@ type indexWriter struct {
 	firstLevelIndices []*firstLevelIndex
 	metaIndexBlock    *rowBlockBuf
 	bytesBufferPool   *predictable_size.PredictablePool
-}
-
-func (w *indexWriter) createKey(prevKey, key *common.InternalKey) *common.InternalKey {
-	var sep *common.InternalKey
-	if key.UserKey == nil && key.Trailer == 0 {
-		sep = prevKey.Successor(w.comparer)
-	} else {
-		sep = prevKey.Separator(w.comparer, key)
-	}
-
-	return sep
+	opts              *options.BlockWriteOpt
 }
 
 func (w *indexWriter) add(key *common.InternalKey, bh *block2.BlockHandle) error {
@@ -77,10 +67,13 @@ func (w *indexWriter) mightFlushToMem(key *common.InternalKey) error {
 	// Therefore we can always assure that they are no other concurrent attempts
 
 	// Instead of flushing directly to the storage, we store the top level indices
-	// into the memory, we will only write the index blocks (which is classified as meta block)
-	// once the table is finished. We do it because based on the design, the index
-	// blocks are only written after all of data blocks are flushed, and the table is
-	// about closing
+	// into the memory, we will only write the index blocks once the table is finished.
+	// We do it because based on the design, the index blocks are only written after all
+	// of data blocks are flushed, and the table is about closing.
+	// Therefore the layout would look like: (refero to README for more:)
+	//   [data blocks]
+	//   [1st level index blocks]
+	//   [2nd level index block]
 	// TODO (low): Open questions:
 	//   1. How to recover the indices if the machine crash ?
 	w.flushFirstLevelIndexToMem(key)
@@ -88,16 +81,23 @@ func (w *indexWriter) mightFlushToMem(key *common.InternalKey) error {
 }
 
 func (w *indexWriter) flushFirstLevelIndexToMem(key *common.InternalKey) {
+	prevKey := w.firstLevelBlock.CurKey()
 	idx := &firstLevelIndex{
-		key:     key,
+		key:     prevKey,
 		entries: w.firstLevelBlock.EntryCount(),
 	}
 	uncompressed := w.bytesBufferPool.Get(w.firstLevelBlock.EstimateSize())
 	uncompressed = uncompressed[:w.firstLevelBlock.EstimateSize()]
 	w.firstLevelBlock.Finish(uncompressed)
-	idx.finishedBlock = uncompressed
+	idx.finishedBlock = make([]byte, len(uncompressed))
+	copy(idx.finishedBlock, uncompressed)
 	w.firstLevelIndices = append(w.firstLevelIndices, idx)
 	w.bytesBufferPool.Put(uncompressed)
+	// reset the current first level index block for the next subsequent writes
+	uncompressed = nil
+	w.firstLevelBlock.CleanUpForReuse()
+	w.firstLevelBlock.Release()
+	w.firstLevelBlock = newBlock(1, w.bytesBufferPool, w.opts.BlockSize)
 }
 
 // buildIndex build the 2-level index for the SST
@@ -141,6 +141,7 @@ func (w *indexWriter) buildIndex() error {
 	}
 
 	w.bytesBufferPool.Put(uncompressed)
+	uncompressed = nil
 	return err
 }
 
@@ -173,5 +174,6 @@ func newIndexWriter(
 		firstLevelIndices: make([]*firstLevelIndex, 0, estimateNumberOfTopLevelBlocks),
 		metaIndexBlock:    metaIndexBlock,
 		bytesBufferPool:   bufferPool,
+		opts:              &opts,
 	}
 }

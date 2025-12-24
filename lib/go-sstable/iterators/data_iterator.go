@@ -375,6 +375,10 @@ func (i *DataIterator) readMetaIndexBlock(footer *row_block.Footer) error {
 }
 
 func (i *DataIterator) init2ndLevelIndexBlockIterator() error {
+	if i.secondLevelIndexBH == nil {
+		zap.L().Error("the secondLevelIndex block handle is nil")
+		return fmt.Errorf("%w: the secondLevelIndex block handle is nil", common.InternalServerError)
+	}
 	// TODO (low - dat.ngthanh): Should we cache the 2nd level index block ?
 	secondLevelIndexBuf, err := i.blockReader.Read(i.secondLevelIndexBH, block_common.BlockKindIndex)
 	if err != nil {

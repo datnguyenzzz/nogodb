@@ -35,7 +35,10 @@ func (b *BufferPoolFetcher) Reserve(size int) {
 }
 
 func (b *BufferPoolFetcher) Set(val []byte) {
-	b.val = val
+	if len(b.val) != len(val) {
+		b.Reserve(len(val))
+	}
+	copy(b.val, val)
 }
 
 func (b *BufferPoolFetcher) Load() []byte {

@@ -59,9 +59,15 @@ func TestBufferPoolFetcher_Set(t *testing.T) {
 	pool := predictable_size.NewPredictablePool()
 	fetcher := &BufferPoolFetcher{pool: pool}
 
-	testData := []byte("test data")
+	// test case - with reservation
+	testData := []byte("test data with reservation")
+	fetcher.Reserve(len(testData))
 	fetcher.Set(testData)
+	assert.Equal(t, testData, fetcher.val)
 
+	// test case - Without reservation
+	testData = []byte("test data Without reservation")
+	fetcher.Set(testData)
 	assert.Equal(t, testData, fetcher.val)
 
 	// Clean up
@@ -72,11 +78,16 @@ func TestBufferPoolFetcher_Load(t *testing.T) {
 	pool := predictable_size.NewPredictablePool()
 	fetcher := &BufferPoolFetcher{pool: pool}
 
-	testData := []byte("test data")
+	// test case - with reservation
+	testData := []byte("test data with reservation")
+	fetcher.Reserve(len(testData))
 	fetcher.Set(testData)
+	assert.Equal(t, testData, fetcher.Load())
 
-	loaded := fetcher.Load()
-	assert.Equal(t, testData, loaded)
+	// test case - Without reservation
+	testData = []byte("test data Without reservation")
+	fetcher.Set(testData)
+	assert.Equal(t, testData, fetcher.Load())
 
 	// Clean up
 	fetcher.Release()

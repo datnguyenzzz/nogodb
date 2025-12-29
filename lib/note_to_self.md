@@ -1,4 +1,6 @@
-#Project tracker 
+# Project tracker 
+
+## H2 - 2025
 
 - [x] Finished implementing writer + iterator for the sstable  
 - [ ] Implement go-fs with the basic file operations
@@ -6,10 +8,10 @@
   - [ ] P1: On local disk
   - [ ] P2: Remote storage
 - [x] P0: Wire the go-sstable/writer + reader to use the go-fs
-- [ ] P0: Add an exhaustive functional tests (writer --> iterator) for the sstable
-- [ ] P1: Add benchmark tests for Iterator + Writer
+- [ ] Add an exhaustive functional tests (writer --> iterator) for the sstable
+  - [x] P0: In-mem
+  - [ ] P1: On-local disk
+- [ ] P2: Add benchmark tests for Iterator + Writer
 - [ ] P0: Refactor go-wal to use go-fs
-
--- Next Milestone
-
-- [ ] xxx
+- [ ] P1: Implement lock-free Skip list and benchmark against the adaptive radix tree for the MemTable
+- [ ] P1: Implement Clock-based eviction policy and benchmark against the LRU policy for the go-block-cache

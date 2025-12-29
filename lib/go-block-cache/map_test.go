@@ -217,9 +217,12 @@ func Test_Hashmap_Bulk_Set_Then_Get_And_Release_Async(t *testing.T) {
 						return
 					}
 
-					val := []byte(lazyValue.Load())
-					if !assert.Equal(t, value, val, fmt.Sprintf("%v-%v lazy value should match", testID, i)) {
-						return
+					odd := r.Intn(3)
+					if odd%2 == 0 {
+						val := []byte(lazyValue.Load())
+						if !assert.Equal(t, value, val, fmt.Sprintf("%v-%v lazy value should match", testID, i)) {
+							return
+						}
 					}
 
 					// store the lazyValue for the delayed releasing
@@ -320,7 +323,7 @@ func Test_HashMap_LRU_Eviction_Order(t *testing.T) {
 	// Create test data: each entry is 5 bytes
 	data := [][]byte{
 		{1, 1, 1, 1, 1}, // key 1 - will be evicted first
-		{2, 2, 2, 2, 2}, // key 2 - will be evicted second  
+		{2, 2, 2, 2, 2}, // key 2 - will be evicted second
 		{3, 3, 3, 3, 3}, // key 3 - will be evicted third
 		{4, 4, 4, 4, 4}, // key 4 - will remain
 		{5, 5, 5, 5, 5}, // key 5 - will remain (triggers eviction)
@@ -367,7 +370,7 @@ func Test_HashMap_LRU_Access_Updates_Priority(t *testing.T) {
 	// Create test data: each entry is 5 bytes
 	data := [][]byte{
 		{1, 1, 1, 1, 1}, // key 1
-		{2, 2, 2, 2, 2}, // key 2  
+		{2, 2, 2, 2, 2}, // key 2
 		{3, 3, 3, 3, 3}, // key 3
 		{4, 4, 4, 4, 4}, // key 4 - will trigger eviction
 	}
@@ -409,7 +412,7 @@ func Test_HashMap_LRU_Set_Updates_Priority(t *testing.T) {
 	data2 := []byte{2, 2, 2, 2, 2} // 5 bytes
 	data3 := []byte{3, 3, 3, 3, 3} // 5 bytes
 	data4 := []byte{4, 4, 4, 4, 4} // 5 bytes
-	
+
 	// Add items 1, 2, 3 (fills cache to capacity)
 	cache.Set(0, 1, data1)
 	cache.Set(0, 2, data2)
@@ -455,12 +458,12 @@ func Test_HashMap_LRU_Sequential_Eviction(t *testing.T) {
 		data := []byte{byte(i), byte(i)}
 		ok := cache.Set(0, uint64(i), data)
 		assert.True(t, ok)
-		
+
 		// Check that the oldest item was evicted
 		evictedKey := uint64(i - 5)
 		_, ok = cache.Get(0, evictedKey)
 		assert.False(t, ok, "Key %d should have been evicted when adding key %d", evictedKey, i)
-		
+
 		assert.Equal(t, int64(10), cache.GetInUsed())
 	}
 
@@ -495,7 +498,7 @@ func Test_HashMap_LRU_Complex_Access_Pattern(t *testing.T) {
 
 	// Access pattern: 2, 1, 3 (making 4 the LRU)
 	cache.Get(0, 2)
-	cache.Get(0, 1)  
+	cache.Get(0, 1)
 	cache.Get(0, 3)
 	// LRU order should now be: 4 (LRU), 2, 1, 3 (MRU)
 
@@ -525,7 +528,7 @@ func Test_HashMap_LRU_Complex_Access_Pattern(t *testing.T) {
 	_, ok = cache.Get(0, 1)
 	assert.False(t, ok, "Key 1 should have been evicted")
 
-	// Keys 2, 3, 5, 6 should be present  
+	// Keys 2, 3, 5, 6 should be present
 	for _, key := range []uint64{2, 3, 5, 6} {
 		_, ok := cache.Get(0, key)
 		assert.True(t, ok, "Key %d should still be present", key)

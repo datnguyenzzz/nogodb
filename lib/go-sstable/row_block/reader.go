@@ -59,7 +59,9 @@ func (w *blockCacheWrapper) Get(bh *block_common.BlockHandle) (*common.InternalL
 }
 
 func (w *blockCacheWrapper) Set(bh *block_common.BlockHandle, val *common.InternalLazyValue) error {
-	ok := w.c.Set(w.fileNum, bh.Offset, val.Value())
+	v := make([]byte, len(val.Value()))
+	copy(v, val.Value())
+	ok := w.c.Set(w.fileNum, bh.Offset, v)
 	if !ok {
 		return failedUpdateToCache
 	}

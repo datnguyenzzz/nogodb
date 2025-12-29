@@ -224,15 +224,14 @@ func (i *BlockIterator) readEntry() {
 	valueLen, e := binary.Uvarint(i.data.Value()[blkOffset:])
 	blkOffset += uint64(e)
 	if len(i.key) == 0 {
-		// the very first of the block
+		// we only allocate new memory at the very first of the block
 		i.key = make([]byte, unsharedLen)
 		copy(i.key, i.data.Value()[blkOffset:blkOffset+unsharedLen])
 	} else {
 		i.key = append(i.key[:sharedLen], i.data.Value()[blkOffset:blkOffset+unsharedLen]...)
 	}
 	blkOffset += unsharedLen
-	i.value = make([]byte, valueLen)
-	copy(i.value, i.data.Value()[blkOffset:blkOffset+valueLen])
+	i.value = i.data.Value()[blkOffset : blkOffset+valueLen]
 	blkOffset += valueLen
 	i.nextOffset = blkOffset
 }

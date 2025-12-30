@@ -239,7 +239,7 @@ func (w *WalSuite) Test_Iterator_Seeking_Ops_single_table() {
 			assert.NoError(t, err)
 
 			// Evaluate the result of the seek operations
-			fileReadable, fd, err := inMemStorage.Open(go_fs.TypeTable, int64(i), 0)
+			fileReadable, fd, err := inMemStorage.Open(go_fs.TypeTable, int64(i))
 			assert.NoError(t, err)
 			var iterOpts []options.IteratorOptsFunc
 			if tc.cacheSize > 0 {
@@ -390,7 +390,7 @@ func (w *WalSuite) Test_Iterator_Concurrently_Seeking_Ops_multiple_tables() {
 			for sst := 1; sst <= numberOfSSTs; sst++ {
 				eg.Go(func() error {
 					kvs := sample[sst-1]
-					fileReadable, fd, err := inMemStorage.Open(go_fs.TypeTable, int64(sst), 0)
+					fileReadable, fd, err := inMemStorage.Open(go_fs.TypeTable, int64(sst))
 					assert.NoError(t, err)
 					var iterOpts []options.IteratorOptsFunc
 					if tc.cacheSize > 0 {
@@ -564,7 +564,7 @@ func (w *WalSuite) Test_Iterator_First_Then_Next_Ops() {
 			for sst := 1; sst <= tc.sstNum; sst++ {
 				eg.Go(func() error {
 					kvs := sample[sst-1]
-					fileReadable, fd, err := inMemStorage.Open(go_fs.TypeTable, int64(sst), 0)
+					fileReadable, fd, err := inMemStorage.Open(go_fs.TypeTable, int64(sst))
 					assert.NoError(t, err)
 					var iterOpts []options.IteratorOptsFunc
 					if tc.cacheSize > 0 {

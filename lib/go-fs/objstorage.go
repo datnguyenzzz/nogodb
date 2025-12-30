@@ -75,7 +75,7 @@ type Readable interface {
 // storage.
 type Storage interface {
 	// Open opens an existing object with the given 'file descriptor' read-only.
-	Open(objType ObjectType, num int64, flag int) (Readable, FileDesc, error)
+	Open(objType ObjectType, num int64) (Readable, FileDesc, error)
 
 	// Create creates a new object and opens it for writing.
 	//

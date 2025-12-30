@@ -134,7 +134,6 @@ var dataBlockIteratorPool = sync.Pool{
 // SeekPrefixGTE the prefix is only used for checking with the bloom filter of the SSTable.
 // but not used later while iterating. Hence, we can use the existing iterator position
 // it did not fail bloom filter matching.
-// TODO [P0] - Untested code
 func (i *DataIterator) SeekPrefixGTE(prefix, key []byte) *common.InternalKV {
 	if !i.filter.MayContain(prefix) {
 		// don't invalidate the indexes and data block, the other iterator might still read it
@@ -143,8 +142,6 @@ func (i *DataIterator) SeekPrefixGTE(prefix, key []byte) *common.InternalKV {
 	return i.SeekGTE(key)
 }
 
-// SeekGTE
-// TODO [P0] - Untested code
 func (i *DataIterator) SeekGTE(key []byte) *common.InternalKV {
 	// Important notes:
 	//  - Ensure the data (lazyValue) is released properly once the block is no longer used
@@ -180,55 +177,29 @@ func (i *DataIterator) SeekLTE(key []byte) *common.InternalKV {
 }
 
 func (i *DataIterator) First() *common.InternalKV {
-	panic("implement me")
-	// TODO review later
-	//if err := i.first2ndLevelIndex(); err != nil {
-	//	return nil
-	//}
-	//
-	//// move the 1st-level index to first position
-	//if err := i.first1stLevelIndex(); err != nil {
-	//	return nil
-	//}
-	//
-	//return i.dataBlockIter.First()
+	first2ndIndex := i.secondLevelIndexIter.First()
+	if first2ndIndex == nil {
+		panic("impossible, the first must be found on the 2nd level index")
+	}
+
+	err := i.firstLevelIndexedIter.SetIndexAndLoad(first2ndIndex)
+	if err != nil {
+		zap.L().Error("failed to load the first level index", zap.Error(err))
+		return nil
+	}
+
+	first1stIndex := i.firstLevelIndexedIter.First()
+	if first1stIndex == nil {
+		panic("impossible, the first must be found on the 1st level index")
+	}
+	err = i.dataIndexedIter.SetIndexAndLoad(first1stIndex)
+	if err != nil {
+		zap.L().Error("failed to load the data block", zap.Error(err))
+		return nil
+	}
+
+	return i.dataIndexedIter.First()
 }
-
-// TODO review later
-//// first2ndLevelIndex move the 2nd-level index to its first position
-//// and rebuild the i.firstIndexIter
-//func (i *DataIterator) first2ndLevelIndex() error {
-//	// move the 2nd-level index to the first position
-//	first2ndIndex := i.secondLevelIndexIter.First()
-//	if first2ndIndex == nil {
-//		zap.L().Error("failed to move to the first position of 2nd-level index")
-//		return fmt.Errorf("failed to move to the first position of 2nd-level index")
-//	}
-//	if first2ndIndex != i.secondLevelIndex {
-//		i.invalidate1stLevelIndexIter()
-//		i.invalidateDataIter()
-//	}
-//
-//	i.secondLevelIndex = first2ndIndex
-//	return i.load1stIndexBlockIter()
-//}
-
-// TODO review later
-// first1stLevelIndex move the 1st-level index to its first position
-// and rebuild the i.dataBlockIter
-//func (i *DataIterator) first1stLevelIndex() error {
-//	first1stIndex := i.firstLevelIndexIter.First()
-//	if first1stIndex == nil {
-//		zap.L().Error("failed to move to the first position of 1st-level index")
-//		return fmt.Errorf("failed to move to the first position of 1st-level index")
-//	}
-//	if first1stIndex != i.firstLevelIndex {
-//		i.invalidateDataIter()
-//	}
-//
-//	i.firstLevelIndex = first1stIndex
-//	return i.loadDataBlockIter()
-//}
 
 func (i *DataIterator) Last() *common.InternalKV {
 	//TODO implement me
@@ -236,86 +207,47 @@ func (i *DataIterator) Last() *common.InternalKV {
 }
 
 func (i *DataIterator) Next() *common.InternalKV {
-	panic("implement me")
-	// TODO review later
-	//if i.firstLevelIndexIter == nil || i.dataBlockIter == nil {
-	//	zap.L().Warn("The iterator has not been initialized yet, moved to the first position")
-	//	_ = i.First()
-	//}
-	//
-	//nextKv := i.dataBlockIter.Next()
-	//if nextKv != nil {
-	//	return nextKv
-	//}
-	//// data block is already at the end, move the 1st-level index next
-	//nextKv, err := i.next1stLevelIndex()
-	//if err != nil {
-	//	zap.L().Error("failed to move to the next 1st-level index", zap.Error(err))
-	//	return nil
-	//}
-	//
-	//if nextKv != nil {
-	//	return nextKv
-	//}
-	//
-	//// the 1st-index is already at the end, move the 2nd-level index next
-	//nextKv, err = i.next2ndLevelIndex()
-	//if err != nil {
-	//	zap.L().Error("failed to move to the next 2nd-level index", zap.Error(err))
-	//	return nil
-	//}
-	//
-	//return nextKv
+	if i.firstLevelIndexedIter == nil || i.dataIndexedIter == nil {
+		zap.L().Error("the firstLevelIndexedIter and dataIndexedIter is nil. First will be returned")
+		return i.First()
+	}
+
+	nextKv := i.dataIndexedIter.Next()
+	if nextKv != nil {
+		return nextKv
+	}
+
+	// the current data block is at the end, moving to the next block by the 1st index
+	next1stIndex := i.firstLevelIndexedIter.Next()
+	if next1stIndex != nil {
+		err := i.dataIndexedIter.SetIndexAndLoad(next1stIndex)
+		if err != nil {
+			zap.L().Error("failed to load the data block", zap.Error(err))
+			return nil
+		}
+
+		return i.dataIndexedIter.First()
+	}
+
+	// the current 1st level index is at the end, moving to the next 2nd index block
+	next2ndIndex := i.secondLevelIndexIter.Next()
+	if next2ndIndex == nil {
+		return nil
+	}
+
+	err := i.firstLevelIndexedIter.SetIndexAndLoad(next2ndIndex)
+	if err != nil {
+		zap.L().Error("failed to load the first level index", zap.Error(err))
+		return nil
+	}
+	err = i.dataIndexedIter.SetIndexAndLoad(i.firstLevelIndexedIter.First())
+	if err != nil {
+		zap.L().Error("failed to load the data block", zap.Error(err))
+		return nil
+	}
+
+	return i.dataIndexedIter.First()
 }
-
-// TODO review later
-//// next1stLevelIndex move the current 1st level index next, and return the first() cursor
-//// returns nil if the 1st-level also at the end of the block
-//func (i *DataIterator) next1stLevelIndex() (*common.InternalKV, error) {
-//	i.invalidateDataIter()
-//
-//	next1stLvlIndex := i.firstLevelIndexIter.Next()
-//	if next1stLvlIndex == nil {
-//		return nil, nil
-//	}
-//
-//	i.firstLevelIndex.V.Release()
-//	i.firstLevelIndex = next1stLvlIndex
-//
-//	err := i.loadDataBlockIter()
-//	if err != nil {
-//		zap.L().Error("failed to load data block", zap.Error(err))
-//		return nil, err
-//	}
-//
-//	return i.dataBlockIter.First(), nil
-//}
-
-// TODO review later
-//// next2ndLevelIndex move the current 2nd level index next, and return the first() cursor
-//// returns nil if the 2nd-level also at the end of the block
-//func (i *DataIterator) next2ndLevelIndex() (*common.InternalKV, error) {
-//	// invalidate the current 1st index
-//	i.invalidate1stLevelIndexIter()
-//	i.invalidateDataIter()
-//
-//	next2ndLvlIndex := i.secondLevelIndexIter.Next()
-//	if next2ndLvlIndex == nil {
-//		return nil, nil
-//	}
-//
-//	if err := i.load1stIndexBlockIter(); err != nil {
-//		return nil, err
-//	}
-//
-//	i.firstLevelIndex = i.firstLevelIndexIter.First()
-//
-//	if err := i.loadDataBlockIter(); err != nil {
-//		return nil, err
-//	}
-//
-//	return i.dataBlockIter.First(), nil
-//}
 
 func (i *DataIterator) Prev() *common.InternalKV {
 	//TODO implement me

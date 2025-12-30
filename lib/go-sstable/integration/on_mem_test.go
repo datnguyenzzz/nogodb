@@ -435,13 +435,12 @@ func Test_Iterator_Concurrently_Seeking_Ops_multiple_tables(t *testing.T) {
 func validateSeekGTE(t *testing.T, iter go_sstable.IIterator, expectedKV kvType, prevKV kvType, i int) {
 	kv := iter.SeekGTE(expectedKV.key)
 	require.NotNil(t, kv, fmt.Sprintf("SeekGTE with an exact key must found, test case #%d", i))
-	assert.Zero(t, bytes.Compare(expectedKV.key, kv.K.UserKey), fmt.Sprintf("SeekGTE with smaller key: key must match, test case #%d. Expected: %v, actual: %v", i, expectedKV.key, kv.K.UserKey))
+	assertKv(t, expectedKV, kv, i)
 	assert.Zero(t, bytes.Compare(expectedKV.value, kv.V.Value()), fmt.Sprintf("SeekGTE with smaller key: key must value, test case #%d. Expected: %v, actual: %v", i, expectedKV.value, kv.V.Value()))
 	// SeekGTEPrefix with an exact key
 	kv = iter.SeekPrefixGTE(expectedKV.key, expectedKV.key)
 	require.NotNil(t, kv, fmt.Sprintf("SeekGTEPrefix with an exact key must found, test case #%d", i))
-	assert.Zero(t, bytes.Compare(expectedKV.key, kv.K.UserKey), fmt.Sprintf("SeekGTEPrefix with an exact key: key must match, test case #%d. Expected: %v, actual: %v", i, expectedKV.key, kv.K.UserKey))
-	assert.Zero(t, bytes.Compare(expectedKV.value, kv.V.Value()), fmt.Sprintf("SeekGTEPrefix with an exact key: key must value, test case #%d. Expected: %v, actual: %v", i, expectedKV.value, kv.V.Value()))
+	assertKv(t, expectedKV, kv, i)
 	// SeekGTE with smaller key
 
 	k := generateBytes(prevKV.key, expectedKV.value)
@@ -449,6 +448,150 @@ func validateSeekGTE(t *testing.T, iter go_sstable.IIterator, expectedKV kvType,
 	assert.Greater(t, bytes.Compare(k, prevKV.key), 0, fmt.Sprintf("a test key must be > than the previous key, test case #%d.", i))
 	kv = iter.SeekGTE(k)
 	require.NotNil(t, kv, fmt.Sprintf("SeekGTE with smaller key must found, test case #%d", i))
+	assertKv(t, expectedKV, kv, i)
+}
+
+func assertKv(t *testing.T, expectedKV kvType, kv *common.InternalKV, i int) {
 	assert.Zero(t, bytes.Compare(expectedKV.key, kv.K.UserKey), fmt.Sprintf("SeekGTE with smaller key: key must match, test case #%d. Expected: %v, actual: %v", i, expectedKV.key, kv.K.UserKey))
 	assert.Zero(t, bytes.Compare(expectedKV.value, kv.V.Value()), fmt.Sprintf("SeekGTE with smaller key: key must value, test case #%d. Expected: %v, actual: %v", i, expectedKV.value, kv.V.Value()))
+}
+
+func Test_Iterator_First_Then_Next_Ops_Single_Table(t *testing.T) {
+	type param struct {
+		name      string
+		restart   int
+		isUnique  bool
+		cacheSize int // 0 means no cache
+		sstNum    int
+	}
+
+	tests := []param{
+		{
+			name:     "volume = 100_000, all keys are unique, block cache disable, single table",
+			isUnique: true,
+			restart:  5,
+			sstNum:   1,
+		},
+		{
+			name:     "volume = 100_000, keys are shared prefix, block cache disable, single table",
+			isUnique: false,
+			restart:  5,
+			sstNum:   1,
+		},
+		{
+			name:      "volume = 100_000, all keys are unique, block cache enabled, single table",
+			isUnique:  true,
+			restart:   5,
+			sstNum:    1,
+			cacheSize: 1 * mB,
+		},
+		{
+			name:      "volume = 100_000, keys are shared prefix, block cache enabled, single table",
+			isUnique:  false,
+			restart:   5,
+			sstNum:    1,
+			cacheSize: 1 * mB,
+		},
+		{
+			name:     "volume = 100_000, all keys are unique, block cache disable, multiple tables",
+			isUnique: true,
+			restart:  5,
+			sstNum:   3,
+		},
+		{
+			name:     "volume = 100_000, keys are shared prefix, block cache disable, multiple tables",
+			isUnique: false,
+			restart:  5,
+			sstNum:   3,
+		},
+		{
+			name:      "volume = 100_000, all keys are unique, block cache enabled, multiple tables",
+			isUnique:  true,
+			restart:   5,
+			sstNum:    3,
+			cacheSize: 1 * mB,
+		},
+		{
+			name:      "volume = 100_000, keys are shared prefix, block cache enabled, multiple tables",
+			isUnique:  false,
+			restart:   5,
+			sstNum:    3,
+			cacheSize: 1 * mB,
+		},
+	}
+
+	sampleSize := 100_000
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// Init a table
+			inMemStorage := go_fs.NewInmemStorage()
+			sample := make([][]kvType, 0, tc.sstNum)
+			for sst := 1; sst <= tc.sstNum; sst++ {
+				fileWritable, _, err := inMemStorage.Create(go_fs.TypeTable, int64(sst))
+				assert.NoError(t, err)
+				writer := go_sstable.NewWriter(
+					fileWritable,
+					common.TableV1,
+					go_sstable.WithBlockRestartInterval(tc.restart),
+					go_sstable.WithBlockSize(2*kB),
+				)
+
+				kvs := generateKV(sampleSize, tc.isUnique)
+				sample = append(sample, kvs)
+				for _, kv := range kvs {
+					err := writer.Set(kv.key, kv.value)
+					assert.NoError(t, err, "failed to set")
+				}
+
+				err = writer.Close()
+				assert.NoError(t, err)
+			}
+
+			// Evaluate the result of the seek operations
+			eg := errgroup.Group{}
+			for sst := 1; sst <= tc.sstNum; sst++ {
+				eg.Go(func() error {
+					kvs := sample[sst-1]
+					fileReadable, fd, err := inMemStorage.Open(go_fs.TypeTable, int64(sst))
+					assert.NoError(t, err)
+					var iterOpts []options.IteratorOptsFunc
+					if tc.cacheSize > 0 {
+						iterOpts = []options.IteratorOptsFunc{
+							options.WithBlockCache(go_block_cache.LRU, fd),
+							options.WithBlockCacheSize(int64(tc.cacheSize)),
+						}
+					}
+					sharedBufferPool := predictable_size.NewPredictablePool()
+					iter, err := go_sstable.NewSingularIterator(
+						sharedBufferPool,
+						fileReadable,
+						iterOpts...,
+					)
+					require.NoError(t, err)
+
+					defer func() {
+						err := iter.Close()
+						assert.NoError(t, err)
+					}()
+
+					firstKv := iter.First()
+					assertKv(t, kvs[0], firstKv, 0)
+
+					for i := 1; i < len(kvs); i++ {
+						kv := iter.Next()
+						assertKv(t, kvs[i], kv, i)
+					}
+
+					lastKv := iter.Next()
+					assert.Nil(t, lastKv)
+
+					return nil
+				})
+			}
+
+			err := eg.Wait()
+			assert.NoError(t, err)
+		})
+	}
 }

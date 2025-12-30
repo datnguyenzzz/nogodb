@@ -45,6 +45,11 @@ func (m memWriter) Close() error {
 	return nil
 }
 
+func (m memWriter) Seek(offset int64, whence int) (int64, error) {
+	
+	return 0, nil
+}
+
 func (m memWriter) Sync() error {
 	// no op
 	return nil
@@ -74,7 +79,7 @@ func NewInmemStorage() Storage {
 	}
 }
 
-func (i inmemStorage) Open(objType ObjectType, num int64) (Readable, FileDesc, error) {
+func (i inmemStorage) Open(objType ObjectType, num int64, flag int) (Readable, FileDesc, error) {
 	i.mu.Lock()
 	defer i.mu.Unlock()
 

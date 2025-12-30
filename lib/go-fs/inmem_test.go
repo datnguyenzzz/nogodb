@@ -100,7 +100,7 @@ func Test_Create_And_Open(t *testing.T) {
 			// assert file content
 			for fileType, num := range tc.fileCountPerType {
 				for i := 0; i < num; i++ {
-					reader, fd, err := storage.Open(fileType, int64(i))
+					reader, fd, err := storage.Open(fileType, int64(i), 0)
 					assert.NoError(t, err, "can not open file")
 					_, ok := writers[fd]
 					assert.True(t, ok, fmt.Sprintf("can not find writer for %#v", fd))

@@ -271,16 +271,17 @@ func openPageByPath(path string, id PageID, mode PageAccessMode) (*Page, error) 
 		return nil, err
 	}
 
-	offset, err := f.Seek(0, io.SeekEnd)
+	stats, err := f.Stat()
 	if err != nil {
 		return nil, err
 	}
+	size := stats.Size()
 
 	return &Page{
 		Id:              id,
 		F:               f,
-		TotalBlockCount: uint32(offset / defaultBlockSize),
-		LastBlockSize:   uint32(offset % defaultBlockSize),
+		TotalBlockCount: uint32(size / defaultBlockSize),
+		LastBlockSize:   uint32(size % defaultBlockSize),
 	}, nil
 }
 

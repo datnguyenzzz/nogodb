@@ -1,4 +1,6 @@
-package integration
+//go:build functional_tests
+
+package functional
 
 import (
 	"bytes"
@@ -15,6 +17,7 @@ import (
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/options"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/suite"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -27,7 +30,11 @@ const (
 	mB = kB * 1024
 )
 
-func Test_Integration_Writer_No_Errors(t *testing.T) {
+type WalSuite struct {
+	suite.Suite
+}
+
+func (w *WalSuite) Test_Integration_Writer_No_Errors() {
 	type param struct {
 		name      string
 		restart   int
@@ -91,6 +98,7 @@ func Test_Integration_Writer_No_Errors(t *testing.T) {
 		},
 	}
 
+	t := w.T()
 	for i, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			inMemStorage := go_fs.NewInmemStorage()
@@ -123,7 +131,7 @@ func Test_Integration_Writer_No_Errors(t *testing.T) {
 	}
 }
 
-func Test_Iterator_Seeking_Ops_single_table(t *testing.T) {
+func (w *WalSuite) Test_Iterator_Seeking_Ops_single_table() {
 	type param struct {
 		name                string
 		restart             int
@@ -207,6 +215,7 @@ func Test_Iterator_Seeking_Ops_single_table(t *testing.T) {
 		},
 	}
 
+	t := w.T()
 	for i, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Init a table
@@ -230,7 +239,7 @@ func Test_Iterator_Seeking_Ops_single_table(t *testing.T) {
 			assert.NoError(t, err)
 
 			// Evaluate the result of the seek operations
-			fileReadable, fd, err := inMemStorage.Open(go_fs.TypeTable, int64(i))
+			fileReadable, fd, err := inMemStorage.Open(go_fs.TypeTable, int64(i), 0)
 			assert.NoError(t, err)
 			var iterOpts []options.IteratorOptsFunc
 			if tc.cacheSize > 0 {
@@ -276,7 +285,7 @@ func Test_Iterator_Seeking_Ops_single_table(t *testing.T) {
 	}
 }
 
-func Test_Iterator_Concurrently_Seeking_Ops_multiple_tables(t *testing.T) {
+func (w *WalSuite) Test_Iterator_Concurrently_Seeking_Ops_multiple_tables() {
 	type param struct {
 		name                string
 		restart             int
@@ -349,6 +358,7 @@ func Test_Iterator_Concurrently_Seeking_Ops_multiple_tables(t *testing.T) {
 
 	numberOfSSTs := 3
 
+	t := w.T()
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Init a table
@@ -380,7 +390,7 @@ func Test_Iterator_Concurrently_Seeking_Ops_multiple_tables(t *testing.T) {
 			for sst := 1; sst <= numberOfSSTs; sst++ {
 				eg.Go(func() error {
 					kvs := sample[sst-1]
-					fileReadable, fd, err := inMemStorage.Open(go_fs.TypeTable, int64(sst))
+					fileReadable, fd, err := inMemStorage.Open(go_fs.TypeTable, int64(sst), 0)
 					assert.NoError(t, err)
 					var iterOpts []options.IteratorOptsFunc
 					if tc.cacheSize > 0 {
@@ -456,7 +466,7 @@ func assertKv(t *testing.T, expectedKV kvType, kv *common.InternalKV, i int) {
 	assert.Zero(t, bytes.Compare(expectedKV.value, kv.V.Value()), fmt.Sprintf("SeekGTE with smaller key: key must value, test case #%d. Expected: %v, actual: %v", i, expectedKV.value, kv.V.Value()))
 }
 
-func Test_Iterator_First_Then_Next_Ops_Single_Table(t *testing.T) {
+func (w *WalSuite) Test_Iterator_First_Then_Next_Ops() {
 	type param struct {
 		name      string
 		restart   int
@@ -522,6 +532,7 @@ func Test_Iterator_First_Then_Next_Ops_Single_Table(t *testing.T) {
 
 	sampleSize := 100_000
 
+	t := w.T()
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Init a table
@@ -553,7 +564,7 @@ func Test_Iterator_First_Then_Next_Ops_Single_Table(t *testing.T) {
 			for sst := 1; sst <= tc.sstNum; sst++ {
 				eg.Go(func() error {
 					kvs := sample[sst-1]
-					fileReadable, fd, err := inMemStorage.Open(go_fs.TypeTable, int64(sst))
+					fileReadable, fd, err := inMemStorage.Open(go_fs.TypeTable, int64(sst), 0)
 					assert.NoError(t, err)
 					var iterOpts []options.IteratorOptsFunc
 					if tc.cacheSize > 0 {
@@ -594,4 +605,8 @@ func Test_Iterator_First_Then_Next_Ops_Single_Table(t *testing.T) {
 			assert.NoError(t, err)
 		})
 	}
+}
+
+func TestWalSuite(t *testing.T) {
+	suite.Run(t, new(WalSuite))
 }

@@ -2,6 +2,7 @@ package go_fs
 
 import (
 	"bytes"
+	"io"
 	"sync"
 )
 
@@ -20,7 +21,20 @@ type memFile struct {
 }
 
 type memReader struct {
-	*bytes.Reader
+	*memFile
+}
+
+func (mr memReader) ReadAt(p []byte, off int64) (n int, err error) {
+	if off > int64(mr.Len()) {
+		return 0, io.EOF
+	}
+
+	n = copy(p, mr.Bytes()[off:])
+	if n < len(p) {
+		return n, io.EOF
+	}
+
+	return n, err
 }
 
 func (mr memReader) Size() uint64 {
@@ -43,11 +57,6 @@ func (m memWriter) Close() error {
 	}
 	m.open = false
 	return nil
-}
-
-func (m memWriter) Seek(offset int64, whence int) (int64, error) {
-
-	return 0, nil
 }
 
 func (m memWriter) Sync() error {
@@ -84,13 +93,8 @@ func (i inmemStorage) Open(objType ObjectType, num int64) (Readable, FileDesc, e
 	defer i.mu.Unlock()
 
 	if file, ok := i.files[i.toFileId(objType, num)]; ok {
-		// we only allow opening a file only once
-		if file.open {
-			return nil, FileDesc{}, errFileIsOpened
-		}
-
 		file.open = true
-		return memReader{Reader: bytes.NewReader(file.Bytes())}, i.toFileDesc(objType, num), nil
+		return memReader{memFile: file}, i.toFileDesc(objType, num), nil
 	}
 
 	return nil, FileDesc{}, errFileNotFound

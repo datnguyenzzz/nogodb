@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -115,4 +116,39 @@ func Test_Create_And_Open(t *testing.T) {
 			}
 		})
 	}
+}
+
+func Test_Read_During_Write(t *testing.T) {
+	storage := NewInmemStorage()
+	fid := 1
+	writer, _, err := storage.Create(TypeWAL, int64(fid))
+	require.NoError(t, err)
+	reader, _, err := storage.Open(TypeWAL, int64(fid))
+	require.NoError(t, err)
+	// first write
+	n, err := writer.Write([]byte{1, 2, 3, 4, 5})
+	assert.NoError(t, err)
+	assert.Equal(t, 5, n)
+
+	res := make([]byte, 5)
+	n, err = reader.ReadAt(res, 0)
+	assert.NoError(t, err)
+	assert.Equal(t, 5, n)
+	assert.Zero(t, bytes.Compare(res, []byte{1, 2, 3, 4, 5}))
+
+	// second write
+	n, err = writer.Write([]byte{6, 7, 8, 9, 10})
+	assert.NoError(t, err)
+	assert.Equal(t, 5, n)
+
+	res = make([]byte, 5)
+	n, err = reader.ReadAt(res, 5)
+	assert.NoError(t, err)
+	assert.Equal(t, 5, n)
+	assert.Zero(t, bytes.Compare(res, []byte{6, 7, 8, 9, 10}))
+
+	err = writer.Close()
+	assert.NoError(t, err)
+	err = reader.Close()
+	assert.NoError(t, err)
 }

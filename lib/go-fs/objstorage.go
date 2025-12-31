@@ -46,7 +46,6 @@ type Writable interface {
 	// io.Write make sure that the error will be not nil, if n < len(p)
 
 	io.WriteCloser
-	io.Seeker
 	Syncer
 
 	// Finish completes the object and makes the data durable.
@@ -62,7 +61,7 @@ type Writable interface {
 // Readable is the handle for a storage object that is open for reading.
 type Readable interface {
 	io.ReaderAt
-	io.ReadSeeker
+	io.Reader
 
 	Size() uint64
 	Close() error

@@ -120,13 +120,14 @@ graph TB
     classDef bg fill:#E5E5E5,stroke:#666666,stroke-width:2px;
     classDef fs fill:#FFE5E5,stroke:#FF3333,stroke-width:2px;
 ```
+
 ## Test Coverage
 
 | Package | Coverage |
 |---------|----------|
 | go-adaptive-radix-tree | ![Coverage](https://img.shields.io/badge/coverage-53-yellow) |
 | go-adaptive-rate-limiter | ![Coverage](https://img.shields.io/badge/coverage-53-yellow) |
-| go-block-cache | ![Coverage](https://img.shields.io/badge/coverage-82-green) |
+| go-block-cache | ![Coverage](https://img.shields.io/badge/coverage-84-green) |
 | go-blocked-bloom-filter | ![Coverage](https://img.shields.io/badge/coverage-90-green) |
 | go-bytesbufferpool | ![Coverage](https://img.shields.io/badge/coverage-90-green) |
 | go-context-aware-lock | ![Coverage](https://img.shields.io/badge/coverage-0-red) |

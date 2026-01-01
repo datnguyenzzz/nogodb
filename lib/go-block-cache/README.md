@@ -5,15 +5,6 @@ dynamic-sized hash table with configurable cache replacement policies, optimized
 The hash tables implementation is based on: "Dynamic-Sized Nonblocking Hash Tables", by Yujie Liu, Kunlong Zhang, and 
 Michael Spear. ACM Symposium on Principles of Distributed Computing, Jul 2014.
 
-## Features
-
-- **Concurrent Dynamic Hash Table**: Lock-free operations with automatic resizing
-- **Multiple Cache Policies**: LRU (implemented), Clock-Pro (planned)
-- **Memory Management**: Automatic eviction with configurable capacity limits
-- **Thread Safety**: Full concurrency support for read/write operations
-- **LazyValue Interface**: Memory-efficient value loading with reference counting
-- **High Performance**: Optimized for database workloads with minimal allocation overhead
-
 ## Key Concepts
 
 Blocks are keyed by a `(fileNum, key)` pair where:
@@ -72,7 +63,7 @@ The hash table implementation is based on **Dynamic-Sized Nonblocking Hash Table
 ```
 Set(fileNum, key, value):
    1. hash(fileNum, key) → bucket_id
-   2. Locate bucket in current state
+   2. Lazy load the bucket with bucket_id in current state
    3. Insert/update (fileNum,key,value) in sorted order within bucket
    4. Update LRU cache and handle memory pressure
    5. Trigger resize if overflow thresholds exceeded
@@ -82,12 +73,20 @@ Set(fileNum, key, value):
 ```
 Get(fileNum, key):
    1. hash(fileNum, key) → bucket_id  
-   2. Binary search within sorted bucket for key
-   3. Increment reference count and return LazyValue
-   4. Update LRU position for cache hit
+   2. Lazy load the bucket with bucket_id in current state
+   3. Binary search within sorted bucket for key
+   4. Increment reference count and return LazyValue
+   5. Update LRU position for cache hit
 ```
 
 ### Dynamic Resizing
+
+Whenever the bucket is either overloaded or under-utilised, the current state of buckets start resizing itself on the background. 
+During the bucket is in the midst of re-distributing its nodes to the other buckets in the new state, the bucket is "frozen", meaning
+all requests to that bucket will be deferred until a bucket finishes its re-distribution work
+
+Since the dynamic redistribution of nodes happen on the background, therefore, in every request from client, the target bucket
+always must be lazy loaded before serving
 
 #### Growth Operation
 When buckets become overloaded (> 32 entries) or global thresholds exceeded:
@@ -99,11 +98,11 @@ Original State (N buckets):        After Growth (2N buckets):
 +--------------+------+            +--------------+------+
 |    ...       |      |            |    ...       |      |
 +--------------+------+            +--------------+------+ 
-| bucket I % N | data | -------->  | bucket I     | data |  ← Redistributed
-+--------------+------+            +--------------+------+
-|    ...       |      |            |    ...       |      |
-+--------------+------+            +--------------+------+
-|   bucket N   | data |            | bucket I+N   | data |  ← New location
+|   bucket I   | data | -------->  |   bucket I   | data'|  ← Redistributed
++--------------+------+   |        +--------------+------+
+|    ...       |      |   |        |    ...       |      |
++--------------+------+   |        +--------------+------+
+|   bucket N   | data |    ----->  |  bucket I+N  | data"|  ← New location
 +--------------+------+            +--------------+------+
                                    |    ...       |      |
                                    +--------------+------+
@@ -122,10 +121,10 @@ Original State (N buckets):        After Shrink (N/2 buckets):
 |    ...       |      |            |    ...       |      |
 +--------------+------+            +--------------+------+
 |   bucket I   | data | -------->  |   bucket I   | merged|  ← Combined data
-+--------------+------+            +--------------+------+
-|    ...       |      |            |    ...       |      |
-+--------------+------+            +--------------+------+
-| bucket N/2+I | data |            |  bucket N/2  | data |
++--------------+------+    |       +--------------+------+
+|    ...       |      |    |       |    ...       |      |
++--------------+------+    |       +--------------+------+
+| bucket N/2+I | data | ---        |  bucket N/2  | data |
 +--------------+------+            +--------------+------+
 |    ...       |      |
 +--------------+------+

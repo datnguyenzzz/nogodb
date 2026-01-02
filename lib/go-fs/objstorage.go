@@ -88,5 +88,7 @@ type Storage interface {
 
 	Remove(objType ObjectType, num int64) error
 
+	List(objType ObjectType) []FileDesc
+
 	Close() error
 }

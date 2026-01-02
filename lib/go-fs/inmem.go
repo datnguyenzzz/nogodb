@@ -132,12 +132,30 @@ func (i inmemStorage) Remove(objType ObjectType, num int64) error {
 	return nil
 }
 
+func (i inmemStorage) List(objType ObjectType) []FileDesc {
+	res := make([]FileDesc, 0, len(i.files))
+	for fid, _ := range i.files {
+		fd := i.fromFileId(fid)
+		if fd.Type != objType {
+			continue
+		}
+		res = append(res, fd)
+	}
+	return res
+}
+
 func (i inmemStorage) Close() error {
 	return nil
 }
 
 func (i inmemStorage) toFileId(objType ObjectType, num int64) fileId {
 	return fileId(num<<4 | int64(objType))
+}
+
+func (i inmemStorage) fromFileId(fileId fileId) FileDesc {
+	objType := ObjectType(fileId & (1 << 4))
+	num := int64(fileId >> 4)
+	return i.toFileDesc(objType, num)
 }
 
 func (i inmemStorage) toFileDesc(objType ObjectType, num int64) FileDesc {

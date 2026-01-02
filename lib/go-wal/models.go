@@ -2,9 +2,10 @@ package go_wal
 
 import (
 	"errors"
-	"os"
 	"sync"
 	"time"
+
+	go_fs "github.com/datnguyenzzz/nogodb/lib/go-fs"
 )
 
 type PageID uint32
@@ -19,7 +20,6 @@ type PageAccessMode byte
 const (
 	PageAccessModeReadOnly PageAccessMode = iota
 	PageAccessModeReadWrite
-	PageAccessModeReadWriteSync
 )
 
 type RecordType byte
@@ -42,12 +42,14 @@ type WAL struct {
 	olderPages   map[PageID]*Page // older pages, only used for read.
 	mu           sync.RWMutex
 	notSyncBytes int64
+	storage      go_fs.Storage
 }
 
 // Page represents a single log file in WAL. A Page file consists of a sequence of variable length Position.
 type Page struct {
-	Id PageID
-	F  *os.File
+	Id     PageID
+	reader go_fs.Readable
+	writer go_fs.Writable
 	// TotalBlockCount Number of full blocks
 	TotalBlockCount uint32
 	// LastBlockSize Size of the last block that is not full

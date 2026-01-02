@@ -3,10 +3,10 @@ package go_wal
 import (
 	"context"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"hash/crc32"
 	"io"
-	"os"
 	"sync"
 	"time"
 
@@ -47,12 +47,15 @@ var readBufferPool = sync.Pool{
 var writeBufferPool = go_bytesbufferpool.NewPredictablePool()
 
 func (p *Page) Delete(ctx context.Context) error {
-	return os.Remove(p.F.Name())
+	panic("implement me!!")
 }
 
 // Sync manually flush the page to the disk
 func (p *Page) Sync(ctx context.Context) error {
-	return p.F.Sync()
+	if p.writer == nil {
+		return fmt.Errorf("page: %v doesnt have a writer", p.Id)
+	}
+	return p.writer.Sync()
 }
 
 func (p *Page) Size() int64 {
@@ -60,12 +63,27 @@ func (p *Page) Size() int64 {
 }
 
 func (p *Page) Close(ctx context.Context) error {
-	return p.F.Close()
+	var err error
+	if p.reader != nil {
+		err = errors.Join(p.reader.Close())
+		p.reader = nil
+	}
+
+	if p.writer != nil {
+		err = errors.Join(p.writer.Close())
+		p.writer = nil
+	}
+
+	return err
 }
 
 // Read data from given Position. Reader always reads full record with the size of 32KB.
 // Return data and the next position
 func (p *Page) Read(ctx context.Context, pos *Position) ([]byte, *Position, error) {
+	if p.reader == nil {
+		return nil, nil, fmt.Errorf("page: %v doesnt have a reader", p.Id)
+	}
+
 	rBuf := readBufferPool.Get().([]byte)
 	defer func() {
 		rBuf = rBuf[:0]
@@ -96,7 +114,7 @@ func (p *Page) Read(ctx context.Context, pos *Position) ([]byte, *Position, erro
 		}
 
 		// read whole record into the allocated buffer
-		if _, err := p.F.ReadAt(rBuf[:size], int64(pageOffset)); err != nil {
+		if _, err := p.reader.ReadAt(rBuf[:size], int64(pageOffset)); err != nil {
 			return nil, nil, err
 		}
 
@@ -139,6 +157,9 @@ func (p *Page) Read(ctx context.Context, pos *Position) ([]byte, *Position, erro
 
 // Write append an arbitrary slice of bytes to the OS buffer. Return position and number of bytes have been written
 func (p *Page) Write(ctx context.Context, data []byte) (*Position, int64, error) {
+	if p.writer == nil {
+		return nil, 0, fmt.Errorf("page: %v doesnt have a writer", p.Id)
+	}
 	neededSpaces := estimateNeededSpaces(data)
 	if p.LastBlockSize+headerSize >= defaultBlockSize {
 		// need spaces for padded bytes
@@ -159,7 +180,7 @@ func (p *Page) Write(ctx context.Context, data []byte) (*Position, int64, error)
 	}
 
 	// 2. Write to OS buffer, aka page cache, which will be asynchronously flush (managed by OS kernel) to the disk later
-	if _, err := p.F.Write(wBuf); err != nil {
+	if _, err := p.writer.Write(wBuf); err != nil {
 		return nil, 0, err
 	}
 
@@ -251,38 +272,6 @@ func writeToBuffer(buf *[]byte, data []byte, recType RecordType) {
 
 	*buf = append(*buf, header...)
 	*buf = append(*buf, data...)
-}
-
-func openPageByPath(path string, id PageID, mode PageAccessMode) (*Page, error) {
-	var flag int
-	switch mode {
-	case PageAccessModeReadWrite:
-		flag = os.O_CREATE | os.O_RDWR | os.O_TRUNC
-	case PageAccessModeReadWriteSync:
-		flag = os.O_CREATE | os.O_RDWR | os.O_TRUNC | os.O_SYNC
-	case PageAccessModeReadOnly:
-		flag = os.O_RDONLY
-	default:
-		return nil, fmt.Errorf("invalid page mode: %d", mode)
-	}
-
-	f, err := os.OpenFile(path, flag, 0644)
-	if err != nil {
-		return nil, err
-	}
-
-	stats, err := f.Stat()
-	if err != nil {
-		return nil, err
-	}
-	size := stats.Size()
-
-	return &Page{
-		Id:              id,
-		F:               f,
-		TotalBlockCount: uint32(size / defaultBlockSize),
-		LastBlockSize:   uint32(size % defaultBlockSize),
-	}, nil
 }
 
 // Iterator \\

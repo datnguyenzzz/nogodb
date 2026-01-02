@@ -4,15 +4,15 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"os"
 	"strconv"
 	"sync"
 	"time"
 
+	go_fs "github.com/datnguyenzzz/nogodb/lib/go-fs"
 	"go.uber.org/zap"
 )
 
-// TODO refactor to use the shared go-fs instead of using os.FS
+// TODO P1. support a function to determine and delete the obsolete WAL files
 
 func New(opts ...OptionFn) *WAL {
 	wal := &WAL{
@@ -28,42 +28,22 @@ func New(opts ...OptionFn) *WAL {
 		o(wal)
 	}
 
+	if wal.storage == nil {
+		WithLocation(wal.opts.location)(wal)
+	}
+
 	return wal
 }
 
 // Core functions \\
 
 func (w *WAL) Open(ctx context.Context) error {
-	// create new main directory if not exists
-	if _, err := os.Stat(w.opts.dirPath); os.IsNotExist(err) {
-		if err := os.MkdirAll(w.opts.dirPath, os.ModePerm); err != nil {
-			zap.L().Error("Failed to create dir", zap.String("dirPath", w.opts.dirPath), zap.Error(err))
-			return err
-		}
-	}
-
 	// loads all existing pages file
-	pageEntries, err := os.ReadDir(w.opts.dirPath)
-	if err != nil {
-		zap.L().Error("Failed to read dir", zap.String("dirPath", w.opts.dirPath), zap.Error(err))
-		return err
-	}
+	pageEntries := w.storage.List(go_fs.TypeWAL)
 
-	var pageIDs []PageID
-	for _, entry := range pageEntries {
-		// page file should not be a directory
-		if entry.IsDir() {
-			continue
-		}
-		// page file has name of format "id.<opts.fileExt>"
-		var id PageID
-		_, err := fmt.Sscanf(entry.Name(), "%d"+w.opts.fileExt, &id)
-		if err != nil {
-			zap.L().Warn("Failed to parse fileExt", zap.String("fileExt", w.opts.fileExt))
-			continue
-		}
-
-		pageIDs = append(pageIDs, id)
+	pageIDs := make([]PageID, 0, len(pageEntries))
+	for _, fd := range pageEntries {
+		pageIDs = append(pageIDs, PageID(fd.Num))
 	}
 
 	// attempt to open all existing page files, or open a new one if none exists
@@ -80,14 +60,10 @@ func (w *WAL) Open(ctx context.Context) error {
 		}
 
 		for _, id := range pageIDs {
-
 			mode := PageAccessModeReadOnly
-			if id != latestPageId {
+			if id == latestPageId {
 				// for an active page, we can read and write
 				mode = PageAccessModeReadWrite
-				if w.opts.sync {
-					mode = PageAccessModeReadWriteSync
-				}
 			}
 			page, err := w.openPage(id, mode)
 			if err != nil {
@@ -176,11 +152,7 @@ func (w *WAL) Write(ctx context.Context, data []byte) (*Position, error) {
 		}
 
 		// open a new mutable file and move the current active pages to immutable
-		mode := PageAccessModeReadWrite
-		if w.opts.sync {
-			mode = PageAccessModeReadWriteSync
-		}
-		newPage, err := w.openPage(w.activePage.Id+1, mode)
+		newPage, err := w.openPage(w.activePage.Id+1, PageAccessModeReadWrite)
 		if err != nil {
 			return nil, err
 		}
@@ -261,8 +233,29 @@ func (w *WAL) Sync(ctx context.Context) error {
 }
 
 func (w *WAL) openPage(id PageID, mode PageAccessMode) (*Page, error) {
-	pageFile := getPageFilePath(w.opts.dirPath, w.opts.fileExt, id)
-	return openPageByPath(pageFile, id, mode)
+	var writer go_fs.Writable
+	if mode == PageAccessModeReadWrite {
+		var err error
+		writer, _, err = w.storage.Create(go_fs.TypeWAL, int64(id))
+		if err != nil {
+			zap.L().Error("Failed to create page", zap.Error(err))
+			return nil, err
+		}
+	}
+	reader, _, err := w.storage.Open(go_fs.TypeWAL, int64(id))
+	if err != nil {
+		zap.L().Error("Failed to open page", zap.Error(err))
+		return nil, err
+	}
+	size := reader.Size()
+	p := &Page{
+		Id:              id,
+		reader:          reader,
+		writer:          writer,
+		TotalBlockCount: uint32(size / defaultBlockSize),
+		LastBlockSize:   uint32(size % defaultBlockSize),
+	}
+	return p, nil
 }
 
 var _ IWal = (*WAL)(nil)

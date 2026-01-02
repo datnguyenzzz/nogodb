@@ -12,6 +12,6 @@
   - [x] P0: In-mem
   - [ ] P1: On-local disk
 - [ ] P2: Add benchmark tests for Iterator + Writer
-- [ ] P0: Refactor go-wal to use go-fs
+- [x] P0: Refactor go-wal to use go-fs
 - [ ] P1: Implement lock-free Skip list and benchmark against the adaptive radix tree for the MemTable
 - [ ] P1: Implement Clock-based eviction policy and benchmark against the LRU policy for the go-block-cache

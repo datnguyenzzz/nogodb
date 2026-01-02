@@ -7,7 +7,9 @@ import (
 	"fmt"
 	"testing"
 
+	go_fs "github.com/datnguyenzzz/nogodb/lib/go-fs"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func Test_writeToMemBuffer(t *testing.T) {
@@ -194,10 +196,14 @@ func Test_writeToMemBuffer(t *testing.T) {
 		},
 	}
 
-	for _, tc := range testCases {
+	for i, tc := range testCases {
 		t.Run(tc.testName, func(t *testing.T) {
+			storage := go_fs.NewInmemStorage()
+			writer, _, err := storage.Create(go_fs.TypeWAL, int64(i))
+			require.NoError(t, err)
 			ctx := context.Background()
 			p := tc.pageInfo
+			p.writer = writer
 			neededSpaces := estimateNeededSpaces(tc.data)
 			padding := 0
 			if p.LastBlockSize+headerSize >= defaultBlockSize {
@@ -211,10 +217,15 @@ func Test_writeToMemBuffer(t *testing.T) {
 			assert.Nil(t, err)
 			assert.Equal(t, tc.expectedSize, size)
 			assert.Equal(t, tc.expectedPos, pos)
-			assert.Equal(t, tc.expectedPage, p)
+			assert.Equal(t, tc.expectedPage.Id, p.Id)
+			assert.Equal(t, tc.expectedPage.TotalBlockCount, p.TotalBlockCount)
+			assert.Equal(t, tc.expectedPage.LastBlockSize, p.LastBlockSize)
 
 			// assert buf output
 			assertBuf(t, padding, buf, tc.data, tc.expectedRecord)
+
+			err = storage.Close()
+			require.NoError(t, err)
 		})
 	}
 }

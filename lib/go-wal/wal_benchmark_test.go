@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	go_fs "github.com/datnguyenzzz/nogodb/lib/go-fs"
 )
 
 const (
@@ -15,7 +17,7 @@ const (
 func BenchmarkWrite(b *testing.B) {
 	ctx := context.Background()
 	wal := New(
-		WithDirPath(CommonDirPath),
+		WithLocation(go_fs.InMemory),
 	)
 	_ = wal.Open(context.Background())
 

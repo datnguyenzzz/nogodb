@@ -1,23 +1,16 @@
 package go_wal
 
 import (
-	"fmt"
-	"os"
-	"strings"
 	"time"
+
+	go_fs "github.com/datnguyenzzz/nogodb/lib/go-fs"
 )
 
 type OptionFn func(*WAL)
 
 type options struct {
-	// dirPath specifies the directory path where the WAL page files will be stored.
-	dirPath string
-
 	// pageSize specifies the maximum size of each page file in bytes.
 	pageSize int64
-
-	// fileExt specifies the file extension of the page files.
-	fileExt string
 
 	// sync is whether to synchronize writes through os buffer cache and down onto the actual disk.
 	// Setting sync is required for durability of a single write operation, but also results in slower writes.
@@ -31,30 +24,26 @@ type options struct {
 	// syncInterval is the time duration in which explicit synchronization is performed.
 	// If syncInterval is zero, no periodic synchronization is performed.
 	syncInterval time.Duration
+
+	location go_fs.Location
 }
 
 var defaultOptions = options{
-	dirPath:      os.TempDir(),
 	pageSize:     1 * 1024 * 1024 * 2024, // 1GB
-	fileExt:      ".wal",
 	sync:         false,
 	bytesPerSync: 0,
 	syncInterval: 0,
+	location:     go_fs.InMemory,
 }
 
-func WithDirPath(dirPath string) OptionFn {
-	return func(wal *WAL) {
-		wal.opts.dirPath = dirPath
-	}
-}
-
-func WithFileExt(fileExt string) OptionFn {
-	return func(wal *WAL) {
-		// need a "." prefix
-		if !strings.HasPrefix(fileExt, ".") {
-			fileExt = fmt.Sprintf(".%s", fileExt)
+func WithLocation(location go_fs.Location) OptionFn {
+	return func(w *WAL) {
+		switch location {
+		case go_fs.InMemory:
+			w.storage = go_fs.NewInmemStorage()
+		default:
+			panic("not supported location")
 		}
-		wal.opts.fileExt = fileExt
 	}
 }
 

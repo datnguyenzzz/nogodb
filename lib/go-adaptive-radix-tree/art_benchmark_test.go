@@ -5,128 +5,49 @@ import (
 	"testing"
 
 	"github.com/datnguyenzzz/nogodb/lib/go-adaptive-radix-tree/internal"
+	"github.com/stretchr/testify/require"
 )
 
-func BenchmarkInsert_100000(b *testing.B) {
-	kvs := internal.SeedMapKVString(100_000)
+func BenchmarkInsert(b *testing.B) {
+	kvs := internal.SeedMapKVString(10_000_000)
 	ctx := context.Background()
 
-	b.ResetTimer()
-
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		art := NewTree[string](ctx)
 		for _, kv := range kvs {
-			_, _ = art.Insert(ctx, kv.Key, kv.Value)
+			_, err := art.Insert(ctx, kv.Key, kv.Value)
+			require.NoError(b, err)
 		}
 	}
 }
 
-func BenchmarkInsert_250000(b *testing.B) {
-	kvs := internal.SeedMapKVString(250_000)
-	ctx := context.Background()
-
-	b.ResetTimer()
-
-	for i := 0; i < b.N; i++ {
-		art := NewTree[string](ctx)
-		for _, kv := range kvs {
-			_, _ = art.Insert(ctx, kv.Key, kv.Value)
-		}
-	}
-}
-
-func BenchmarkInsert_500000(b *testing.B) {
-	kvs := internal.SeedMapKVString(500_000)
-	ctx := context.Background()
-
-	b.ResetTimer()
-
-	for i := 0; i < b.N; i++ {
-		art := NewTree[string](ctx)
-		for _, kv := range kvs {
-			_, _ = art.Insert(ctx, kv.Key, kv.Value)
-		}
-	}
-}
-
-func BenchmarkInsert_1000000(b *testing.B) {
-	kvs := internal.SeedMapKVString(1_000_000)
-	ctx := context.Background()
-
-	b.ResetTimer()
-
-	for i := 0; i < b.N; i++ {
-		art := NewTree[string](ctx)
-		for _, kv := range kvs {
-			_, _ = art.Insert(ctx, kv.Key, kv.Value)
-		}
-	}
-}
-
-func BenchmarkGet_100000(b *testing.B) {
-	kvs := internal.SeedMapKVString(100_000)
+func BenchmarkGet(b *testing.B) {
+	kvs := internal.SeedMapKVString(10_000_000)
 	ctx := context.Background()
 	art := NewTree[string](ctx)
 	for _, kv := range kvs {
 		_, _ = art.Insert(ctx, kv.Key, kv.Value)
 	}
 
-	b.ResetTimer()
-
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		for _, kv := range kvs {
-			_, _ = art.Get(ctx, kv.Key)
+			_, err := art.Get(ctx, kv.Key)
+			require.NoError(b, err)
 		}
 	}
 }
 
-func BenchmarkGet_250000(b *testing.B) {
-	kvs := internal.SeedMapKVString(250_000)
+func BenchmarkInsertAndGet(b *testing.B) {
+	kvs := internal.SeedMapKVString(10_000_000)
 	ctx := context.Background()
 	art := NewTree[string](ctx)
-	for _, kv := range kvs {
-		_, _ = art.Insert(ctx, kv.Key, kv.Value)
-	}
 
-	b.ResetTimer()
-
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		for _, kv := range kvs {
-			_, _ = art.Get(ctx, kv.Key)
-		}
-	}
-}
-
-func BenchmarkGet_500000(b *testing.B) {
-	kvs := internal.SeedMapKVString(500_000)
-	ctx := context.Background()
-	art := NewTree[string](ctx)
-	for _, kv := range kvs {
-		_, _ = art.Insert(ctx, kv.Key, kv.Value)
-	}
-
-	b.ResetTimer()
-
-	for i := 0; i < b.N; i++ {
-		for _, kv := range kvs {
-			_, _ = art.Get(ctx, kv.Key)
-		}
-	}
-}
-
-func BenchmarkGet_1000000(b *testing.B) {
-	kvs := internal.SeedMapKVString(1_000_000)
-	ctx := context.Background()
-	art := NewTree[string](ctx)
-	for _, kv := range kvs {
-		_, _ = art.Insert(ctx, kv.Key, kv.Value)
-	}
-
-	b.ResetTimer()
-
-	for i := 0; i < b.N; i++ {
-		for _, kv := range kvs {
-			_, _ = art.Get(ctx, kv.Key)
+			_, err := art.Insert(ctx, kv.Key, kv.Value)
+			require.NoError(b, err)
+			_, err = art.Get(ctx, kv.Key)
+			require.NoError(b, err)
 		}
 	}
 }

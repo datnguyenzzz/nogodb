@@ -617,6 +617,14 @@ func Test_search_art_str_InsertAndRemoveNode_async(t *testing.T) {
 			err := eg.Wait()
 			assert.NoError(t, err, fmt.Sprintf("shouldn't fail to insert new key. Err: %v", err))
 
+			// verify key value
+			for i := 0; i < len(tc.expectedTotalKVMap); i++ {
+				kv := tc.expectedTotalKVMap[i]
+				actualV, err := art.Get(ctx, kv.Key)
+				assert.NoError(t, err, fmt.Sprintf("shouldn't fail to get key. Err: %v", err))
+				assert.Equal(t, kv.Value, actualV, "value should be equal")
+			}
+
 			// delete the target key
 			for i := tc.size - tc.deleteActionsCount; i < tc.size; i++ {
 				kv := tc.expectedTotalKVMap[i]
@@ -629,7 +637,7 @@ func Test_search_art_str_InsertAndRemoveNode_async(t *testing.T) {
 			err = eg.Wait()
 			assert.NoError(t, err, fmt.Sprintf("shouldn't fail to insert new key. Err: %v", err))
 
-			// verify key value
+			// verify key value after deletion
 			for i := 0; i < tc.size-tc.deleteActionsCount; i++ {
 				kv := tc.expectedTotalKVMap[i]
 				actualV, err := art.Get(ctx, kv.Key)

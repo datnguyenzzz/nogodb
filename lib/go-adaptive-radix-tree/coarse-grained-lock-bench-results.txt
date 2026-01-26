@@ -1,0 +1,9 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/datnguyenzzz/nogodb/lib/go-adaptive-radix-tree
+cpu: Apple M2
+BenchmarkInsert-8                      1        3934864667 ns/op        1497308392 B/op 34000006 allocs/op
+BenchmarkGet-8                         1        2114114375 ns/op             192 B/op          2 allocs/op
+BenchmarkInsertAndGet-8                1        5819373458 ns/op        1497349312 B/op 34000001 allocs/op
+PASS
+ok      github.com/datnguyenzzz/nogodb/lib/go-adaptive-radix-tree       450.743s

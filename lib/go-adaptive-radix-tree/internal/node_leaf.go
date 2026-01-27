@@ -9,6 +9,7 @@ import (
 // It's also an implication that the prefix on the leaf node is equal to the Key itself.
 type NodeLeaf[V any] struct {
 	nodeHeader
+	nodeLocker
 	value V
 }
 

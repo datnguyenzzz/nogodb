@@ -2,6 +2,7 @@ package go_adaptive_radix_tree
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/datnguyenzzz/nogodb/lib/go-adaptive-radix-tree/internal"
 	gocontextawarelock "github.com/datnguyenzzz/nogodb/lib/go-context-aware-lock"
@@ -26,7 +27,7 @@ func (t *Tree[V]) Insert(ctx context.Context, key Key, value V) (V, error) {
 	defer t.lock.ReleaseCtx(ctx)
 
 	ptr := &t.root
-	return internal.InsertNode[V](ctx, ptr, key, value, 0)
+	return errorCategorisation(internal.InsertNode[V](ctx, ptr, key, value, 0))
 }
 
 func (t *Tree[V]) Delete(ctx context.Context, key Key) (V, error) {
@@ -42,11 +43,15 @@ func (t *Tree[V]) Delete(ctx context.Context, key Key) (V, error) {
 		// since the all nodes in the tree have been deleted
 		t.root = nil
 	}
-	return v, err
+	return errorCategorisation(v, err)
 }
 
 func (t *Tree[V]) Get(ctx context.Context, key Key) (V, error) {
-	return internal.Get[V](ctx, t.root, key, 0)
+	if err := t.lock.AcquireCtx(ctx); err != nil {
+		return *new(V), err
+	}
+	defer t.lock.ReleaseCtx(ctx)
+	return errorCategorisation(internal.Get[V](ctx, t.root, key, 0))
 }
 
 func (t *Tree[V]) Minimum(ctx context.Context) (Key, V, bool) {
@@ -73,6 +78,20 @@ func (t *Tree[V]) WalkBackwards(ctx context.Context, fn WalkFn[V]) {
 		_ = fn(ctx, k, v)
 	}
 	internal.Walk[V](ctx, t.root, cb, internal.DescOrder)
+}
+
+func errorCategorisation[V any](v V, err error) (V, error) {
+	var categorisedErr error
+	switch err {
+	case nil:
+		categorisedErr = nil
+	case internal.NoSuchKey:
+		categorisedErr = fmt.Errorf("%w: %v", NonExist, err)
+	default:
+		categorisedErr = fmt.Errorf("%w: %v", Unrecognised, err)
+	}
+
+	return v, categorisedErr
 }
 
 var _ ITree[any] = (*Tree[any])(nil)

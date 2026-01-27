@@ -111,26 +111,26 @@ func InsertNode[V any](ctx context.Context, nodePtr *INode[V], key []byte, v V, 
 // 3.removal error ?
 func RemoveNode[V any](ctx context.Context, nodePtr *INode[V], key []byte, offset uint8) (V, bool, error) {
 	if *nodePtr == nil || len(key) == 0 {
-		return *new(V), false, noSuchKey
+		return *new(V), false, NoSuchKey
 	}
 
 	if (*nodePtr).getKind(ctx) == KindNodeLeaf {
 		leafKey, leafV := (*nodePtr).getPrefix(ctx), (*nodePtr).getValue(ctx)
 		if !isExactMatch(key, leafKey) {
-			return *new(V), false, noSuchKey
+			return *new(V), false, NoSuchKey
 		}
 
 		return leafV, true, nil
 	}
 	matchedPrefixLen := (*nodePtr).checkPrefix(ctx, key, offset)
 	if matchedPrefixLen != (*nodePtr).getPrefixLen(ctx) {
-		return *new(V), false, noSuchKey
+		return *new(V), false, NoSuchKey
 	}
 
 	offset += (*nodePtr).getPrefixLen(ctx)
 	childPtr, err := (*nodePtr).getChild(ctx, key[offset])
 	if err != nil {
-		return *new(V), false, noSuchKey
+		return *new(V), false, NoSuchKey
 	}
 
 	removedV, isChildRemovable, removeErr := RemoveNode[V](ctx, childPtr, key, offset+1)
@@ -187,7 +187,7 @@ func RemoveNode[V any](ctx context.Context, nodePtr *INode[V], key []byte, offse
 //	offset: The number of bytes of the "Key" that have been processed
 func Get[V any](ctx context.Context, node INode[V], key []byte, offset uint8) (V, error) {
 	if node == nil {
-		return *new(V), noSuchKey
+		return *new(V), NoSuchKey
 	}
 
 	// As we use the Single-value leaf, so the value must be always found in the leaf node,
@@ -198,18 +198,18 @@ func Get[V any](ctx context.Context, node INode[V], key []byte, offset uint8) (V
 			return node.getValue(ctx), nil
 		}
 
-		return *new(V), noSuchKey
+		return *new(V), NoSuchKey
 	}
 
 	matchedPrefixLen := node.checkPrefix(ctx, key, offset)
 	if matchedPrefixLen != node.getPrefixLen(ctx) {
-		return *new(V), noSuchKey
+		return *new(V), NoSuchKey
 	}
 
 	offset += node.getPrefixLen(ctx)
 	childPtr, err := node.getChild(ctx, key[offset])
 	if err != nil {
-		return *new(V), noSuchKey
+		return *new(V), NoSuchKey
 	}
 
 	return Get[V](ctx, *childPtr, key, offset+1)

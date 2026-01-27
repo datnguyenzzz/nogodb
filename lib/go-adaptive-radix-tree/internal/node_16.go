@@ -19,6 +19,7 @@ const (
 // parallel comparisons using SIMD instructions.
 type Node16[V any] struct {
 	nodeHeader
+	nodeLocker
 	// At position i-th, keys[i] = Key value, pointers[i] = pointer to Child for the keys[i]
 	// keys is an array of length 16 for a 1-byte Key.
 	// The keys array is sorted in ascending order.

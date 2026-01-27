@@ -13,7 +13,7 @@ var (
 	failedToGrowNode    error = fmt.Errorf("failed to grow node")
 	failedToShrinkNode  error = fmt.Errorf("failed to shrink node")
 	childNodeNotFound   error = fmt.Errorf("Child node not found")
-	noSuchKey           error = fmt.Errorf("not such Key")
+	NoSuchKey           error = fmt.Errorf("not such Key")
 )
 
 type Callback[V any] func(ctx context.Context, k []byte, v V)
@@ -63,10 +63,21 @@ type iNodeChildrenManager[V any] interface {
 	getChildByIndex(ctx context.Context, idx uint8) (byte, *INode[V], error)
 }
 
+// iNodeLocker control the lock coupling of a node. One property of ART is that modifications affect at most 2 nodes
+// the node where the value is inserted or deleted, and potentially its parent node
+// if the node must grow (during insert) or shrink (during deletion)
+type iNodeLocker interface {
+	Lock()
+	Unlock()
+	RLock()
+	RUnlock()
+}
+
 type INode[V any] interface {
 	iNodeHeader
 	iNodeSizeManager[V]
 	iNodeChildrenManager[V]
+	iNodeLocker
 
 	getKind(ctx context.Context) Kind
 	getValue(ctx context.Context) V

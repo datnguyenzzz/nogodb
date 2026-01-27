@@ -19,6 +19,7 @@ const (
 // only pointers need to be stored.
 type Node256[V any] struct {
 	nodeHeader
+	nodeLocker
 	// pointers to children node
 	children [Node256PointersMax]*INode[V]
 }

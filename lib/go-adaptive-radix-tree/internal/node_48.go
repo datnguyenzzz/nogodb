@@ -20,6 +20,7 @@ const (
 // contains up to 48 pointers.
 type Node48[V any] struct {
 	nodeHeader
+	nodeLocker
 	// At position i-th, keys[i] = [position in the pointers array] + 1,
 	// if keys[i] = 0 means the Key i-th haven't had a Child yet
 	// pointers[i] = pointer to Child for the Key = i-th

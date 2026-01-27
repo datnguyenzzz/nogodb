@@ -17,6 +17,7 @@ const (
 // are stored at corresponding positions and the keys are sorted.
 type Node4[V any] struct {
 	nodeHeader
+	nodeLocker
 	// At position i-th, keys[i] = Key value, pointers[i] = pointer to Child for the keys[i]
 	// keys is an array of length 4 for a 1-byte Key.
 	// The keys array is sorted in ascending order.

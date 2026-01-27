@@ -1,6 +1,8 @@
 package internal
 
-import "fmt"
+import (
+	"fmt"
+)
 
 func NewNode[V any](k Kind) INode[V] {
 	switch k {

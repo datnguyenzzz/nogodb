@@ -7,6 +7,7 @@ import (
 
 	"github.com/datnguyenzzz/nogodb/lib/go-adaptive-radix-tree/internal"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -605,11 +606,15 @@ func Test_search_art_str_InsertAndRemoveNode_async(t *testing.T) {
 			ctx := context.Background()
 			art := NewTree[string](ctx)
 
-			// adding all key into the tree
+			// adding all key into the tree and read to verify
 			var eg errgroup.Group
 			for _, kv := range tc.expectedTotalKVMap {
 				eg.Go(func() error {
 					_, err := art.Insert(ctx, kv.Key, kv.Value)
+					require.NoError(t, err)
+					actualV, err := art.Get(ctx, kv.Key)
+					assert.NoError(t, err, fmt.Sprintf("shouldn't fail to get key. Err: %v", err))
+					assert.Equal(t, kv.Value, actualV, "value should be equal")
 					return err
 				})
 			}
@@ -617,20 +622,15 @@ func Test_search_art_str_InsertAndRemoveNode_async(t *testing.T) {
 			err := eg.Wait()
 			assert.NoError(t, err, fmt.Sprintf("shouldn't fail to insert new key. Err: %v", err))
 
-			// verify key value
-			for i := 0; i < len(tc.expectedTotalKVMap); i++ {
-				kv := tc.expectedTotalKVMap[i]
-				actualV, err := art.Get(ctx, kv.Key)
-				assert.NoError(t, err, fmt.Sprintf("shouldn't fail to get key. Err: %v", err))
-				assert.Equal(t, kv.Value, actualV, "value should be equal")
-			}
-
 			// delete the target key
 			for i := tc.size - tc.deleteActionsCount; i < tc.size; i++ {
 				kv := tc.expectedTotalKVMap[i]
 				eg.Go(func() error {
 					_, err := art.Delete(ctx, kv.Key)
-					return err
+					require.NoError(t, err)
+					_, err = art.Get(ctx, kv.Key)
+					assert.ErrorIs(t, err, NonExist)
+					return nil
 				})
 			}
 

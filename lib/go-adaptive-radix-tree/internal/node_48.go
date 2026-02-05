@@ -20,7 +20,7 @@ const (
 // contains up to 48 pointers.
 type Node48[V any] struct {
 	nodeHeader
-	nodeLocker
+	locker INodeLocker
 	// At position i-th, keys[i] = [position in the pointers array] + 1,
 	// if keys[i] = 0 means the Key i-th haven't had a Child yet
 	// pointers[i] = pointer to Child for the Key = i-th
@@ -39,7 +39,7 @@ func (n *Node48[V]) setValue(ctx context.Context, v V) {
 	panic("node 48 doesn't hold any value")
 }
 
-func (n *Node48[V]) getKind(ctx context.Context) Kind {
+func (n *Node48[V]) GetKind(ctx context.Context) Kind {
 	return KindNode48
 }
 
@@ -241,6 +241,23 @@ func (n *Node48[V]) hasEnoughSpace(ctx context.Context) bool {
 
 func (n *Node48[V]) isShrinkable(ctx context.Context) bool {
 	return n.getChildrenLen(ctx) < Node48PointersMin
+}
+
+func (n *Node48[V]) GetLocker() INodeLocker {
+	return n.locker
+}
+
+func (n *Node48[V]) setLocker(locker INodeLocker) {
+	n.locker = locker
+}
+
+func (n *Node48[V]) clone() INode[V] {
+	nn := &Node48[V]{}
+	nn.nodeHeader = n.nodeHeader
+	nn.locker = n.locker
+	copy(nn.keys[:], n.keys[:])
+	copy(nn.children[:], n.children[:])
+	return nn
 }
 
 var _ INode[any] = (*Node48[any])(nil)

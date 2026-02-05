@@ -404,7 +404,7 @@ func Test_node256_str_shrink(t *testing.T) {
 	n48o, ok := n48.(*Node48[string])
 	assert.True(t, ok, "can not cast to Node48[string]")
 	assert.Equal(t, n48o.getPrefix(ctx), samplePrefix)
-	assert.Equal(t, n48o.getKind(ctx), KindNode48)
+	assert.Equal(t, n48o.GetKind(ctx), KindNode48)
 	// fill expectedKeys with 0
 	var expectedKeys [Node48KeysLen]byte
 	for _, key := range keys {

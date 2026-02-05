@@ -5,53 +5,41 @@ import (
 	"fmt"
 
 	"github.com/datnguyenzzz/nogodb/lib/go-adaptive-radix-tree/internal"
-	gocontextawarelock "github.com/datnguyenzzz/nogodb/lib/go-context-aware-lock"
 )
 
 // Tree is an implementation of a radix tree with adaptive nodes.
 // It is also compatible with the interfaces of the popular radix tree library.
 // https://github.com/hashicorp/go-immutable-radix
 type Tree[V any] struct {
-	root internal.INode[V] // pointer to the root node
-	lock gocontextawarelock.ICtxLock
+	root  internal.INode[V] // pointer to the root node
+	vRoot internal.INode[V]
 }
 
 func NewTree[V any](ctx context.Context) *Tree[V] {
-	return &Tree[V]{lock: gocontextawarelock.NewLocalLock()}
+	return &Tree[V]{
+		vRoot: internal.NewNode[V](internal.KindNode4),
+	}
 }
 
 func (t *Tree[V]) Insert(ctx context.Context, key Key, value V) (V, error) {
-	if err := t.lock.AcquireCtx(ctx); err != nil {
-		return *new(V), err
-	}
-	defer t.lock.ReleaseCtx(ctx)
-
-	ptr := &t.root
-	return errorCategorisation(internal.InsertNode[V](ctx, ptr, key, value, 0))
+	t.vRoot.GetLocker().Lock()
+	return errorCategorisation(internal.InsertNode(ctx, &t.root, &t.vRoot, key, value, 0))
 }
 
 func (t *Tree[V]) Delete(ctx context.Context, key Key) (V, error) {
-	if err := t.lock.AcquireCtx(ctx); err != nil {
-		return *new(V), err
+	if t.root == nil {
+		return *new(V), NonExist
 	}
-	defer t.lock.ReleaseCtx(ctx)
-
-	ptr := &t.root
-	v, isNodeRemovable, err := internal.RemoveNode[V](ctx, ptr, key, 0)
-	if isNodeRemovable && err == nil {
-		// it means the root node can be removed
-		// since the all nodes in the tree have been deleted
+	t.vRoot.GetLocker().Lock()
+	v, isRootRemoved, err := internal.RemoveNode(ctx, &t.root, &t.vRoot, key, 0)
+	if isRootRemoved {
 		t.root = nil
 	}
 	return errorCategorisation(v, err)
 }
 
 func (t *Tree[V]) Get(ctx context.Context, key Key) (V, error) {
-	if err := t.lock.AcquireCtx(ctx); err != nil {
-		return *new(V), err
-	}
-	defer t.lock.ReleaseCtx(ctx)
-	return errorCategorisation(internal.Get[V](ctx, t.root, key, 0))
+	return errorCategorisation(internal.Get(ctx, t.root, key, 0))
 }
 
 func (t *Tree[V]) Minimum(ctx context.Context) (Key, V, bool) {
@@ -78,6 +66,10 @@ func (t *Tree[V]) WalkBackwards(ctx context.Context, fn WalkFn[V]) {
 		_ = fn(ctx, k, v)
 	}
 	internal.Walk[V](ctx, t.root, cb, internal.DescOrder)
+}
+
+func (t *Tree[V]) Visualize(ctx context.Context) {
+	internal.Visualize[V](ctx, t.root)
 }
 
 func errorCategorisation[V any](v V, err error) (V, error) {

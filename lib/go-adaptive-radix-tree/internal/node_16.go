@@ -19,7 +19,7 @@ const (
 // parallel comparisons using SIMD instructions.
 type Node16[V any] struct {
 	nodeHeader
-	nodeLocker
+	locker INodeLocker
 	// At position i-th, keys[i] = Key value, pointers[i] = pointer to Child for the keys[i]
 	// keys is an array of length 16 for a 1-byte Key.
 	// The keys array is sorted in ascending order.
@@ -36,7 +36,7 @@ func (n *Node16[V]) setValue(ctx context.Context, v V) {
 	panic("node 16 doesn't hold any value")
 }
 
-func (n *Node16[V]) getKind(ctx context.Context) Kind {
+func (n *Node16[V]) GetKind(ctx context.Context) Kind {
 	return KindNode16
 }
 
@@ -188,6 +188,23 @@ func (n *Node16[V]) hasEnoughSpace(ctx context.Context) bool {
 
 func (n *Node16[V]) isShrinkable(ctx context.Context) bool {
 	return n.getChildrenLen(ctx) < Node16KeysMin
+}
+
+func (n *Node16[V]) GetLocker() INodeLocker {
+	return n.locker
+}
+
+func (n *Node16[V]) setLocker(locker INodeLocker) {
+	n.locker = locker
+}
+
+func (n *Node16[V]) clone() INode[V] {
+	nn := &Node16[V]{}
+	nn.nodeHeader = n.nodeHeader
+	nn.locker = n.locker
+	copy(nn.keys[:], n.keys[:])
+	copy(nn.children[:], n.children[:])
+	return nn
 }
 
 var _ INode[any] = (*Node16[any])(nil)

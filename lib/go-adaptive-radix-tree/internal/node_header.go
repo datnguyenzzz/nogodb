@@ -45,4 +45,10 @@ func (n *nodeHeader) checkPrefix(ctx context.Context, key []byte, offset uint8) 
 	return i
 }
 
+func (n *nodeHeader) cleanup(ctx context.Context) {
+	n.prefix = nil
+	n.prefixLen = 0
+	n.childrenLen = 0
+}
+
 var _ iNodeHeader = (*nodeHeader)(nil)

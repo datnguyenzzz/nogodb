@@ -9,8 +9,8 @@ import (
 // It's also an implication that the prefix on the leaf node is equal to the Key itself.
 type NodeLeaf[V any] struct {
 	nodeHeader
-	nodeLocker
-	value V
+	locker INodeLocker
+	value  V
 }
 
 func (n *NodeLeaf[V]) getValue(ctx context.Context) V {
@@ -21,7 +21,7 @@ func (n *NodeLeaf[V]) setValue(ctx context.Context, v V) {
 	n.value = v
 }
 
-func (n *NodeLeaf[V]) getKind(ctx context.Context) Kind {
+func (n *NodeLeaf[V]) GetKind(ctx context.Context) Kind {
 	return KindNodeLeaf
 }
 
@@ -59,6 +59,22 @@ func (n *NodeLeaf[V]) hasEnoughSpace(ctx context.Context) bool {
 
 func (n *NodeLeaf[V]) isShrinkable(ctx context.Context) bool {
 	return false
+}
+
+func (n *NodeLeaf[V]) GetLocker() INodeLocker {
+	return n.locker
+}
+
+func (n *NodeLeaf[V]) setLocker(locker INodeLocker) {
+	n.locker = locker
+}
+
+func (n *NodeLeaf[V]) clone() INode[V] {
+	nn := &NodeLeaf[V]{}
+	nn.nodeHeader = n.nodeHeader
+	nn.locker = n.locker
+	nn.value = n.value
+	return nn
 }
 
 var _ INode[any] = (*NodeLeaf[any])(nil)

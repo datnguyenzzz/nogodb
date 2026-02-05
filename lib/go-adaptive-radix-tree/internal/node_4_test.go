@@ -421,7 +421,7 @@ func Test_node4_str_grow(t *testing.T) {
 	n16o, ok := n16.(*Node16[string])
 	assert.True(t, ok, "can not cast to Node16[string]")
 	assert.Equal(t, n16o.getPrefix(ctx), samplePrefix)
-	assert.Equal(t, n16o.getKind(ctx), KindNode16)
+	assert.Equal(t, n16o.GetKind(ctx), KindNode16)
 	// fill expectedKeys with 0
 	var expectedKeys [Node16KeysMax]byte
 	copy(expectedKeys[Node16KeysMax-Node4KeysMax:], keys)
@@ -453,7 +453,7 @@ func Test_node4_str_shrink(t *testing.T) {
 	nl := *nn
 	nlo, ok := nl.(*NodeLeaf[string])
 	assert.True(t, ok, "can not cast to NodeLeaf[string]")
-	assert.Equal(t, nlo.getKind(ctx), KindNodeLeaf)
+	assert.Equal(t, nlo.GetKind(ctx), KindNodeLeaf)
 	assert.Equal(t, nlo.getPrefix(ctx), leaf.getPrefix(ctx), "node prefix is different")
 	// fill expectedChildren with nil pointer
 	var expectedChildren [Node16PointersLen]*INode[string]

@@ -19,7 +19,7 @@ const (
 // only pointers need to be stored.
 type Node256[V any] struct {
 	nodeHeader
-	nodeLocker
+	locker INodeLocker
 	// pointers to children node
 	children [Node256PointersMax]*INode[V]
 }
@@ -32,7 +32,7 @@ func (n *Node256[V]) setValue(ctx context.Context, v V) {
 	panic("node 256 doesn't hold any value")
 }
 
-func (n *Node256[V]) getKind(ctx context.Context) Kind {
+func (n *Node256[V]) GetKind(ctx context.Context) Kind {
 	return KindNode256
 }
 
@@ -152,6 +152,22 @@ func (n *Node256[V]) hasEnoughSpace(ctx context.Context) bool {
 
 func (n *Node256[V]) isShrinkable(ctx context.Context) bool {
 	return n.getChildrenLen(ctx) < Node256PointersMin
+}
+
+func (n *Node256[V]) GetLocker() INodeLocker {
+	return n.locker
+}
+
+func (n *Node256[V]) setLocker(locker INodeLocker) {
+	n.locker = locker
+}
+
+func (n *Node256[V]) clone() INode[V] {
+	nn := &Node256[V]{}
+	nn.nodeHeader = n.nodeHeader
+	nn.locker = n.locker
+	copy(nn.children[:], n.children[:])
+	return nn
 }
 
 var _ INode[any] = (*Node256[any])(nil)

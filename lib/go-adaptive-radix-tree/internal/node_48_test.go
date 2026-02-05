@@ -384,7 +384,7 @@ func Test_node48_str_grow(t *testing.T) {
 	n256o, ok := n256.(*Node256[string])
 	assert.True(t, ok, "can not cast to Node256[string]")
 	assert.Equal(t, n256o.getPrefix(ctx), samplePrefix)
-	assert.Equal(t, n256o.getKind(ctx), KindNode256)
+	assert.Equal(t, n256o.GetKind(ctx), KindNode256)
 	// fill expectedChildren with nil pointer
 	var expectedChildren [Node256PointersMax]*INode[string]
 	for idx, child := range children {
@@ -420,7 +420,7 @@ func Test_node48_str_shrink(t *testing.T) {
 	n16o, ok := n16.(*Node16[string])
 	assert.True(t, ok, "can not cast to Node16[string]")
 	assert.Equal(t, n16o.getPrefix(ctx), samplePrefix)
-	assert.Equal(t, n16o.getKind(ctx), KindNode16)
+	assert.Equal(t, n16o.GetKind(ctx), KindNode16)
 	// fill expectedKeys with 0
 	var expectedKeys [Node16KeysMax]byte
 	copy(expectedKeys[:], keys)

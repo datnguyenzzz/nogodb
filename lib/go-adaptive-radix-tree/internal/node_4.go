@@ -17,7 +17,7 @@ const (
 // are stored at corresponding positions and the keys are sorted.
 type Node4[V any] struct {
 	nodeHeader
-	nodeLocker
+	locker INodeLocker
 	// At position i-th, keys[i] = Key value, pointers[i] = pointer to Child for the keys[i]
 	// keys is an array of length 4 for a 1-byte Key.
 	// The keys array is sorted in ascending order.
@@ -34,7 +34,7 @@ func (n *Node4[V]) setValue(ctx context.Context, v V) {
 	panic("node 4 doesn't hold any value")
 }
 
-func (n *Node4[V]) getKind(ctx context.Context) Kind {
+func (n *Node4[V]) GetKind(ctx context.Context) Kind {
 	return KindNode4
 }
 
@@ -168,7 +168,7 @@ func (n *Node4[V]) shrink(ctx context.Context) (*INode[V], error) {
 	}
 
 	child := *n.children[Node4KeysMax-1]
-	if child.getKind(ctx) == KindNodeLeaf {
+	if child.GetKind(ctx) == KindNodeLeaf {
 		return &child, nil
 	}
 
@@ -185,6 +185,23 @@ func (n *Node4[V]) hasEnoughSpace(ctx context.Context) bool {
 
 func (n *Node4[V]) isShrinkable(ctx context.Context) bool {
 	return n.getChildrenLen(ctx) < Node4KeysMin
+}
+
+func (n *Node4[V]) GetLocker() INodeLocker {
+	return n.locker
+}
+
+func (n *Node4[V]) setLocker(locker INodeLocker) {
+	n.locker = locker
+}
+
+func (n *Node4[V]) clone() INode[V] {
+	nn := &Node4[V]{}
+	nn.nodeHeader = n.nodeHeader
+	nn.locker = n.locker
+	copy(nn.keys[:], n.keys[:])
+	copy(nn.children[:], n.children[:])
+	return nn
 }
 
 var _ INode[any] = (*Node4[any])(nil)

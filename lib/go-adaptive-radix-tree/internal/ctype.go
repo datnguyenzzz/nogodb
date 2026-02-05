@@ -44,6 +44,7 @@ type iNodeHeader interface {
 	setPrefix(ctx context.Context, prefix []byte)
 	getChildrenLen(ctx context.Context) uint8
 	setChildrenLen(ctx context.Context, childrenLen uint8)
+	cleanup(ctx context.Context)
 }
 
 // iNodeSizeManager to control the size of the node itself
@@ -63,23 +64,27 @@ type iNodeChildrenManager[V any] interface {
 	getChildByIndex(ctx context.Context, idx uint8) (byte, *INode[V], error)
 }
 
-// iNodeLocker control the lock coupling of a node. One property of ART is that modifications affect at most 2 nodes
+// INodeLocker control the lock coupling of a node. One property of ART is that modifications affect at most 2 nodes
 // the node where the value is inserted or deleted, and potentially its parent node
 // if the node must grow (during insert) or shrink (during deletion)
-type iNodeLocker interface {
+type INodeLocker interface {
 	Lock()
 	Unlock()
 	RLock()
 	RUnlock()
+	// UpgradeLock the current read lock to a write lock
+	UpgradeLock()
 }
 
 type INode[V any] interface {
 	iNodeHeader
 	iNodeSizeManager[V]
 	iNodeChildrenManager[V]
-	iNodeLocker
 
-	getKind(ctx context.Context) Kind
+	GetKind(ctx context.Context) Kind
 	getValue(ctx context.Context) V
 	setValue(ctx context.Context, v V)
+	GetLocker() INodeLocker
+	setLocker(locker INodeLocker)
+	clone() INode[V]
 }

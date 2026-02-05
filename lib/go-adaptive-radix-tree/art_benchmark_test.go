@@ -100,3 +100,41 @@ func BenchmarkInsertAndGet(b *testing.B) {
 		})
 	}
 }
+
+func BenchmarkInsertDeleteAndGet(b *testing.B) {
+	kvs := internal.SeedMapKVString(10_000_000)
+	ctx := context.Background()
+	art := NewTree[string](ctx)
+
+	concurrencies := []int{1, 10, 20}
+
+	for _, concurrency := range concurrencies {
+		b.Run(fmt.Sprintf("BenchmarkInsertAndGet-%d", concurrency), func(b *testing.B) {
+			for b.Loop() {
+				eg, egCtx := errgroup.WithContext(ctx)
+				eg.SetLimit(concurrency)
+				for i, kv := range kvs {
+					eg.Go(func() error {
+						_, err := art.Insert(egCtx, kv.Key, kv.Value)
+						require.NoError(b, err)
+						v, err := art.Get(egCtx, kv.Key)
+						assert.Equal(b, kv.Value, v)
+						require.NoError(b, err)
+
+						if i%2 == 0 {
+							_, err := art.Delete(egCtx, kv.Key)
+							require.NoError(b, err)
+							_, err = art.Get(egCtx, kv.Key)
+							assert.ErrorIs(b, err, NonExist)
+						}
+
+						return nil
+					})
+				}
+
+				err := eg.Wait()
+				require.NoError(b, err)
+			}
+		})
+	}
+}

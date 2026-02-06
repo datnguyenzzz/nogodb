@@ -45,6 +45,7 @@ type iNodeHeader interface {
 	getChildrenLen(ctx context.Context) uint8
 	setChildrenLen(ctx context.Context, childrenLen uint8)
 	cleanup(ctx context.Context)
+	isDeleted(ctx context.Context) bool
 }
 
 // iNodeSizeManager to control the size of the node itself

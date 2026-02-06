@@ -108,7 +108,7 @@ func PreorderTraverseAndValidate[V any](
 	node INode[V],
 	expectedPreorder []INode[V], idx, depth int8,
 ) int {
-	if node == nil {
+	if node == nil || node.isDeleted(ctx) {
 		// node is not exist
 		assert.Nil(t, expectedPreorder[idx])
 		return 0

@@ -20,7 +20,7 @@ func InsertNode[V any](
 	v V,
 	offset uint8,
 ) (V, error) {
-	if *nodePtr == nil {
+	if *nodePtr == nil || (*nodePtr).isDeleted(ctx) {
 		newLeaf := NewLeafWithKV[V](ctx, key, v)
 		*nodePtr = newLeaf
 		(*parentPtr).GetLocker().Unlock()
@@ -135,32 +135,36 @@ func RemoveNode[V any](
 	parentPtr *INode[V],
 	key []byte,
 	offset uint8,
-) (V, bool, error) {
+) (V, error) {
 	if nodePtr == nil || *nodePtr == nil {
 		(*parentPtr).GetLocker().Unlock()
-		return *new(V), false, NoSuchKey
+		return *new(V), NoSuchKey
 	}
 
 	(*nodePtr).GetLocker().Lock()
 
-	if nodePtr == nil || *nodePtr == nil {
+	if (*nodePtr).isDeleted(ctx) {
 		(*parentPtr).GetLocker().Unlock()
-		return *new(V), false, NoSuchKey
+		(*nodePtr).GetLocker().Unlock()
+		return *new(V), NoSuchKey
 	}
 
 	if (*nodePtr).GetKind(ctx) == KindNodeLeaf {
 		// special case when a tree has only 1 node which is a leaf
 		v, err := tryToRemoveLeafNode(ctx, key, nodePtr)
+		if err == nil {
+			(*nodePtr).cleanup(ctx)
+		}
 		(*nodePtr).GetLocker().Unlock()
 		(*parentPtr).GetLocker().Unlock()
-		return v, err == nil, err
+		return v, err
 	}
 
 	matchedPrefixLen := (*nodePtr).checkPrefix(ctx, key, offset)
 	if matchedPrefixLen != (*nodePtr).getPrefixLen(ctx) {
 		(*nodePtr).GetLocker().Unlock()
 		(*parentPtr).GetLocker().Unlock()
-		return *new(V), false, NoSuchKey
+		return *new(V), NoSuchKey
 	}
 
 	offset += (*nodePtr).getPrefixLen(ctx)
@@ -168,7 +172,7 @@ func RemoveNode[V any](
 	if err != nil {
 		(*nodePtr).GetLocker().Unlock()
 		(*parentPtr).GetLocker().Unlock()
-		return *new(V), false, NoSuchKey
+		return *new(V), NoSuchKey
 	}
 
 	if (*nextNodePtr).GetKind(ctx) == KindNodeLeaf {
@@ -176,13 +180,13 @@ func RemoveNode[V any](
 		if err != nil {
 			(*nodePtr).GetLocker().Unlock()
 			(*parentPtr).GetLocker().Unlock()
-			return v, false, err
+			return v, err
 		}
 		// attempt to remove the leaf node and unify the inner node if needed
 
 		(*nextNodePtr).GetLocker().Lock()
 		if err := (*nodePtr).removeChild(ctx, key[offset]); err != nil {
-			return *new(V), false, fmt.Errorf("fail to remove child, current node type - %v, %w: %v", (*nodePtr).GetKind(ctx), failedToRemoveChild, err)
+			return *new(V), fmt.Errorf("fail to remove child, current node type - %v, %w: %v", (*nodePtr).GetKind(ctx), failedToRemoveChild, err)
 		}
 		(*nextNodePtr).cleanup(ctx)
 		(*nextNodePtr).GetLocker().Unlock()
@@ -191,13 +195,13 @@ func RemoveNode[V any](
 		case 0:
 			prevOffset := offset - (*nodePtr).getPrefixLen(ctx) - 1
 			if err = (*parentPtr).removeChild(ctx, prevOffset); err != nil {
-				return *new(V), false, fmt.Errorf("fail to remove child, current node type - %v, %w: %v", (*parentPtr).GetKind(ctx), failedToRemoveChild, err)
+				return *new(V), fmt.Errorf("fail to remove child, current node type - %v, %w: %v", (*parentPtr).GetKind(ctx), failedToRemoveChild, err)
 			}
 			(*nodePtr).cleanup(ctx)
 		case 1:
 			onlyChildK, onlyChildPtr, err := (*nodePtr).getChildByIndex(ctx, 0)
 			if err != nil {
-				return *new(V), false, err
+				return *new(V), err
 			}
 			(*onlyChildPtr).GetLocker().RLock()
 			var newPrefix []byte
@@ -219,7 +223,7 @@ func RemoveNode[V any](
 		if (*nodePtr).isShrinkable(ctx) {
 			smallerNodePtr, err := (*nodePtr).shrink(ctx)
 			if err != nil {
-				return *new(V), false, fmt.Errorf("%w: %v", failedToShrinkNode, err)
+				return *new(V), fmt.Errorf("%w: %v", failedToShrinkNode, err)
 			}
 
 			currLocker := (*nodePtr).GetLocker()
@@ -229,7 +233,7 @@ func RemoveNode[V any](
 
 		(*nodePtr).GetLocker().Unlock()
 		(*parentPtr).GetLocker().Unlock()
-		return v, false, nil
+		return v, nil
 	}
 
 	(*parentPtr).GetLocker().Unlock()
@@ -250,7 +254,7 @@ func tryToRemoveLeafNode[V any](ctx context.Context, key []byte, nodePtr *INode[
 //	Key: The target Key
 //	offset: The number of bytes of the "Key" that have been processed
 func Get[V any](ctx context.Context, node INode[V], key []byte, offset uint8) (V, error) {
-	if node == nil {
+	if node == nil || node.isDeleted(ctx) {
 		return *new(V), NoSuchKey
 	}
 
@@ -288,7 +292,7 @@ func Get[V any](ctx context.Context, node INode[V], key []byte, offset uint8) (V
 
 // Walk iterates over all keys in the tree and trigger the callback function.
 func Walk[V any](ctx context.Context, node INode[V], cb Callback[V], order Order) {
-	if node == nil {
+	if node == nil || node.isDeleted(ctx) {
 		return
 	}
 

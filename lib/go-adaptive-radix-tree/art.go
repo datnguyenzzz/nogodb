@@ -31,10 +31,7 @@ func (t *Tree[V]) Delete(ctx context.Context, key Key) (V, error) {
 		return *new(V), NonExist
 	}
 	t.vRoot.GetLocker().Lock()
-	v, isRootRemoved, err := internal.RemoveNode(ctx, &t.root, &t.vRoot, key, 0)
-	if isRootRemoved {
-		t.root = nil
-	}
+	v, err := internal.RemoveNode(ctx, &t.root, &t.vRoot, key, 0)
 	return errorCategorisation(v, err)
 }
 

@@ -11,6 +11,7 @@ type nodeHeader struct {
 	prefixLen uint8
 	// the number of children
 	childrenLen uint8
+	deleted     bool
 }
 
 func (n *nodeHeader) setPrefix(ctx context.Context, prefix []byte) {
@@ -49,6 +50,11 @@ func (n *nodeHeader) cleanup(ctx context.Context) {
 	n.prefix = nil
 	n.prefixLen = 0
 	n.childrenLen = 0
+	n.deleted = true
+}
+
+func (n *nodeHeader) isDeleted(ctx context.Context) bool {
+	return n.deleted
 }
 
 var _ iNodeHeader = (*nodeHeader)(nil)

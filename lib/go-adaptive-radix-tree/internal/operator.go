@@ -47,7 +47,7 @@ func InsertNode[V any](
 		offset += lcp
 
 		nodeCopy := (*nodePtr).clone()
-		nodeCopy.setLocker(NewNodeLocker(RWMutexLocker))
+		nodeCopy.setLocker(NewNodeLocker())
 
 		// add current leaf node to the new inner node
 		// but it needs a new locker
@@ -86,7 +86,7 @@ func InsertNode[V any](
 
 		// deep copy the current node to a new node nodeCopy
 		nodeCopy := (*nodePtr).clone()
-		nodeCopy.setLocker(NewNodeLocker(RWMutexLocker))
+		nodeCopy.setLocker(NewNodeLocker())
 
 		if err := nn.addChild(ctx, currNodePrefix[matchedPrefixLen], &nodeCopy); err != nil {
 			return *new(V), fmt.Errorf("%w: %v", failedToAddChild, err)

@@ -750,14 +750,14 @@ func Test_search_art_str_InsertAndRemoveNode_async(t *testing.T) {
 			deleteActionsCount: 4000,
 		},
 		{
-			desc:               "large-size test p2, 100_000 totals, 40_000 removes",
+			desc:               "large-size test p2, 100_000 totals, 60_000 removes",
 			size:               100_000,
-			deleteActionsCount: 40_000,
+			deleteActionsCount: 60_000,
 		},
 		{
-			desc:               "large-size test p3, 250_000 totals, 50_000 removes",
+			desc:               "large-size test p3, 250_000 totals, 150_000 removes",
 			size:               250_000,
-			deleteActionsCount: 50_000,
+			deleteActionsCount: 150_000,
 		},
 	}
 

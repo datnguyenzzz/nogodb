@@ -2,6 +2,8 @@ package internal
 
 import (
 	"context"
+
+	go_context_aware_lock "github.com/datnguyenzzz/nogodb/lib/go-context-aware-lock"
 )
 
 // NodeLeaf aka Single-value leaf: The values are stored
@@ -9,7 +11,7 @@ import (
 // It's also an implication that the prefix on the leaf node is equal to the Key itself.
 type NodeLeaf[V any] struct {
 	nodeHeader
-	locker INodeLocker
+	locker go_context_aware_lock.IOptRWMutex
 	value  V
 }
 
@@ -26,15 +28,15 @@ func (n *NodeLeaf[V]) GetKind(ctx context.Context) Kind {
 }
 
 func (n *NodeLeaf[V]) addChild(ctx context.Context, key byte, child *INode[V]) error {
-	panic("node leaf doesn't support this function")
+	return nil // node leaf doesn't support this function
 }
 
 func (n *NodeLeaf[V]) removeChild(ctx context.Context, key byte) error {
-	panic("node leaf doesn't support this function")
+	return nil //node leaf doesn't support this function
 }
 
 func (n *NodeLeaf[V]) getChild(ctx context.Context, key byte) (*INode[V], error) {
-	panic("node leaf doesn't support this function")
+	return nil, nil // node leaf doesn't support this function
 }
 
 func (n *NodeLeaf[V]) getAllChildren(ctx context.Context, order Order) []*INode[V] {
@@ -42,30 +44,30 @@ func (n *NodeLeaf[V]) getAllChildren(ctx context.Context, order Order) []*INode[
 }
 
 func (n *NodeLeaf[V]) getChildByIndex(ctx context.Context, idx uint8) (byte, *INode[V], error) {
-	panic("node leaf doesn't support this function")
+	return 0, nil, nil //node leaf doesn't support this function
 }
 
 func (n *NodeLeaf[V]) grow(ctx context.Context) (*INode[V], error) {
-	panic("node leaf doesn't support this function")
+	return nil, nil //node leaf doesn't support this function
 }
 
 func (n *NodeLeaf[V]) shrink(ctx context.Context) (*INode[V], error) {
-	panic("node leaf doesn't support this function")
+	return nil, nil //node leaf doesn't support this function
 }
 
 func (n *NodeLeaf[V]) hasEnoughSpace(ctx context.Context) bool {
-	panic("node leaf doesn't support this function")
+	return false //node leaf doesn't support this function
 }
 
 func (n *NodeLeaf[V]) isShrinkable(ctx context.Context) bool {
 	return false
 }
 
-func (n *NodeLeaf[V]) GetLocker() INodeLocker {
+func (n *NodeLeaf[V]) GetLocker() go_context_aware_lock.IOptRWMutex {
 	return n.locker
 }
 
-func (n *NodeLeaf[V]) setLocker(locker INodeLocker) {
+func (n *NodeLeaf[V]) setLocker(locker go_context_aware_lock.IOptRWMutex) {
 	n.locker = locker
 }
 

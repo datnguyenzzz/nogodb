@@ -3,6 +3,8 @@ package internal
 import (
 	"context"
 	"fmt"
+
+	go_context_aware_lock "github.com/datnguyenzzz/nogodb/lib/go-context-aware-lock"
 )
 
 const (
@@ -19,7 +21,7 @@ const (
 // parallel comparisons using SIMD instructions.
 type Node16[V any] struct {
 	nodeHeader
-	locker INodeLocker
+	locker go_context_aware_lock.IOptRWMutex
 	// At position i-th, keys[i] = Key value, pointers[i] = pointer to Child for the keys[i]
 	// keys is an array of length 16 for a 1-byte Key.
 	// The keys array is sorted in ascending order.
@@ -190,11 +192,11 @@ func (n *Node16[V]) isShrinkable(ctx context.Context) bool {
 	return n.getChildrenLen(ctx) < Node16KeysMin
 }
 
-func (n *Node16[V]) GetLocker() INodeLocker {
+func (n *Node16[V]) GetLocker() go_context_aware_lock.IOptRWMutex {
 	return n.locker
 }
 
-func (n *Node16[V]) setLocker(locker INodeLocker) {
+func (n *Node16[V]) setLocker(locker go_context_aware_lock.IOptRWMutex) {
 	n.locker = locker
 }
 

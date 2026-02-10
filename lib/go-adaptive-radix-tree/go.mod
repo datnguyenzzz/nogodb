@@ -5,9 +5,10 @@ replace github.com/datnguyenzzz/nogodb/lib/go-context-aware-lock => ../go-contex
 go 1.25.6
 
 require (
+	github.com/datnguyenzzz/nogodb/lib/go-context-aware-lock v0.0.0-20260207164643-7fe89bf3da87
 	github.com/go-faker/faker/v4 v4.6.1
-	github.com/stretchr/testify v1.10.0
-	golang.org/x/sync v0.13.0
+	github.com/stretchr/testify v1.11.1
+	golang.org/x/sync v0.19.0
 )
 
 require (

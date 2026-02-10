@@ -22,21 +22,48 @@ func NewTree[V any](ctx context.Context) *Tree[V] {
 }
 
 func (t *Tree[V]) Insert(ctx context.Context, key Key, value V) (V, error) {
-	t.vRoot.GetLocker().Lock()
-	return errorCategorisation(internal.InsertNode(ctx, &t.root, &t.vRoot, key, value, 0))
+	for {
+		version, obsolete := t.vRoot.GetLocker().RLock()
+		if obsolete {
+			continue
+		}
+		v, obsolete, err := internal.InsertNode(ctx, &t.root, &t.vRoot, version, key, value, 0)
+		if obsolete {
+			continue
+		}
+		return errorCategorisation(v, err)
+	}
 }
 
 func (t *Tree[V]) Delete(ctx context.Context, key Key) (V, error) {
-	if t.root == nil {
-		return *new(V), NonExist
+	for {
+		if t.root == nil {
+			return *new(V), NonExist
+		}
+		version, obsolete := t.vRoot.GetLocker().RLock()
+		if obsolete {
+			continue
+		}
+		v, obsolete, err := internal.RemoveNode(ctx, &t.root, &t.vRoot, version, key, 0)
+		if obsolete {
+			continue
+		}
+		return errorCategorisation(v, err)
 	}
-	t.vRoot.GetLocker().Lock()
-	v, err := internal.RemoveNode(ctx, &t.root, &t.vRoot, key, 0)
-	return errorCategorisation(v, err)
 }
 
 func (t *Tree[V]) Get(ctx context.Context, key Key) (V, error) {
-	return errorCategorisation(internal.Get(ctx, t.root, key, 0))
+	for {
+		version, obsolete := t.vRoot.GetLocker().RLock()
+		if obsolete {
+			continue
+		}
+		v, obsolete, error := internal.Get(ctx, t.root, t.vRoot, version, key, 0)
+		if obsolete {
+			continue
+		}
+		return errorCategorisation(v, error)
+	}
 }
 
 func (t *Tree[V]) Minimum(ctx context.Context) (Key, V, bool) {
@@ -54,7 +81,7 @@ func (t *Tree[V]) Walk(ctx context.Context, fn WalkFn[V]) {
 		// Ignore error for now
 		_ = fn(ctx, k, v)
 	}
-	internal.Walk[V](ctx, t.root, cb, internal.AscOrder)
+	internal.Walk(ctx, t.root, cb, internal.AscOrder)
 }
 
 func (t *Tree[V]) WalkBackwards(ctx context.Context, fn WalkFn[V]) {
@@ -62,7 +89,7 @@ func (t *Tree[V]) WalkBackwards(ctx context.Context, fn WalkFn[V]) {
 		// Ignore error for now
 		_ = fn(ctx, k, v)
 	}
-	internal.Walk[V](ctx, t.root, cb, internal.DescOrder)
+	internal.Walk(ctx, t.root, cb, internal.DescOrder)
 }
 
 func (t *Tree[V]) Visualize(ctx context.Context) {

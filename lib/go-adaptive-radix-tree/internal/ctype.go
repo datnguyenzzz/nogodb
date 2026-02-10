@@ -3,6 +3,8 @@ package internal
 import (
 	"context"
 	"fmt"
+
+	go_context_aware_lock "github.com/datnguyenzzz/nogodb/lib/go-context-aware-lock"
 )
 
 // errors
@@ -14,6 +16,7 @@ var (
 	failedToShrinkNode  error = fmt.Errorf("failed to shrink node")
 	childNodeNotFound   error = fmt.Errorf("Child node not found")
 	NoSuchKey           error = fmt.Errorf("not such Key")
+	internalError       error = fmt.Errorf("internal error")
 )
 
 type Callback[V any] func(ctx context.Context, k []byte, v V)
@@ -65,18 +68,6 @@ type iNodeChildrenManager[V any] interface {
 	getChildByIndex(ctx context.Context, idx uint8) (byte, *INode[V], error)
 }
 
-// INodeLocker control the lock coupling of a node. One property of ART is that modifications affect at most 2 nodes
-// the node where the value is inserted or deleted, and potentially its parent node
-// if the node must grow (during insert) or shrink (during deletion)
-type INodeLocker interface {
-	Lock()
-	Unlock()
-	RLock()
-	RUnlock()
-	// UpgradeLock the current read lock to a write lock
-	UpgradeLock()
-}
-
 type INode[V any] interface {
 	iNodeHeader
 	iNodeSizeManager[V]
@@ -85,7 +76,7 @@ type INode[V any] interface {
 	GetKind(ctx context.Context) Kind
 	getValue(ctx context.Context) V
 	setValue(ctx context.Context, v V)
-	GetLocker() INodeLocker
-	setLocker(locker INodeLocker)
+	GetLocker() go_context_aware_lock.IOptRWMutex
+	setLocker(locker go_context_aware_lock.IOptRWMutex)
 	clone() INode[V]
 }

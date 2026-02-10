@@ -1,6 +1,6 @@
 # Project tracker 
 
-## H1 - 2025
+## H1 - 2026
 
 - Implement go-fs with the basic file operations
   - [ ] P0: On local disk
@@ -8,7 +8,7 @@
 - Add an exhaustive functional tests (writer --> iterator) for the sstable
   - [ ] P0: On-local disk
 - [ ] P1: Add benchmark tests for Iterator + Writer
-- [ ] P0: Implement lock-free concurrent ART and benchmark against the current sequential adaptive radix tree
+- [x] P0: Implement lock-free concurrent ART and benchmark against the current sequential adaptive radix tree
 - [ ] P0: Implement Clock-based eviction policy and benchmark against the LRU policy for the go-block-cache
 
 ## H2 - 2025

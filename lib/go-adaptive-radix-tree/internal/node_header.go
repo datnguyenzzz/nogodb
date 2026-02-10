@@ -37,6 +37,10 @@ func (n *nodeHeader) getPrefixLen(ctx context.Context) uint8 {
 }
 
 func (n *nodeHeader) checkPrefix(ctx context.Context, key []byte, offset uint8) uint8 {
+	if len(n.prefix) == 0 {
+		return 0
+	}
+
 	i := uint8(0)
 	for ; i < n.prefixLen && offset+i < uint8(len(key)); i++ {
 		if n.prefix[i] != key[offset+i] {

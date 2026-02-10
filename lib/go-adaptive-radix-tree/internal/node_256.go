@@ -3,6 +3,8 @@ package internal
 import (
 	"context"
 	"fmt"
+
+	go_context_aware_lock "github.com/datnguyenzzz/nogodb/lib/go-context-aware-lock"
 )
 
 const (
@@ -19,7 +21,7 @@ const (
 // only pointers need to be stored.
 type Node256[V any] struct {
 	nodeHeader
-	locker INodeLocker
+	locker go_context_aware_lock.IOptRWMutex
 	// pointers to children node
 	children [Node256PointersMax]*INode[V]
 }
@@ -154,11 +156,11 @@ func (n *Node256[V]) isShrinkable(ctx context.Context) bool {
 	return n.getChildrenLen(ctx) < Node256PointersMin
 }
 
-func (n *Node256[V]) GetLocker() INodeLocker {
+func (n *Node256[V]) GetLocker() go_context_aware_lock.IOptRWMutex {
 	return n.locker
 }
 
-func (n *Node256[V]) setLocker(locker INodeLocker) {
+func (n *Node256[V]) setLocker(locker go_context_aware_lock.IOptRWMutex) {
 	n.locker = locker
 }
 

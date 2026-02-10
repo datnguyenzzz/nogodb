@@ -1,0 +1,18 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/datnguyenzzz/nogodb/lib/go-adaptive-radix-tree
+cpu: Apple M2
+BenchmarkInsert/BenchmarkInsert-1-8                    1        40989254750 ns/op       2897313600 B/op 68000010 allocs/op
+BenchmarkInsert/BenchmarkInsert-10-8                   1        19351395042 ns/op       2897328608 B/op 68000166 allocs/op
+BenchmarkInsert/BenchmarkInsert-20-8                   1        19008686709 ns/op       2897332672 B/op 68000142 allocs/op
+BenchmarkGet/BenchmarkGet-1-8                          1        32235104166 ns/op       1360000544 B/op 40000007 allocs/op
+BenchmarkGet/BenchmarkGet-10-8                         1        20217755709 ns/op       1360016112 B/op 40000169 allocs/op
+BenchmarkGet/BenchmarkGet-20-8                         1        19582557584 ns/op       1360018128 B/op 40000190 allocs/op
+BenchmarkInsertAndGet/BenchmarkInsertAndGet-1-8                        1        53240505375 ns/op       3217354384 B/op 88000005 allocs/op
+BenchmarkInsertAndGet/BenchmarkInsertAndGet-10-8                       1        35323592375 ns/op       1360004016 B/op 40000043 allocs/op
+BenchmarkInsertAndGet/BenchmarkInsertAndGet-20-8                       1        37672978709 ns/op       1360014192 B/op 40000149 allocs/op
+BenchmarkInsertDeleteAndGet/BenchmarkInsertAndGet-1-8                  1        62862734375 ns/op       4305782488 B/op 111000039 allocs/op
+BenchmarkInsertDeleteAndGet/BenchmarkInsertAndGet-10-8                 1        50180216000 ns/op       2524714800 B/op 70000293 allocs/op
+BenchmarkInsertDeleteAndGet/BenchmarkInsertAndGet-20-8                 1        56587396167 ns/op       2524713408 B/op 70000275 allocs/op
+PASS
+ok      github.com/datnguyenzzz/nogodb/lib/go-adaptive-radix-tree       1176.461s

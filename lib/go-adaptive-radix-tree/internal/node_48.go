@@ -3,6 +3,8 @@ package internal
 import (
 	"context"
 	"fmt"
+
+	go_context_aware_lock "github.com/datnguyenzzz/nogodb/lib/go-context-aware-lock"
 )
 
 const (
@@ -20,7 +22,7 @@ const (
 // contains up to 48 pointers.
 type Node48[V any] struct {
 	nodeHeader
-	locker INodeLocker
+	locker go_context_aware_lock.IOptRWMutex
 	// At position i-th, keys[i] = [position in the pointers array] + 1,
 	// if keys[i] = 0 means the Key i-th haven't had a Child yet
 	// pointers[i] = pointer to Child for the Key = i-th
@@ -243,11 +245,11 @@ func (n *Node48[V]) isShrinkable(ctx context.Context) bool {
 	return n.getChildrenLen(ctx) < Node48PointersMin
 }
 
-func (n *Node48[V]) GetLocker() INodeLocker {
+func (n *Node48[V]) GetLocker() go_context_aware_lock.IOptRWMutex {
 	return n.locker
 }
 
-func (n *Node48[V]) setLocker(locker INodeLocker) {
+func (n *Node48[V]) setLocker(locker go_context_aware_lock.IOptRWMutex) {
 	n.locker = locker
 }
 

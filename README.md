@@ -129,16 +129,17 @@ graph TB
 
 
 
+
 ## Test Coverage
 
 | Package | Coverage |
 |---------|----------|
-| go-adaptive-radix-tree | ![Coverage](https://img.shields.io/badge/coverage-47-red) |
+| go-adaptive-radix-tree | ![Coverage](https://img.shields.io/badge/coverage-42-red) |
 | go-adaptive-rate-limiter | ![Coverage](https://img.shields.io/badge/coverage-53-yellow) |
-| go-block-cache | ![Coverage](https://img.shields.io/badge/coverage-82-green) |
+| go-block-cache | ![Coverage](https://img.shields.io/badge/coverage-83-green) |
 | go-blocked-bloom-filter | ![Coverage](https://img.shields.io/badge/coverage-90-green) |
 | go-bytesbufferpool | ![Coverage](https://img.shields.io/badge/coverage-90-green) |
-| go-context-aware-lock | ![Coverage](https://img.shields.io/badge/coverage-0-red) |
+| go-context-aware-lock | ![Coverage](https://img.shields.io/badge/coverage-57-yellow) |
 | go-fs | ![Coverage](https://img.shields.io/badge/coverage-41-red) |
 | go-sstable | ![Coverage](https://img.shields.io/badge/coverage-35-red) |
 | go-wal | ![Coverage](https://img.shields.io/badge/coverage-16-red) |

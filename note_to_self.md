@@ -4,12 +4,13 @@
 
 - Implement go-fs with the basic file operations
   - [ ] P0: On local disk
-  - [ ] P1: Remote storage
+  - [ ] P1: Remote storage (S3)
 - Add an exhaustive functional tests (writer --> iterator) for the sstable
   - [ ] P0: On-local disk
 - [ ] P1: Add benchmark tests for Iterator + Writer
 - [x] P0: Implement lock-free concurrent ART and benchmark against the current sequential adaptive radix tree
 - [ ] P0: Implement Clock-based eviction policy and benchmark against the LRU policy for the go-block-cache
+- [ ] P0: Planning out what's next ?
 
 ## H2 - 2025
 

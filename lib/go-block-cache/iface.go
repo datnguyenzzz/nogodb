@@ -17,3 +17,14 @@ type IBlockCache interface {
 	GetStats() Stats
 	GetInUsed() int64
 }
+
+// ICacher is the interface for the cache replacement policy, which is used to promote or evict nodes in the cache.
+type ICacher interface {
+	// GetInUsed returns the current in-use size of the cache,
+	GetInUsed() int64
+	// Promote promotes the given node in the cache
+	// diffSize is the size difference between the new value and the old value of the node
+	Promote(node *kv, diffSize int64) bool
+	Evict(node *kv)
+	SetCapacity(capacity int64)
+}

@@ -112,7 +112,7 @@ func (l *lru) Evict(node *kv) {
 	if currLog == nil {
 		return
 	}
-	l.RemoveLRULog(currLog)
+	l.removeLRULog(currLog)
 }
 
 // balance evict nodes to balance the maxSize.
@@ -124,14 +124,14 @@ func (l *lru) balance() (evicted []*kv) {
 		if leastUpdate == nil {
 			panic("lru recent pointer is nil")
 		}
-		l.RemoveLRULog(leastUpdate)
+		l.removeLRULog(leastUpdate)
 		evicted = append(evicted, leastUpdate.n)
 	}
 
 	return evicted
 }
 
-func (l *lru) RemoveLRULog(lruLog *log) {
+func (l *lru) removeLRULog(lruLog *log) {
 	lruLog.remove()
 	lruLog.n.log = nil
 	atomic.AddInt64(&l.inUse, -int64(computeSize(lruLog.n.value)))
@@ -140,3 +140,5 @@ func (l *lru) RemoveLRULog(lruLog *log) {
 func (l *lru) GetInUsed() int64 {
 	return atomic.LoadInt64(&l.inUse)
 }
+
+var _ ICacher = (*lru)(nil)

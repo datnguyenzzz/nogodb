@@ -45,7 +45,7 @@ type hashMap struct {
 	maxSize   int64
 	cacheType CacheType
 
-	cacher *lru
+	cacher ICacher
 	stats  Stats
 
 	closed bool

@@ -22,9 +22,9 @@ func (h *handle) Release() {
 		n := (*kv)(nPtr)
 
 		if atomic.AddInt32(&n.ref, -1) <= 0 {
-			n.hm.mu.RLock()
-			_ = n.hm.evict(n)
-			n.hm.mu.RUnlock()
+			n.s.mu.RLock()
+			_ = n.s.evict(n)
+			n.s.mu.RUnlock()
 		}
 	}
 }
@@ -41,7 +41,7 @@ var _ LazyValue = (*handle)(nil)
 
 type kv struct {
 	mu sync.Mutex
-	hm *hashMap
+	s  *shard
 
 	hash         uint32
 	fileNum, key uint64
@@ -58,9 +58,9 @@ type kv struct {
 	log unsafe.Pointer
 }
 
-func NewKV(fileNum, key uint64, hash uint32, hm *hashMap) *kv {
+func NewKV(fileNum, key uint64, hash uint32, s *shard) *kv {
 	return &kv{
-		hm:      hm,
+		s:       s,
 		fileNum: fileNum,
 		key:     key,
 		hash:    hash,

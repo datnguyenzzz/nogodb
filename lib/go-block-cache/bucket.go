@@ -58,7 +58,7 @@ func (b *bucket) Get(fileNum, key uint64) (isFrozen bool, n *kv) {
 	return false, n
 }
 
-func (b *bucket) AddNewNode(fileNum, key uint64, hash uint32, hm *hashMap) (isFrozen bool, newNode *kv) {
+func (b *bucket) AddNewNode(fileNum, key uint64, hash uint32, s *shard) (isFrozen bool, newNode *kv) {
 	b.mu.Lock()
 	if b.state == frozen {
 		//fmt.Println("AddNewNode to frozen bucket ....")
@@ -67,7 +67,7 @@ func (b *bucket) AddNewNode(fileNum, key uint64, hash uint32, hm *hashMap) (isFr
 	}
 
 	pos := b.seekGTE(fileNum, key)
-	newNode = NewKV(fileNum, key, hash, hm)
+	newNode = NewKV(fileNum, key, hash, s)
 	if pos == len(b.nodes) {
 		b.nodes = append(b.nodes, newNode)
 	} else {
@@ -77,11 +77,11 @@ func (b *bucket) AddNewNode(fileNum, key uint64, hash uint32, hm *hashMap) (isFr
 	nodesCount := len(b.nodes)
 	b.mu.Unlock()
 
-	b.grow(hm, nodesCount, (*state)(atomic.LoadPointer(&hm.state)))
+	b.grow(s, nodesCount, (*state)(atomic.LoadPointer(&s.state)))
 	return false, newNode
 }
 
-func (b *bucket) DeleteNode(fileNum, key uint64, hash uint32, hm *hashMap) (isFrozen bool, deleted bool) {
+func (b *bucket) DeleteNode(fileNum, key uint64, hash uint32, s *shard) (isFrozen bool, deleted bool) {
 	b.mu.Lock()
 
 	if b.state == frozen {
@@ -110,7 +110,7 @@ func (b *bucket) DeleteNode(fileNum, key uint64, hash uint32, hm *hashMap) (isFr
 	b.mu.Unlock()
 
 	if deleted {
-		b.shrink(hm, nodeCount, (*state)(atomic.LoadPointer(&hm.state)))
+		b.shrink(s, nodeCount, (*state)(atomic.LoadPointer(&s.state)))
 	}
 	return false, deleted
 }
@@ -122,8 +122,8 @@ func (b *bucket) Freeze() []*kv {
 	return b.nodes
 }
 
-func (b *bucket) grow(hm *hashMap, nodesCount int, currState *state) {
-	grow := atomic.AddInt64(&hm.stats.statNodes, 1) >= currState.growThreshold
+func (b *bucket) grow(s *shard, nodesCount int, currState *state) {
+	grow := atomic.AddInt64(&s.stats.statNodes, 1) >= currState.growThreshold
 	if nodesCount > overflowThreshold {
 		grow = grow || atomic.AddInt32(&currState.overflow, 1) >= overflowGrowThreshold
 	}
@@ -146,17 +146,17 @@ func (b *bucket) grow(hm *hashMap, nodesCount int, currState *state) {
 		shrinkThreshold: int64(newBucketSize >> 1),
 	}
 
-	if !atomic.CompareAndSwapPointer(&hm.state, unsafe.Pointer(currState), unsafe.Pointer(newState)) {
+	if !atomic.CompareAndSwapPointer(&s.state, unsafe.Pointer(currState), unsafe.Pointer(newState)) {
 		panic("Failed to swap the state when growing ")
 	}
-	atomic.AddInt32(&hm.stats.statGrow, 1)
+	atomic.AddInt32(&s.stats.statGrow, 1)
 	//fmt.Println("growing...")
 
 	go newState.initBuckets()
 }
 
-func (b *bucket) shrink(hm *hashMap, nodesCount int, currState *state) {
-	shrink := atomic.AddInt64(&hm.stats.statNodes, -1) < currState.shrinkThreshold
+func (b *bucket) shrink(s *shard, nodesCount int, currState *state) {
+	shrink := atomic.AddInt64(&s.stats.statNodes, -1) < currState.shrinkThreshold
 	if nodesCount >= overflowThreshold {
 		atomic.AddInt32(&currState.overflow, -1)
 	}
@@ -183,10 +183,10 @@ func (b *bucket) shrink(hm *hashMap, nodesCount int, currState *state) {
 		shrinkThreshold: int64(newBucketSize >> 1),
 	}
 
-	if !atomic.CompareAndSwapPointer(&hm.state, unsafe.Pointer(currState), unsafe.Pointer(newState)) {
+	if !atomic.CompareAndSwapPointer(&s.state, unsafe.Pointer(currState), unsafe.Pointer(newState)) {
 		panic("Failed to swap the state when growing ")
 	}
-	atomic.AddInt32(&hm.stats.statShrink, 1)
+	atomic.AddInt32(&s.stats.statShrink, 1)
 
 	//fmt.Println("shinking...")
 	go newState.initBuckets()

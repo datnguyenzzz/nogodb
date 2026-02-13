@@ -1,21 +1,11 @@
 package go_block_cache
 
-import (
-	"sync"
-	"sync/atomic"
-	"unsafe"
-)
+import "go.uber.org/zap"
 
 var (
 	B   = int64(1)
 	KiB = 1024 * B
 	MiB = 1024 * KiB
-)
-
-var (
-	initialBucketSize = 1 << 4
-	defaultCacheSize  = 2 * MiB
-	defaultCacheType  = LRU
 )
 
 type Value []byte
@@ -39,226 +29,82 @@ type Stats struct {
 
 // hashMap represent a hash map
 type hashMap struct {
-	mu sync.RWMutex
-
-	// options
+	shards    []*shard
 	maxSize   int64
 	cacheType CacheType
-
-	cacher ICacher
-	stats  Stats
-
-	closed bool
-	// points to state. As in the state don't have mutex
-	state unsafe.Pointer
+	shardNum  int
 }
 
 func (h *hashMap) GetStats() Stats {
-	return h.stats
+	total := Stats{}
+	for _, s := range h.shards {
+		stats := s.getStats()
+		total.statNodes += stats.statNodes
+		total.statGrow += stats.statGrow
+		total.statShrink += stats.statShrink
+		total.statHit += stats.statHit
+		total.statMiss += stats.statMiss
+		total.statSet += stats.statSet
+		total.statDel += stats.statDel
+	}
+	return total
 }
 
 func (h *hashMap) GetInUsed() int64 {
-	return h.cacher.GetInUsed()
+	var total int64
+	for _, s := range h.shards {
+		total += s.getInUsed()
+	}
+	return total
 }
 
 func (h *hashMap) Set(fileNum, key uint64, value Value) bool {
-	h.mu.RLock()
-	if h.closed {
-		h.mu.RUnlock()
+	if int64(computeSize(value)) > h.maxSize/int64(h.shardNum) {
+		zap.L().Error("value size exceeds the maximum cache size per shard", zap.Int64("max_cache_size_per_shard", h.maxSize/int64(h.shardNum)))
 		return false
 	}
 
-	// defer until the target bucket is initialised (aka migrate data from a frozen to a new bucket)
-	// but do not require blocking all operations to the hash map during the migration
-	for {
-		state := (*state)(atomic.LoadPointer(&h.state))
-		bucket := state.lazyLoadBucket(h.getBucketId(fileNum, key, state))
-		isFrozen, node := bucket.Get(fileNum, key)
-		if isFrozen {
-			continue
-		}
-
-		if node == nil {
-			hash := murmur32(fileNum, key)
-			isFrozen, node = bucket.AddNewNode(fileNum, key, hash, h)
-		}
-		if isFrozen {
-			continue
-		}
-
-		if value == nil || computeSize(value) == 0 {
-			h.evict(node)
-			h.mu.RUnlock()
-			return true
-		}
-
-		valSize := int64(computeSize(value))
-		diffSize := valSize - node.size
-		node.SetValue(value, valSize)
-		atomic.StoreInt32(&node.ref, 0)
-		atomic.AddInt64(&h.stats.statSet, 1)
-		h.mu.RUnlock()
-
-		if h.cacher != nil {
-			if ok := h.cacher.Promote(node, diffSize); !ok {
-				return false
-			}
-		}
-
-		break
-	}
-
-	return true
+	return h.getShard(fileNum, key).set(fileNum, key, value)
 }
 
 func (h *hashMap) Get(fileNum, key uint64) (LazyValue, bool) {
-	h.mu.RLock()
-	if h.closed {
-		h.mu.RUnlock()
-		return nil, false
-	}
-	var isFrozen bool
-	var node *kv
-	// defer until the target bucket is initialised (aka migrate data from a frozen to a new bucket)
-	// but do not require blocking all operations to the hash map during the migration
-	for {
-		state := (*state)(atomic.LoadPointer(&h.state))
-		bucket := state.lazyLoadBucket(h.getBucketId(fileNum, key, state))
-		isFrozen, node = bucket.Get(fileNum, key)
-		if isFrozen {
-			continue
-		}
-		if node == nil {
-			atomic.AddInt64(&h.stats.statMiss, 1)
-			h.mu.RUnlock()
-			return nil, false
-		}
-
-		atomic.AddInt64(&h.stats.statHit, 1)
-		node.upRef()
-
-		h.mu.RUnlock()
-		if h.cacher != nil {
-			if ok := h.cacher.Promote(node, 0); !ok {
-				return nil, false
-			}
-		}
-		break
-	}
-
-	return node.ToLazyValue(), true
+	return h.getShard(fileNum, key).get(fileNum, key)
 }
 
 func (h *hashMap) Delete(fileNum, key uint64) bool {
-	h.mu.RLock()
-	defer h.mu.RUnlock()
-	if h.closed {
-		return false
-	}
-	var isFrozen bool
-	var node *kv
-	// defer until the target bucket is initialised (aka migrate data from a frozen to a new bucket)
-	// but do not require blocking all operations to the hash map during the migration
-	for {
-		state := (*state)(atomic.LoadPointer(&h.state))
-		bucket := state.lazyLoadBucket(h.getBucketId(fileNum, key, state))
-		isFrozen, node = bucket.Get(fileNum, key)
-		if isFrozen {
-			continue
-		}
-		if node == nil {
-			return false
-		}
-
-		h.evict(node)
-		break
-	}
-
-	return true
-}
-
-// evict removes a node from a hashmap
-//
-//	Important: caller must ensure the Rlock of the hashmap
-func (h *hashMap) evict(node *kv) bool {
-	if h.closed {
-		return false
-	}
-	atomic.StoreInt32(&node.ref, 0)
-	// defer until the bucket is initialised
-	var removed, isFrozen bool
-	for {
-		state := (*state)(atomic.LoadPointer(&h.state))
-		bucket := state.lazyLoadBucket(h.getBucketId(node.fileNum, node.key, state))
-		isFrozen, removed = bucket.DeleteNode(node.fileNum, node.key, node.hash, h)
-		if isFrozen {
-			continue
-		}
-
-		if removed {
-			h.cacher.Evict(node)
-			node = nil
-			atomic.AddInt64(&h.stats.statDel, 1)
-		}
-
-		break
-	}
-
-	return removed
-}
-
-func (h *hashMap) getBucketId(fileNum, key uint64, state *state) uint32 {
-	hash := murmur32(fileNum, key)
-	return hash & state.bucketMark
+	return h.getShard(fileNum, key).delete(fileNum, key)
 }
 
 func (h *hashMap) Close() {
-	// mutex lock to ensure all the shared locks are cleared
-	h.mu.Lock()
-	defer h.mu.Unlock()
-
-	if h.closed {
-		return
+	for _, s := range h.shards {
+		s.close()
 	}
-
-	h.closed = true
-	var allKVs []*kv
-	state := (*state)(atomic.LoadPointer(&h.state))
-	for i, _ := range state.buckets {
-		bucket := state.lazyLoadBucket(uint32(i))
-		bucket.mu.Lock()
-		allKVs = append(allKVs, bucket.nodes...)
-		bucket.mu.Unlock()
-	}
-
-	for _, kv := range allKVs {
-		h.evict(kv)
-	}
-
-	atomic.StorePointer(&h.state, nil)
 }
 
 func (h *hashMap) SetCapacity(capacity int64) {
-	if h.closed {
-		return
-	}
-	if h.cacher != nil {
-		h.cacher.SetCapacity(capacity)
+	perShardCap := capacity / int64(h.shardNum)
+	for _, s := range h.shards {
+		s.setCapacity(perShardCap)
 	}
 }
 
-func NewMap(opts ...CacheOpt) IBlockCache {
-	state := &state{
-		buckets:       make([]bucket, initialBucketSize),
-		bucketMark:    uint32(initialBucketSize - 1),
-		growThreshold: int64(initialBucketSize * overflowThreshold),
-	}
-	for i, _ := range state.buckets {
-		state.buckets[i].state = initialized
-	}
+func (h *hashMap) getShard(fileNum, key uint64) *shard {
+	// Implement Fibonacci hashing to evenly distribute keys across shards
+	// and avoid clustering of sequential keys.
 
+	const m = 11400714819323198485
+
+	k := fileNum * m
+	k ^= key * m
+	k >>= 32
+
+	// https://lemire.me/blog/2016/06/27/a-fast-alternative-to-the-modulo-reduction/
+	return h.shards[int(k*uint64(h.shardNum)>>32)]
+}
+
+func NewMap(opts ...CacheOpt) IBlockCache {
 	c := &hashMap{
-		state:     unsafe.Pointer(state),
+		shardNum:  defaultShardNum,
 		maxSize:   int64(defaultCacheSize),
 		cacheType: defaultCacheType,
 	}
@@ -267,11 +113,13 @@ func NewMap(opts ...CacheOpt) IBlockCache {
 		opt(c)
 	}
 
-	switch c.cacheType {
-	case LRU:
-		c.cacher = newLRU(c.maxSize)
-	default:
-		panic("invalid cache type")
+	minShardSize := 4 * MiB
+	if c.shardNum > defaultShardNum && c.maxSize/int64(c.shardNum) < minShardSize {
+		c.shardNum = defaultShardNum
+	}
+	c.shards = make([]*shard, c.shardNum)
+	for i := 0; i < c.shardNum; i++ {
+		c.shards[i] = newShard(c.maxSize/int64(c.shardNum), c.cacheType)
 	}
 
 	return c

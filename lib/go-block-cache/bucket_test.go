@@ -18,7 +18,7 @@ func Test_AddNewNode_Then_Get_Async(t *testing.T) {
 	}
 
 	newKV := func(fileNum, key uint64) *kv {
-		return NewKV(fileNum, key, murmur32(fileNum, key), &hashMap{})
+		return NewKV(fileNum, key, murmur32(fileNum, key), &shard{})
 	}
 
 	tests := []params{
@@ -97,14 +97,14 @@ func Test_AddNewNode_Then_Get_Async(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.desc, func(t *testing.T) {
 			b := &bucket{state: initialized}
-			dummyHM := &hashMap{stats: *new(Stats), state: unsafe.Pointer(new(state))}
+			dummyS := &shard{stats: *new(Stats), state: unsafe.Pointer(new(state))}
 			wg := new(sync.WaitGroup)
 			for _, node := range tc.sequences {
 				wg.Add(1)
 				go func() {
 					defer wg.Done()
 					for {
-						isFrozen, _ := b.AddNewNode(node.fileNum, node.key, node.hash, dummyHM)
+						isFrozen, _ := b.AddNewNode(node.fileNum, node.key, node.hash, dummyS)
 						if !isFrozen {
 							break
 						}
@@ -131,7 +131,7 @@ func Test_AddNewNode_Then_Get_Big_Async(t *testing.T) {
 	sequences := make([]*kv, size)
 
 	newKV := func(fileNum, key uint64) *kv {
-		return NewKV(fileNum, key, murmur32(fileNum, key), &hashMap{})
+		return NewKV(fileNum, key, murmur32(fileNum, key), &shard{})
 	}
 
 	for i, _ := range sequences {
@@ -146,13 +146,13 @@ func Test_AddNewNode_Then_Get_Big_Async(t *testing.T) {
 
 	// add nodes to the bucket
 	b := &bucket{state: initialized}
-	dummyHM := &hashMap{stats: *new(Stats), state: unsafe.Pointer(new(state))}
+	dummyS := &shard{stats: *new(Stats), state: unsafe.Pointer(new(state))}
 	wg := new(sync.WaitGroup)
 	for _, node := range sequences {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			b.AddNewNode(node.fileNum, node.key, node.hash, dummyHM)
+			b.AddNewNode(node.fileNum, node.key, node.hash, dummyS)
 		}()
 	}
 	wg.Wait()

@@ -1,7 +1,6 @@
 package go_block_cache
 
 import (
-	"fmt"
 	"sync"
 	"sync/atomic"
 	"unsafe"
@@ -16,7 +15,7 @@ type log struct {
 
 func (l *log) remove() {
 	if l.prev == nil || l.next == nil {
-		msg := fmt.Sprintf("evict a zombie node")
+		msg := "evict a zombie node"
 		zap.L().Error(msg)
 		panic(msg)
 	}
@@ -67,9 +66,9 @@ func (l *lru) SetCapacity(capacity int64) {
 	l.mu.Unlock()
 
 	for _, n := range evicted {
-		n.hm.mu.RLock()
-		n.hm.evict(n)
-		n.hm.mu.RUnlock()
+		n.s.mu.RLock()
+		n.s.evict(n)
+		n.s.mu.RUnlock()
 	}
 }
 
@@ -96,9 +95,9 @@ func (l *lru) Promote(node *kv, diffSize int64) bool {
 	l.mu.Unlock()
 
 	for _, n := range evicted {
-		n.hm.mu.RLock()
-		n.hm.evict(n)
-		n.hm.mu.RUnlock()
+		n.s.mu.RLock()
+		n.s.evict(n)
+		n.s.mu.RUnlock()
 	}
 
 	return true

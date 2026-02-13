@@ -9,8 +9,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const (
-	valueSize = 1 << 8
+var (
+	valueSize = int(1 * KiB)
 )
 
 // Ristretto V2
@@ -19,8 +19,8 @@ const (
 
 func Benchmark_Ristretto_Cache_Add_Read(b *testing.B) {
 	cache, err := ristretto.NewCache(&ristretto.Config[uint64, []byte]{
-		NumCounters: 1_000_000_000, // 5x estimated nodes
-		MaxCost:     10 * KiB,
+		NumCounters: 100_000_000, // 5x estimated nodes
+		MaxCost:     100 * KiB,
 		BufferItems: 64,
 		Metrics:     true,
 	})
@@ -34,19 +34,18 @@ func Benchmark_Ristretto_Cache_Add_Read(b *testing.B) {
 		cnt += 1
 		k, v := uint64(cnt), randomBytes(valueSize)
 		_ = cache.Set(k, v, int64(len(v)))
-		_, _ = cache.Get(k)
-		_, _ = cache.Get(uint64(rand.Intn(cnt)) + 1)
+		_, _ = cache.Get(max(1, uint64(rand.Intn(101)+cnt-100)))
 	}
-	b.ReportMetric(float64(10*KiB-cache.RemainingCost()), "mem_footprint_in_bytes")
+	b.ReportMetric(float64(100*KiB-cache.RemainingCost()), "mem_footprint_in_bytes")
 	b.ReportMetric(cache.Metrics.Ratio(), "hit_ratio")
 }
 
 // ASync
 
-func Benchmark_Ristretto_Cache_Add_Read_Async(b *testing.B) {
+func Benchmark_Ristretto_Cache_Read_After_Write_Async(b *testing.B) {
 	cache, err := ristretto.NewCache(&ristretto.Config[uint64, []byte]{
-		NumCounters: 1_000_000_000, // 5x estimated nodes
-		MaxCost:     10 * KiB,
+		NumCounters: 100_000_000, // 5x estimated nodes
+		MaxCost:     100 * KiB,
 		BufferItems: 64,
 		Metrics:     true,
 	})
@@ -55,28 +54,52 @@ func Benchmark_Ristretto_Cache_Add_Read_Async(b *testing.B) {
 		panic(err)
 	}
 	cnt := int64(0)
-	b.SetParallelism(10)
+	b.SetParallelism(20)
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
 			atomic.AddInt64(&cnt, 1)
 			k, v := uint64(cnt), randomBytes(valueSize)
 			_ = cache.Set(k, v, int64(len(v)))
 			_, _ = cache.Get(k)
-			_, _ = cache.Get(uint64(rand.Int63n(cnt)) + 1)
 		}
 	})
-	b.ReportMetric(float64(10*KiB-cache.RemainingCost()), "mem_footprint_in_bytes")
+	b.ReportMetric(float64(100*KiB-cache.RemainingCost()), "mem_footprint_in_bytes")
 	b.ReportMetric(cache.Metrics.Ratio(), "hit_ratio")
 }
 
-// NogoDB - block-cache
+func Benchmark_Ristretto_Cache_Add_Read_Random_Async(b *testing.B) {
+	cache, err := ristretto.NewCache(&ristretto.Config[uint64, []byte]{
+		NumCounters: 100_000_000, // 5x estimated nodes
+		MaxCost:     100 * KiB,
+		BufferItems: 64,
+		Metrics:     true,
+	})
+	require.NoError(b, err)
+	if err != nil {
+		panic(err)
+	}
+	cnt := int64(0)
+	b.SetParallelism(20)
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			atomic.AddInt64(&cnt, 1)
+			k, v := uint64(cnt), randomBytes(valueSize)
+			_ = cache.Set(k, v, int64(len(v)))
+			_, _ = cache.Get(max(1, uint64(rand.Int63n(101)+int64(k)-100)))
+		}
+	})
+	b.ReportMetric(float64(100*KiB-cache.RemainingCost()), "mem_footprint_in_bytes")
+	b.ReportMetric(cache.Metrics.Ratio(), "hit_ratio")
+}
+
+// NogoDB LRU - block-cache
 
 // Sync
 
 func Benchmark_NogoDB_LRU_Cache_Add_Read(b *testing.B) {
 	c := NewMap(
 		WithCacheType(LRU),
-		WithMaxSize(10*KiB),
+		WithMaxSize(100*KiB),
 	)
 
 	cnt := 0
@@ -84,8 +107,7 @@ func Benchmark_NogoDB_LRU_Cache_Add_Read(b *testing.B) {
 		cnt += 1
 		k, v := uint64(cnt), randomBytes(valueSize)
 		_ = c.Set(0, k, v)
-		_, _ = c.Get(0, k)
-		_, _ = c.Get(0, uint64(rand.Intn(cnt))+1)
+		_, _ = c.Get(0, max(1, uint64(rand.Intn(101)+cnt-100)))
 	}
 	b.ReportMetric(float64(c.GetInUsed()), "mem_footprint_in_bytes")
 	b.ReportMetric(float64(c.GetStats().statHit)/float64(c.GetStats().statHit+c.GetStats().statMiss), "hit_ratio")
@@ -93,23 +115,40 @@ func Benchmark_NogoDB_LRU_Cache_Add_Read(b *testing.B) {
 
 // ASync
 
-func Benchmark_NogoDB_LRU_Cache_Add_Read_Async(b *testing.B) {
+func Benchmark_NogoDB_LRU_Cache_Read_After_Write_Async(b *testing.B) {
 	c := NewMap(
 		WithCacheType(LRU),
-		WithMaxSize(10*KiB),
+		WithMaxSize(100*KiB),
 	)
 
-	var fileNum int64
 	cnt := int64(0)
-	b.SetParallelism(10)
+	b.SetParallelism(20)
 	b.RunParallel(func(pb *testing.PB) {
-		atomic.AddInt64(&fileNum, 1)
 		for pb.Next() {
 			atomic.AddInt64(&cnt, 1)
 			k, v := uint64(cnt), randomBytes(valueSize)
 			_ = c.Set(0, k, v)
 			_, _ = c.Get(0, k)
-			_, _ = c.Get(0, uint64(rand.Int63n(cnt))+1)
+		}
+	})
+	b.ReportMetric(float64(c.GetInUsed()), "mem_footprint_in_bytes")
+	b.ReportMetric(float64(c.GetStats().statHit)/float64(c.GetStats().statHit+c.GetStats().statMiss), "hit_ratio")
+}
+
+func Benchmark_NogoDB_LRU_Cache_Add_Read_Random_Async(b *testing.B) {
+	c := NewMap(
+		WithCacheType(LRU),
+		WithMaxSize(100*KiB),
+	)
+
+	cnt := int64(0)
+	b.SetParallelism(20)
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			atomic.AddInt64(&cnt, 1)
+			k, v := uint64(cnt), randomBytes(valueSize)
+			_ = c.Set(0, k, v)
+			_, _ = c.Get(0, max(1, uint64(rand.Int63n(101)+int64(k)-100)))
 		}
 	})
 	b.ReportMetric(float64(c.GetInUsed()), "mem_footprint_in_bytes")

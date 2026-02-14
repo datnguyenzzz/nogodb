@@ -155,7 +155,7 @@ func (s *shard) delete(fileNum, key uint64) bool {
 	return true
 }
 
-// evict removes a node from a hashmap
+// evict removes a node entirely from a hashmap
 //
 //	Important: caller must ensure the Rlock of the hashmap
 func (s *shard) evict(node *kv) bool {
@@ -175,7 +175,7 @@ func (s *shard) evict(node *kv) bool {
 
 		if removed {
 			s.cacher.Evict(node)
-			node = nil
+			node = nil // free the memory allocated for this node
 			atomic.AddInt64(&s.stats.statDel, 1)
 		}
 

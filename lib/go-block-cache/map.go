@@ -119,7 +119,8 @@ func NewMap(opts ...CacheOpt) IBlockCache {
 	}
 	c.shards = make([]*shard, c.shardNum)
 	for i := 0; i < c.shardNum; i++ {
-		c.shards[i] = newShard(c.maxSize/int64(c.shardNum), c.cacheType)
+		shardMaxSize := (c.maxSize + int64(c.shardNum-1)) / int64(c.shardNum) // round up
+		c.shards[i] = newShard(shardMaxSize, c.cacheType)
 	}
 
 	return c

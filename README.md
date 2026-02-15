@@ -4,15 +4,18 @@
 
 >_**Disclaimer**: This project is under development and crafted by human ingenuity—not AI. I won’t let G/AI steal all the fun!_
 
-To be filled ...
+NogoDB is an analytics database management system.
 
 ## Architecture (Plan Ahead)
 ```mermaid
 graph TB
+    SQL_Query["SQL queries"]
 %% Subgraphs with padding for spacing
-    subgraph PublicAPI["Public API Layer"]
+    subgraph PublicAPI["Query Processing Layer"]
         style PublicAPI padding:15px
-        NogoDB_API["NogoDB API"]:::api
+        Parser["Parser"]:::api
+        Planner["Planner"]:::api
+        PlanExecutor["Plan Executor"]:::api
     end
 
     subgraph Core["Core Processing Layer"]
@@ -53,9 +56,12 @@ graph TB
     end
 
 %% Main flow connections (consistent arrow direction left to right)
-    NogoDB_API --> WritePath
-    NogoDB_API --> ReadPath
-    NogoDB_API --> MergeOps
+    SQL_Query --> Parser
+    Parser --> |AST| Planner
+    Planner --> |Logical/Physical plan| PlanExecutor
+    PlanExecutor --> WritePath
+    PlanExecutor --> ReadPath
+    PlanExecutor --> MergeOps
 
     WritePath --> MemTable
     WritePath --> WALog

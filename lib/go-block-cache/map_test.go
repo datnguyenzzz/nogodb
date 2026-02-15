@@ -109,7 +109,7 @@ func Test_LazyValue_Release(t *testing.T) {
 	// The remains 4 lazy values must still accessible, if the cache still have spaces
 	for i := 1; i < times; i++ {
 		val := []byte(lazyValues[i].Load())
-		assert.Equal(t, dummy10Bytes, val, fmt.Sprintf("lazy value should match"))
+		assert.Equal(t, dummy10Bytes, val, "lazy value should match")
 	}
 
 	// Release all 4 left lazy values

@@ -37,7 +37,6 @@ func (b *bucket) Get(fileNum, key uint64) (isFrozen bool, n *kv) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	if b.state == frozen {
-		//fmt.Println("Getting frozen bucket ....")
 		return true, nil
 	}
 

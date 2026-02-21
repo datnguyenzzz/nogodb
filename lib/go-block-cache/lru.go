@@ -8,32 +8,6 @@ import (
 	"go.uber.org/zap"
 )
 
-type log struct {
-	n          *kv
-	prev, next *log
-}
-
-func (l *log) remove() {
-	if l.prev == nil || l.next == nil {
-		msg := "evict a zombie node"
-		zap.L().Error(msg)
-		panic(msg)
-	}
-	l.prev.next = l.next
-	l.next.prev = l.prev
-	l.prev = nil
-	l.next = nil
-}
-
-// insert linkage: l <--> another <--> l.next
-func (l *log) insert(another *log) {
-	tmp := l.next
-	l.next = another
-	another.prev = l
-	another.next = tmp
-	tmp.prev = another
-}
-
 type lru struct {
 	inUse    int64
 	capacity int64
@@ -72,7 +46,7 @@ func (l *lru) SetCapacity(capacity int64) {
 	}
 }
 
-func (l *lru) Promote(node *kv, diffSize int64) bool {
+func (l *lru) Promote(node *kv, diffSize int64, o op) bool {
 	l.mu.Lock()
 	if node.log == nil {
 		// the key/value pair is updated for the first time

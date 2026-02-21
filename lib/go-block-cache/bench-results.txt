@@ -2,11 +2,14 @@ goos: darwin
 goarch: arm64
 pkg: github.com/datnguyenzzz/nogodb/lib/go-block-cache
 cpu: Apple M2
-Benchmark_Ristretto_Cache_Add_Read-8                  	10078072	     10633 ns/op	         0.0000230 hit_ratio	    101520 mem_footprint_in_bytes	    1208 B/op	       7 allocs/op
-Benchmark_Ristretto_Cache_Read_After_Write_Async-8    	57741031	      2216 ns/op	         0.0000006 hit_ratio	    101520 mem_footprint_in_bytes	    1208 B/op	       6 allocs/op
-Benchmark_Ristretto_Cache_Add_Read_Random_Async-8     	31059876	      3587 ns/op	         0.0000001 hit_ratio	    101520 mem_footprint_in_bytes	    1181 B/op	       4 allocs/op
-Benchmark_NogoDB_LRU_Cache_Add_Read-8                 	12773547	      7956 ns/op	         0.8291 hit_ratio	     98304 mem_footprint_in_bytes	    1158 B/op	       4 allocs/op
-Benchmark_NogoDB_LRU_Cache_Read_After_Write_Async-8   	61999341	      2674 ns/op	         0.05282 hit_ratio	     98304 mem_footprint_in_bytes	    1133 B/op	       3 allocs/op
-Benchmark_NogoDB_LRU_Cache_Add_Read_Random_Async-8    	42715792	      2706 ns/op	         0.001898 hit_ratio	     98304 mem_footprint_in_bytes	    1132 B/op	       3 allocs/op
+Benchmark_Ristretto_Cache_Add_Read-8                 	10193319	     10589 ns/op	         0.0000222 hit_ratio	    101520 mem_footprint_in_bytes	12716835520 total_bytes_allocated	    1208 B/op	       7 allocs/op
+Benchmark_Ristretto_Cache_Read_After_Write_Async-8   	60893122	      2157 ns/op	         0.0000004 hit_ratio	    101520 mem_footprint_in_bytes	73583187208 total_bytes_allocated	    1208 B/op	       6 allocs/op
+Benchmark_Ristretto_Cache_Add_Read_Random_Async-8    	39768326	      2864 ns/op	         0.0000091 hit_ratio	    101520 mem_footprint_in_bytes	48040691384 total_bytes_allocated	    1208 B/op	       6 allocs/op
+Benchmark_NogoDB_Cache_Add_Read/LRU-8                	12758516	      7931 ns/op	         0.8290 hit_ratio	     98304 mem_footprint_in_bytes	14884555920 total_bytes_allocated	    1166 B/op	       4 allocs/op
+Benchmark_NogoDB_Cache_Add_Read/ClockPro-8           	13908951	      7725 ns/op	         0.8292 hit_ratio	     98304 mem_footprint_in_bytes	16226707808 total_bytes_allocated	    1166 B/op	       4 allocs/op
+Benchmark_NogoDB_Cache_Read_After_Write_Async/LRU-8  	56476106	      2730 ns/op	         0.04767 hit_ratio	     98304 mem_footprint_in_bytes	64500324336 total_bytes_allocated	    1142 B/op	       3 allocs/op
+Benchmark_NogoDB_Cache_Read_After_Write_Async/ClockPro-8         	35999208	      2858 ns/op	         0.04690 hit_ratio	     98304 mem_footprint_in_bytes	41076322328 total_bytes_allocated	    1141 B/op	       3 allocs/op
+Benchmark_NogoDB_Cache_Add_Read_Random_Async/LRU-8               	39188601	      2723 ns/op	         0.001236 hit_ratio	     98304 mem_footprint_in_bytes	44683746992 total_bytes_allocated	    1140 B/op	       3 allocs/op
+Benchmark_NogoDB_Cache_Add_Read_Random_Async/ClockPro-8          	38377753	      2742 ns/op	         0.001325 hit_ratio	     98304 mem_footprint_in_bytes	43755121176 total_bytes_allocated	    1140 B/op	       3 allocs/op
 PASS
-ok  	github.com/datnguyenzzz/nogodb/lib/go-block-cache	741.476s
+ok  	github.com/datnguyenzzz/nogodb/lib/go-block-cache	1048.397s

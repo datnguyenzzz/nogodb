@@ -17,6 +17,17 @@ const (
 	ClockPro
 )
 
+func (ct CacheType) toString() string {
+	switch ct {
+	case LRU:
+		return "LRU"
+	case ClockPro:
+		return "ClockPro"
+	default:
+		panic("not supported cache type")
+	}
+}
+
 type Stats struct {
 	statNodes  int64
 	statGrow   int32

@@ -16,6 +16,14 @@ var (
 	defaultCacheType  = LRU
 )
 
+type op byte
+
+const (
+	opSet op = iota
+	opGet
+	opDel
+)
+
 type shard struct {
 	mu sync.RWMutex
 
@@ -78,7 +86,7 @@ func (s *shard) set(fileNum, key uint64, value Value) bool {
 		s.mu.RUnlock()
 
 		if s.cacher != nil {
-			if ok := s.cacher.Promote(node, diffSize); !ok {
+			if ok := s.cacher.Promote(node, diffSize, opSet); !ok {
 				return false
 			}
 		}
@@ -112,12 +120,17 @@ func (s *shard) get(fileNum, key uint64) (LazyValue, bool) {
 			return nil, false
 		}
 
+		if computeSize(node.value) == 0 {
+			atomic.AddInt64(&s.stats.statMiss, 1)
+			return nil, false
+		}
+
 		atomic.AddInt64(&s.stats.statHit, 1)
 		node.upRef()
 
 		s.mu.RUnlock()
 		if s.cacher != nil {
-			if ok := s.cacher.Promote(node, 0); !ok {
+			if ok := s.cacher.Promote(node, 0, opGet); !ok {
 				return nil, false
 			}
 		}
@@ -244,6 +257,8 @@ func newShard(cacheSize int64, cacheType CacheType) *shard {
 	switch cacheType {
 	case LRU:
 		c.cacher = newLRU(cacheSize)
+	case ClockPro:
+		c.cacher = NewClockPro(cacheSize)
 	default:
 		msg := "unsupported cache type"
 		zap.L().Error(msg)

@@ -1,6 +1,6 @@
 module github.com/datnguyenzzz/nogodb/lib/go-block-cache
 
-go 1.24.3
+go 1.26.0
 
 require (
 	github.com/dgraph-io/ristretto/v2 v2.3.0

@@ -9,7 +9,7 @@
   - [ ] P0: On-local disk
 - [ ] P1: Add benchmark tests for Iterator + Writer
 - [x] P0: Implement lock-free concurrent ART and benchmark against the current sequential adaptive radix tree
-- [ ] P0: Implement Clock-based eviction policy and benchmark against the LRU policy for the go-block-cache
+- [x] P0: Implement Clock-based eviction policy and benchmark against the LRU policy for the go-block-cache
 -   [x] P0: Implement Sharding on the go-block-cache
 - [ ] P0: Implement columnar block format in the go-sstable
 

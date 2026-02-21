@@ -24,7 +24,7 @@ type ICacher interface {
 	GetInUsed() int64
 	// Promote promotes the given node in the cache
 	// diffSize is the size difference between the new value and the old value of the node
-	Promote(node *kv, diffSize int64) bool
+	Promote(node *kv, diffSize int64, o op) bool
 	Evict(node *kv)
 	SetCapacity(capacity int64)
 }

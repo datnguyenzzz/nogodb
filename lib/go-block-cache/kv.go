@@ -54,7 +54,11 @@ type kv struct {
 	// still referring to it
 	ref int32
 
-	// log used to track when this kv pair got updated
+	// usedBit used for determining whether this node is being referenced by any instance
+	// that information is used for CLOCK-pro eviction algorithm
+	usedBit atomic.Bool
+
+	// log points to the metadata log in the cache eviction list
 	log unsafe.Pointer
 }
 

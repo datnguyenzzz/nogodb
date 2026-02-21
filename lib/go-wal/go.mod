@@ -1,6 +1,6 @@
 module github.com/datnguyenzzz/nogodb/lib/go-wal
 
-go 1.24.3
+go 1.26.0
 
 replace github.com/datnguyenzzz/nogodb/lib/go-bytesbufferpool => ../go-bytesbufferpool
 

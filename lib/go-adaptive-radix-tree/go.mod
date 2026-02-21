@@ -2,7 +2,7 @@ module github.com/datnguyenzzz/nogodb/lib/go-adaptive-radix-tree
 
 replace github.com/datnguyenzzz/nogodb/lib/go-context-aware-lock => ../go-context-aware-lock
 
-go 1.25.6
+go 1.26.0
 
 require (
 	github.com/datnguyenzzz/nogodb/lib/go-context-aware-lock v0.0.0-20260207164643-7fe89bf3da87

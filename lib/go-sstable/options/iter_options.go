@@ -31,3 +31,9 @@ func WithBlockCacheSize(size int64) IteratorOptsFunc {
 		opts.CacheOpts.MaxSize = size
 	}
 }
+
+func WithShardNum(size int) IteratorOptsFunc {
+	return func(opts *IteratorOpts) {
+		opts.CacheOpts.ShardNum = size
+	}
+}

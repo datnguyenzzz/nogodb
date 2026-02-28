@@ -7,11 +7,12 @@ import (
 
 	go_block_cache "github.com/datnguyenzzz/nogodb/lib/go-block-cache"
 	"github.com/datnguyenzzz/nogodb/lib/go-bytesbufferpool/predictable_size"
+	"github.com/datnguyenzzz/nogodb/lib/go-sstable/block"
+	rowBlockMocks "github.com/datnguyenzzz/nogodb/lib/go-sstable/block/row_block/mocks"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
-	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common/block"
+	commonBlock "github.com/datnguyenzzz/nogodb/lib/go-sstable/common/block"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/compression"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/options"
-	rowBlockMocks "github.com/datnguyenzzz/nogodb/lib/go-sstable/row_block/mocks"
 	storageMocks "github.com/datnguyenzzz/nogodb/lib/go-sstable/storage/mocks"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -57,7 +58,7 @@ func Test_Read(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.desc, func(t *testing.T) {
 			original := randomBytes(tc.size)
-			pb := compressToPb(defaultCompressor, defaultChecksumer, original)
+			pb := block.CompressToPb(defaultCompressor, defaultChecksumer, original)
 			stored := append(pb.Data, pb.Trailer[:]...)
 			if tc.corrupted {
 				stored[len(stored)-1] += 1
@@ -95,10 +96,10 @@ func Test_Read(t *testing.T) {
 			}
 			r.Init(predictable_size.NewPredictablePool(), mockStorageReader, cacheOpts)
 
-			val, err := r.Read(&block.BlockHandle{
+			val, err := r.Read(&commonBlock.BlockHandle{
 				Offset: 0,
 				Length: uint64(len(stored)),
-			}, block.BlockKindData)
+			}, commonBlock.BlockKindData)
 
 			if tc.corrupted {
 				assert.ErrorIs(t, err, common.MismatchedChecksumError)
@@ -176,7 +177,7 @@ func Test_ReadThroughCache(t *testing.T) {
 		t.Run(tc.desc, func(t *testing.T) {
 			// Setup test data
 			original := randomBytes(tc.size)
-			pb := compressToPb(defaultCompressor, defaultChecksumer, original)
+			pb := block.CompressToPb(defaultCompressor, defaultChecksumer, original)
 			stored := append(pb.Data, pb.Trailer[:]...)
 			if tc.corrupted {
 				stored[len(stored)-1] += 1
@@ -187,7 +188,7 @@ func Test_ReadThroughCache(t *testing.T) {
 			mockBlockCache := &rowBlockMocks.IBlockCacheWrapper{}
 			mockBlockCache.Test(t)
 
-			bh := &block.BlockHandle{
+			bh := &commonBlock.BlockHandle{
 				Offset: 0,
 				Length: uint64(len(stored)),
 			}
@@ -241,7 +242,7 @@ func Test_ReadThroughCache(t *testing.T) {
 			}
 
 			// Execute ReadThroughCache
-			val, err := r.ReadThroughCache(bh, block.BlockKindData)
+			val, err := r.ReadThroughCache(bh, commonBlock.BlockKindData)
 
 			// Verify results
 			if tc.cacheHit {

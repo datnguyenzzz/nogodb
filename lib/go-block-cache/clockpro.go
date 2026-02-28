@@ -80,7 +80,9 @@ func (c *clockPro) Promote(node *kv, diffSize int64, o op) bool {
 				atomic.AddInt64(&c.sizeCold, diffSize)
 			}
 
+			c.mu.Lock()
 			c.evict()
+			c.mu.Unlock()
 		}
 	default:
 		panic("unsupported operation")
@@ -246,7 +248,9 @@ func (c *clockPro) runHandTest() {
 		c.maxCold = max(c.maxCold, 0)
 
 		c.mu.Unlock()
+		n.s.mu.RLock()
 		n.s.evict(n)
+		n.s.mu.RUnlock()
 		c.mu.Lock()
 	}
 

@@ -13,4 +13,5 @@ type CacheOptions struct {
 	CacheMethod go_block_cache.CacheType
 	MaxSize     int64
 	FileNum     common.DiskFileNum
+	ShardNum    int
 }

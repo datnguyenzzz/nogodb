@@ -102,6 +102,7 @@ func (r *RowBlockReader) Init(
 		c := go_block_cache.NewMap(
 			go_block_cache.WithCacheType(cacheOpts.CacheMethod),
 			go_block_cache.WithMaxSize(cacheOpts.MaxSize),
+			go_block_cache.WithShardNum(cacheOpts.ShardNum),
 		)
 		r.blockCache = &blockCacheWrapper{
 			fileNum: uint64(cacheOpts.FileNum),

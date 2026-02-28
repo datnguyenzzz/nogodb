@@ -4,8 +4,9 @@ import (
 	"encoding/binary"
 
 	"github.com/datnguyenzzz/nogodb/lib/go-bytesbufferpool/predictable_size"
+	"github.com/datnguyenzzz/nogodb/lib/go-sstable/block"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
-	block2 "github.com/datnguyenzzz/nogodb/lib/go-sstable/common/block"
+	commonBlock "github.com/datnguyenzzz/nogodb/lib/go-sstable/common/block"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/compression"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/options"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/storage"
@@ -43,14 +44,14 @@ type indexWriter struct {
 	opts              *options.BlockWriteOpt
 }
 
-func (w *indexWriter) add(key *common.InternalKey, bh *block2.BlockHandle) error {
+func (w *indexWriter) Add(key *common.InternalKey, bh *commonBlock.BlockHandle) error {
 	if bh.Length == 0 {
 		return nil
 	}
 	if err := w.mightFlushToMem(key); err != nil {
 		return err
 	}
-	encoded := make([]byte, block2.MaxBlockHandleBytes)
+	encoded := make([]byte, commonBlock.MaxBlockHandleBytes)
 	n := bh.EncodeInto(encoded)
 	encoded = encoded[:n]
 	return w.firstLevelBlock.WriteEntry(*key, encoded)
@@ -106,14 +107,14 @@ func (w *indexWriter) buildIndex() error {
 	w.flushFirstLevelIndexToMem(w.firstLevelBlock.CurKey())
 	for _, idx := range w.firstLevelIndices {
 		// 1. Write the compressed first level index to the storage
-		pb := compressToPb(w.compressor, w.checksumer, idx.finishedBlock)
+		pb := block.CompressToPb(w.compressor, w.checksumer, idx.finishedBlock)
 		bh, err := w.storageWriter.WritePhysicalBlock(*pb)
 		if err != nil {
 			return err
 		}
 		// 2. Write the encoded value of the 1-level index block handle
 		// into buffer
-		encodedBH := make([]byte, block2.MaxBlockHandleBytes)
+		encodedBH := make([]byte, commonBlock.MaxBlockHandleBytes)
 		n := bh.EncodeInto(encodedBH)
 		if err := w.secondLevelBlock.WriteEntry(*idx.key, encodedBH[:n]); err != nil {
 			return err
@@ -124,15 +125,15 @@ func (w *indexWriter) buildIndex() error {
 	uncompressed := w.bytesBufferPool.Get(w.secondLevelBlock.EstimateSize())
 	uncompressed = uncompressed[:w.secondLevelBlock.EstimateSize()]
 	w.secondLevelBlock.Finish(uncompressed)
-	pb := compressToPb(w.compressor, w.checksumer, uncompressed)
+	pb := block.CompressToPb(w.compressor, w.checksumer, uncompressed)
 	bh, err := w.storageWriter.WritePhysicalBlock(*pb)
 	if err == nil {
 		// save the block location of the 2-level index to the index
 		// key - 1 byte indicate block kind , value - varint encoded of the block handle
-		encodedBH := make([]byte, block2.MaxBlockHandleBytes)
+		encodedBH := make([]byte, commonBlock.MaxBlockHandleBytes)
 		n := bh.EncodeInto(encodedBH)
 		err := w.metaIndexBlock.WriteEntry(
-			common.MakeMetaIndexKey(block2.BlockKindIndex),
+			common.MakeMetaIndexKey(commonBlock.BlockKindIndex),
 			encodedBH[:n],
 		)
 		if err != nil {
@@ -177,3 +178,5 @@ func newIndexWriter(
 		opts:              &opts,
 	}
 }
+
+var _ block.IIndexWriter = (*indexWriter)(nil)

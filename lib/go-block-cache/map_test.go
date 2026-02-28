@@ -1,6 +1,7 @@
 package go_block_cache
 
 import (
+	"context"
 	"fmt"
 	"math/rand"
 	"sync"
@@ -10,6 +11,8 @@ import (
 	"unsafe"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/sync/errgroup"
 )
 
 var (
@@ -53,6 +56,9 @@ func Test_HashMap_Set_Then_Get_Sync(t *testing.T) {
 			assert.Zero(t, stats.statNodes, "Stats nodes should be zero")
 			assert.Zero(t, cache.GetInUsed(), "Stats size should be zero")
 			//fmt.Printf("STATS: %#v\n", stats)
+
+			cache.Close()
+			assert.Zero(t, cache.GetInUsed())
 		})
 	}
 }
@@ -290,6 +296,9 @@ func Test_Hashmap_Bulk_Set_Then_Get_And_Release_Async(t *testing.T) {
 			assert.Zero(t, stats.statNodes, "Stats Nodes should be zero")
 			assert.Zero(t, cache.GetInUsed(), "Cached size should be zero")
 			//fmt.Printf("STATS: %#v\n", stats)
+
+			cache.Close()
+			assert.Zero(t, cache.GetInUsed())
 		})
 	}
 }
@@ -398,7 +407,45 @@ func Test_HashMap_Eviction(t *testing.T) {
 			ok := cache.Set(uint64(1), uint64(2), randomBytes(20))
 			assert.True(t, ok)
 			assert.GreaterOrEqual(t, int64(130), cache.GetInUsed())
+
+			cache.Close()
+			assert.Zero(t, cache.GetInUsed())
 		})
 	}
 
+}
+
+func Test_HashMap_Close(t *testing.T) {
+	cachePolicies := []CacheType{
+		LRU,
+		ClockPro,
+	}
+
+	for _, cp := range cachePolicies {
+		t.Run(fmt.Sprintf("Test_HashMap_Close_%s", cp.toString()), func(t *testing.T) {
+			cache := NewMap(
+				WithCacheType(cp),
+				WithMaxSize(100),
+				WithShardNum(4),
+			)
+			for i := 0; i < 10; i++ {
+				ok := cache.Set(uint64(i), uint64(1), dummy10Bytes)
+				assert.True(t, ok)
+			}
+
+			eg, _ := errgroup.WithContext(context.Background())
+			for i := 0; i < 10; i++ {
+				eg.Go(func() error {
+					_, _ = cache.Get(uint64(i), uint64(1))
+					return nil
+				})
+			}
+
+			require.NoError(t, eg.Wait())
+
+			cache.Close()
+
+			assert.Zero(t, cache.GetInUsed())
+		})
+	}
 }

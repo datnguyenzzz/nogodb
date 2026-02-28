@@ -1,4 +1,4 @@
-package row_block
+package block
 
 import (
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
@@ -6,7 +6,7 @@ import (
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/compression"
 )
 
-func compressToPb(
+func CompressToPb(
 	compressor compression.ICompression,
 	checksumer common.IChecksum,
 	rawData []byte,

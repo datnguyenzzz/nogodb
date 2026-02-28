@@ -169,8 +169,7 @@ func (s *shard) delete(fileNum, key uint64) bool {
 }
 
 // evict removes a node entirely from a hashmap
-//
-//	Important: caller must ensure the Rlock of the hashmap
+// Important: caller must ensure the Rlock of the hashmap
 func (s *shard) evict(node *kv) bool {
 	if s.closed {
 		return false
@@ -204,7 +203,6 @@ func (s *shard) getBucketId(fileNum, key uint64, state *state) uint32 {
 }
 
 func (s *shard) close() {
-	// mutex lock to ensure all the shared locks are cleared
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -212,7 +210,6 @@ func (s *shard) close() {
 		return
 	}
 
-	s.closed = true
 	var allKVs []*kv
 	state := (*state)(atomic.LoadPointer(&s.state))
 	for i, _ := range state.buckets {
@@ -226,6 +223,7 @@ func (s *shard) close() {
 		s.evict(kv)
 	}
 
+	s.closed = true
 	atomic.StorePointer(&s.state, nil)
 }
 

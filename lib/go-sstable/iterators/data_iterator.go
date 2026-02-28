@@ -7,11 +7,12 @@ import (
 
 	"github.com/datnguyenzzz/nogodb/lib/go-bytesbufferpool/predictable_size"
 	go_fs "github.com/datnguyenzzz/nogodb/lib/go-fs"
+	"github.com/datnguyenzzz/nogodb/lib/go-sstable/block"
+	"github.com/datnguyenzzz/nogodb/lib/go-sstable/block/row_block"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
 	block_common "github.com/datnguyenzzz/nogodb/lib/go-sstable/common/block"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/filter"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/options"
-	"github.com/datnguyenzzz/nogodb/lib/go-sstable/row_block"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/storage"
 	"go.uber.org/zap"
 )
@@ -277,7 +278,7 @@ func (i *DataIterator) IsClosed() bool {
 	return i.secondLevelIndexIter == nil || i.secondLevelIndexIter.IsClosed()
 }
 
-func (i *DataIterator) readMetaIndexBlock(footer *row_block.Footer) error {
+func (i *DataIterator) readMetaIndexBlock(footer *block.Footer) error {
 	// TODO (medium - dat.ngthanh): Should we cache the metaIndex block ?
 	// Read and decode the meta index block
 	metaIndexBuf, err := i.blockReader.Read(footer.GetMetaIndex(), block_common.BlockKindMetaIntex)
@@ -340,14 +341,14 @@ func NewIterator(
 ) (*DataIterator, error) {
 	iter := dataBlockIteratorPool.Get().(*DataIterator)
 	var err error
-	var footer *row_block.Footer
+	var footer *block.Footer
 	var layoutReader storage.ILayoutReader
 
 	iter.bpool = bpool
 	iter.cmp = cmp
 	layoutReader = storage.NewLayoutReader(fr)
 	fullSize := fr.Size()
-	footer, err = row_block.ReadFooter(layoutReader, fullSize)
+	footer, err = block.ReadFooter(layoutReader, fullSize)
 	if err != nil {
 		return nil, err
 	}

@@ -1,4 +1,4 @@
-package row_block
+package block
 
 import (
 	"encoding/binary"
@@ -43,8 +43,8 @@ func TestFooterSerialization(t *testing.T) {
 		Length: 5678,
 	}
 	footer := &Footer{
-		version:     common.TableV1,
-		metaIndexBH: metaIndexBH,
+		Version:     common.TableV1,
+		MetaIndexBH: metaIndexBH,
 	}
 
 	// Serialize the footer
@@ -86,8 +86,8 @@ func TestReadFooter(t *testing.T) {
 					Length: 5678,
 				}
 				footer := &Footer{
-					version:     common.TableV1,
-					metaIndexBH: metaIndexBH,
+					Version:     common.TableV1,
+					MetaIndexBH: metaIndexBH,
 				}
 				return footer.Serialise(), footer
 			},
@@ -103,8 +103,8 @@ func TestReadFooter(t *testing.T) {
 					Length: 5678,
 				}
 				footer := &Footer{
-					version:     common.TableV1,
-					metaIndexBH: metaIndexBH,
+					Version:     common.TableV1,
+					MetaIndexBH: metaIndexBH,
 				}
 				data := footer.Serialise()
 
@@ -124,8 +124,8 @@ func TestReadFooter(t *testing.T) {
 					Length: 5678,
 				}
 				footer := &Footer{
-					version:     common.TableV1,
-					metaIndexBH: metaIndexBH,
+					Version:     common.TableV1,
+					MetaIndexBH: metaIndexBH,
 				}
 				return footer.Serialise()[:common.TableFooterSize[common.TableV1]-5], nil
 			},
@@ -151,9 +151,9 @@ func TestReadFooter(t *testing.T) {
 
 			// If no error expected, check if the footer was read correctly
 			require.NoError(t, err)
-			assert.Equal(t, expectedFooter.version, gotFooter.version)
-			assert.Equal(t, expectedFooter.metaIndexBH.Offset, gotFooter.metaIndexBH.Offset)
-			assert.Equal(t, expectedFooter.metaIndexBH.Length, gotFooter.metaIndexBH.Length)
+			assert.Equal(t, expectedFooter.Version, gotFooter.Version)
+			assert.Equal(t, expectedFooter.MetaIndexBH.Offset, gotFooter.MetaIndexBH.Offset)
+			assert.Equal(t, expectedFooter.MetaIndexBH.Length, gotFooter.MetaIndexBH.Length)
 		})
 	}
 }
@@ -165,8 +165,8 @@ func TestReadFooterRoundTrip(t *testing.T) {
 		Length: 5432,
 	}
 	originalFooter := &Footer{
-		version:     common.TableV1,
-		metaIndexBH: metaIndexBH,
+		Version:     common.TableV1,
+		MetaIndexBH: metaIndexBH,
 	}
 
 	// Serialize the footer
@@ -182,9 +182,9 @@ func TestReadFooterRoundTrip(t *testing.T) {
 	require.NoError(t, err)
 
 	// Check that the read footer matches the original
-	assert.Equal(t, originalFooter.version, readFooter.version)
-	assert.Equal(t, originalFooter.metaIndexBH.Offset, readFooter.metaIndexBH.Offset)
-	assert.Equal(t, originalFooter.metaIndexBH.Length, readFooter.metaIndexBH.Length)
+	assert.Equal(t, originalFooter.Version, readFooter.Version)
+	assert.Equal(t, originalFooter.MetaIndexBH.Offset, readFooter.MetaIndexBH.Offset)
+	assert.Equal(t, originalFooter.MetaIndexBH.Length, readFooter.MetaIndexBH.Length)
 
 	// Serialize the read footer and check it matches the original serialized data
 	reserialized := readFooter.Serialise()
@@ -198,8 +198,8 @@ func TestFooterWithLargeOffsets(t *testing.T) {
 		Length: 0xFFFFFFFF, // Large 32-bit value
 	}
 	originalFooter := &Footer{
-		version:     common.TableV1,
-		metaIndexBH: metaIndexBH,
+		Version:     common.TableV1,
+		MetaIndexBH: metaIndexBH,
 	}
 
 	// Serialize and verify round-trip
@@ -208,8 +208,8 @@ func TestFooterWithLargeOffsets(t *testing.T) {
 	readFooter, err := ReadFooter(reader, uint64(len(serialized)))
 
 	require.NoError(t, err)
-	assert.Equal(t, metaIndexBH.Offset, readFooter.metaIndexBH.Offset)
-	assert.Equal(t, metaIndexBH.Length, readFooter.metaIndexBH.Length)
+	assert.Equal(t, metaIndexBH.Offset, readFooter.MetaIndexBH.Offset)
+	assert.Equal(t, metaIndexBH.Length, readFooter.MetaIndexBH.Length)
 }
 
 // Test for ReadFooter when file is smaller than MaxPossibleFooterSize
@@ -220,8 +220,8 @@ func TestReadFooterSmallFile(t *testing.T) {
 		Length: 20,
 	}
 	originalFooter := &Footer{
-		version:     common.TableV1,
-		metaIndexBH: metaIndexBH,
+		Version:     common.TableV1,
+		MetaIndexBH: metaIndexBH,
 	}
 
 	serialized := originalFooter.Serialise()
@@ -233,7 +233,7 @@ func TestReadFooterSmallFile(t *testing.T) {
 	readFooter, err := ReadFooter(reader, uint64(len(serialized)))
 
 	require.NoError(t, err)
-	assert.Equal(t, originalFooter.version, readFooter.version)
-	assert.Equal(t, originalFooter.metaIndexBH.Offset, readFooter.metaIndexBH.Offset)
-	assert.Equal(t, originalFooter.metaIndexBH.Length, readFooter.metaIndexBH.Length)
+	assert.Equal(t, originalFooter.Version, readFooter.Version)
+	assert.Equal(t, originalFooter.MetaIndexBH.Offset, readFooter.MetaIndexBH.Offset)
+	assert.Equal(t, originalFooter.MetaIndexBH.Length, readFooter.MetaIndexBH.Length)
 }

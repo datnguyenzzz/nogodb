@@ -1,4 +1,4 @@
-package row_block
+package block
 
 import (
 	"encoding/binary"
@@ -10,22 +10,22 @@ import (
 )
 
 type Footer struct {
-	version     common.TableVersion
-	metaIndexBH block.BlockHandle
+	Version     common.TableVersion
+	MetaIndexBH block.BlockHandle
 }
 
 func (f *Footer) Serialise() []byte {
-	footerSize := common.TableFooterSize[f.version]
+	footerSize := common.TableFooterSize[f.Version]
 	buf := make([]byte, footerSize)
 	n := 0
-	n += f.metaIndexBH.EncodeInto(buf[:])
-	binary.LittleEndian.PutUint32(buf[cap(buf)-common.MagicNumberLen-common.TableVersionLen:], uint32(f.version))
+	n += f.MetaIndexBH.EncodeInto(buf[:])
+	binary.LittleEndian.PutUint32(buf[cap(buf)-common.MagicNumberLen-common.TableVersionLen:], uint32(f.Version))
 	copy(buf[cap(buf)-common.MagicNumberLen:], common.MagicNumber)
 	return buf
 }
 
 func (f *Footer) GetMetaIndex() *block.BlockHandle {
-	return &f.metaIndexBH
+	return &f.MetaIndexBH
 }
 
 func ReadFooter(
@@ -59,8 +59,8 @@ func ReadFooter(
 		}
 
 		return &Footer{
-			version:     version,
-			metaIndexBH: *metaIndexBH,
+			Version:     version,
+			MetaIndexBH: *metaIndexBH,
 		}, nil
 
 	default:

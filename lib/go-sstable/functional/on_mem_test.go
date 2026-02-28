@@ -139,6 +139,7 @@ func (w *WalSuite) Test_Iterator_Seeking_Ops_single_table() {
 		cacheSize           int // 0 means no cache
 		sampleSize          int
 		isRandomisedOrdered bool
+		cacheType           go_block_cache.CacheType
 	}
 
 	tests := []param{
@@ -148,6 +149,7 @@ func (w *WalSuite) Test_Iterator_Seeking_Ops_single_table() {
 			isUnique:   true,
 			restart:    5,
 			sampleSize: 1,
+			cacheType:  go_block_cache.LRU,
 		},
 		{
 			name:       "volume = 1,  block cache enabled",
@@ -155,18 +157,21 @@ func (w *WalSuite) Test_Iterator_Seeking_Ops_single_table() {
 			restart:    5,
 			cacheSize:  2 * kB,
 			sampleSize: 1,
+			cacheType:  go_block_cache.LRU,
 		},
 		{
 			name:       "volume = 100_000, all keys are unique, block cache disable",
 			isUnique:   true,
 			restart:    5,
 			sampleSize: 100_000,
+			cacheType:  go_block_cache.LRU,
 		},
 		{
 			name:       "volume = 100_000, keys are shared prefix, block cache disable",
 			isUnique:   false,
 			restart:    5,
 			sampleSize: 100_000,
+			cacheType:  go_block_cache.LRU,
 		},
 		{
 			name:       "volume = 100_000, all keys are unique, block cache enabled",
@@ -174,6 +179,7 @@ func (w *WalSuite) Test_Iterator_Seeking_Ops_single_table() {
 			restart:    5,
 			sampleSize: 100_000,
 			cacheSize:  1 * mB,
+			cacheType:  go_block_cache.LRU,
 		},
 		{
 			name:       "volume = 100_000, keys are shared prefix, block cache enabled",
@@ -181,6 +187,31 @@ func (w *WalSuite) Test_Iterator_Seeking_Ops_single_table() {
 			restart:    5,
 			sampleSize: 100_000,
 			cacheSize:  1 * mB,
+			cacheType:  go_block_cache.LRU,
+		},
+		{
+			name:       "ClockPro, volume = 1,  block cache enabled",
+			isUnique:   true,
+			restart:    5,
+			cacheSize:  2 * kB,
+			sampleSize: 1,
+			cacheType:  go_block_cache.ClockPro,
+		},
+		{
+			name:       "ClockPro, volume = 100_000, all keys are unique, block cache enabled",
+			isUnique:   true,
+			restart:    5,
+			sampleSize: 100_000,
+			cacheSize:  1 * mB,
+			cacheType:  go_block_cache.ClockPro,
+		},
+		{
+			name:       "ClockPro, volume = 100_000, keys are shared prefix, block cache enabled",
+			isUnique:   false,
+			restart:    5,
+			sampleSize: 100_000,
+			cacheSize:  1 * mB,
+			cacheType:  go_block_cache.ClockPro,
 		},
 		// Randomised-order read
 		{
@@ -189,6 +220,7 @@ func (w *WalSuite) Test_Iterator_Seeking_Ops_single_table() {
 			restart:             5,
 			sampleSize:          100_000,
 			isRandomisedOrdered: true,
+			cacheType:           go_block_cache.LRU,
 		},
 		{
 			name:                "volume = 100_000, keys are shared prefix, block cache disable, randomised read order",
@@ -196,6 +228,7 @@ func (w *WalSuite) Test_Iterator_Seeking_Ops_single_table() {
 			restart:             5,
 			sampleSize:          100_000,
 			isRandomisedOrdered: true,
+			cacheType:           go_block_cache.LRU,
 		},
 		{
 			name:                "volume = 100_000, all keys are unique, block cache enabled, randomised read order",
@@ -204,6 +237,7 @@ func (w *WalSuite) Test_Iterator_Seeking_Ops_single_table() {
 			sampleSize:          100_000,
 			cacheSize:           1 * mB,
 			isRandomisedOrdered: true,
+			cacheType:           go_block_cache.LRU,
 		},
 		{
 			name:                "volume = 100_000, keys are shared prefix, block cache enabled, randomised read order",
@@ -212,6 +246,25 @@ func (w *WalSuite) Test_Iterator_Seeking_Ops_single_table() {
 			sampleSize:          100_000,
 			cacheSize:           1 * mB,
 			isRandomisedOrdered: true,
+			cacheType:           go_block_cache.LRU,
+		},
+		{
+			name:                "ClockPro, volume = 100_000, all keys are unique, block cache enabled, randomised read order",
+			isUnique:            true,
+			restart:             5,
+			sampleSize:          100_000,
+			cacheSize:           1 * mB,
+			isRandomisedOrdered: true,
+			cacheType:           go_block_cache.ClockPro,
+		},
+		{
+			name:                "ClockPro, volume = 100_000, keys are shared prefix, block cache enabled, randomised read order",
+			isUnique:            false,
+			restart:             5,
+			sampleSize:          100_000,
+			cacheSize:           1 * mB,
+			isRandomisedOrdered: true,
+			cacheType:           go_block_cache.ClockPro,
 		},
 	}
 
@@ -244,8 +297,9 @@ func (w *WalSuite) Test_Iterator_Seeking_Ops_single_table() {
 			var iterOpts []options.IteratorOptsFunc
 			if tc.cacheSize > 0 {
 				iterOpts = []options.IteratorOptsFunc{
-					options.WithBlockCache(go_block_cache.LRU, fd),
+					options.WithBlockCache(tc.cacheType, fd),
 					options.WithBlockCacheSize(int64(tc.cacheSize)),
+					options.WithShardNum(4),
 				}
 			}
 			sharedBufferPool := predictable_size.NewPredictablePool()
@@ -293,21 +347,24 @@ func (w *WalSuite) Test_Iterator_Concurrently_Seeking_Ops_multiple_tables() {
 		cacheSize           int // 0 means no cache
 		sampleSize          int
 		isRandomisedOrdered bool
+		cacheType           go_block_cache.CacheType
 	}
 
 	tests := []param{
-		// Sequence read
+		Sequence read
 		{
 			name:       "volume = 100_000, all keys are unique, block cache disable",
 			isUnique:   true,
 			restart:    5,
 			sampleSize: 100_000,
+			cacheType:  go_block_cache.LRU,
 		},
 		{
 			name:       "volume = 100_000, keys are shared prefix, block cache disable",
 			isUnique:   false,
 			restart:    5,
 			sampleSize: 100_000,
+			cacheType:  go_block_cache.LRU,
 		},
 		{
 			name:       "volume = 100_000, all keys are unique, block cache enabled",
@@ -315,6 +372,7 @@ func (w *WalSuite) Test_Iterator_Concurrently_Seeking_Ops_multiple_tables() {
 			restart:    5,
 			sampleSize: 100_000,
 			cacheSize:  1 * mB,
+			cacheType:  go_block_cache.LRU,
 		},
 		{
 			name:       "volume = 100_000, keys are shared prefix, block cache enabled",
@@ -322,6 +380,23 @@ func (w *WalSuite) Test_Iterator_Concurrently_Seeking_Ops_multiple_tables() {
 			restart:    5,
 			sampleSize: 100_000,
 			cacheSize:  1 * mB,
+			cacheType:  go_block_cache.LRU,
+		},
+		{
+			name:       "ClockPro, volume = 100_000, all keys are unique, block cache enabled",
+			isUnique:   true,
+			restart:    5,
+			sampleSize: 100_000,
+			cacheSize:  1 * mB,
+			cacheType:  go_block_cache.ClockPro,
+		},
+		{
+			name:       "ClockPro, volume = 100_000, keys are shared prefix, block cache enabled",
+			isUnique:   false,
+			restart:    5,
+			sampleSize: 100_000,
+			cacheSize:  1 * mB,
+			cacheType:  go_block_cache.ClockPro,
 		},
 		// Randomised-order read
 		{
@@ -330,6 +405,7 @@ func (w *WalSuite) Test_Iterator_Concurrently_Seeking_Ops_multiple_tables() {
 			restart:             5,
 			sampleSize:          100_000,
 			isRandomisedOrdered: true,
+			cacheType:           go_block_cache.LRU,
 		},
 		{
 			name:                "volume = 100_000, keys are shared prefix, block cache disable, randomised read order",
@@ -337,6 +413,7 @@ func (w *WalSuite) Test_Iterator_Concurrently_Seeking_Ops_multiple_tables() {
 			restart:             5,
 			sampleSize:          100_000,
 			isRandomisedOrdered: true,
+			cacheType:           go_block_cache.LRU,
 		},
 		{
 			name:                "volume = 100_000, all keys are unique, block cache enabled, randomised read order",
@@ -345,6 +422,7 @@ func (w *WalSuite) Test_Iterator_Concurrently_Seeking_Ops_multiple_tables() {
 			sampleSize:          100_000,
 			cacheSize:           1 * mB,
 			isRandomisedOrdered: true,
+			cacheType:           go_block_cache.LRU,
 		},
 		{
 			name:                "volume = 100_000, keys are shared prefix, block cache enabled, randomised read order",
@@ -353,6 +431,25 @@ func (w *WalSuite) Test_Iterator_Concurrently_Seeking_Ops_multiple_tables() {
 			sampleSize:          100_000,
 			cacheSize:           1 * mB,
 			isRandomisedOrdered: true,
+			cacheType:           go_block_cache.LRU,
+		},
+		{ // TODO: DEADLOCK on this test 
+			name:                "ClockPro, volume = 100_000, all keys are unique, block cache enabled, randomised read order",
+			isUnique:            true,
+			restart:             5,
+			sampleSize:          100_000,
+			cacheSize:           1 * mB,
+			isRandomisedOrdered: true,
+			cacheType:           go_block_cache.ClockPro,
+		},
+		{
+			name:                "ClockPro, volume = 100_000, keys are shared prefix, block cache enabled, randomised read order",
+			isUnique:            false,
+			restart:             5,
+			sampleSize:          100_000,
+			cacheSize:           1 * mB,
+			isRandomisedOrdered: true,
+			cacheType:           go_block_cache.ClockPro,
 		},
 	}
 
@@ -395,8 +492,9 @@ func (w *WalSuite) Test_Iterator_Concurrently_Seeking_Ops_multiple_tables() {
 					var iterOpts []options.IteratorOptsFunc
 					if tc.cacheSize > 0 {
 						iterOpts = []options.IteratorOptsFunc{
-							options.WithBlockCache(go_block_cache.LRU, fd),
+							options.WithBlockCache(tc.cacheType, fd),
 							options.WithBlockCacheSize(int64(tc.cacheSize)),
+							options.WithShardNum(4),
 						}
 					}
 					sharedBufferPool := predictable_size.NewPredictablePool()
@@ -473,20 +571,23 @@ func (w *WalSuite) Test_Iterator_First_Then_Next_Ops() {
 		isUnique  bool
 		cacheSize int // 0 means no cache
 		sstNum    int
+		cacheType go_block_cache.CacheType
 	}
 
 	tests := []param{
 		{
-			name:     "volume = 100_000, all keys are unique, block cache disable, single table",
-			isUnique: true,
-			restart:  5,
-			sstNum:   1,
+			name:      "volume = 100_000, all keys are unique, block cache disable, single table",
+			isUnique:  true,
+			restart:   5,
+			sstNum:    1,
+			cacheType: go_block_cache.LRU,
 		},
 		{
-			name:     "volume = 100_000, keys are shared prefix, block cache disable, single table",
-			isUnique: false,
-			restart:  5,
-			sstNum:   1,
+			name:      "volume = 100_000, keys are shared prefix, block cache disable, single table",
+			isUnique:  false,
+			restart:   5,
+			sstNum:    1,
+			cacheType: go_block_cache.LRU,
 		},
 		{
 			name:      "volume = 100_000, all keys are unique, block cache enabled, single table",
@@ -494,6 +595,7 @@ func (w *WalSuite) Test_Iterator_First_Then_Next_Ops() {
 			restart:   5,
 			sstNum:    1,
 			cacheSize: 1 * mB,
+			cacheType: go_block_cache.LRU,
 		},
 		{
 			name:      "volume = 100_000, keys are shared prefix, block cache enabled, single table",
@@ -501,18 +603,37 @@ func (w *WalSuite) Test_Iterator_First_Then_Next_Ops() {
 			restart:   5,
 			sstNum:    1,
 			cacheSize: 1 * mB,
+			cacheType: go_block_cache.LRU,
 		},
 		{
-			name:     "volume = 100_000, all keys are unique, block cache disable, multiple tables",
-			isUnique: true,
-			restart:  5,
-			sstNum:   3,
+			name:      "ClockPro, volume = 100_000, all keys are unique, block cache enabled, single table",
+			isUnique:  true,
+			restart:   5,
+			sstNum:    1,
+			cacheSize: 1 * mB,
+			cacheType: go_block_cache.ClockPro,
 		},
 		{
-			name:     "volume = 100_000, keys are shared prefix, block cache disable, multiple tables",
-			isUnique: false,
-			restart:  5,
-			sstNum:   3,
+			name:      "ClockPro, volume = 100_000, keys are shared prefix, block cache enabled, single table",
+			isUnique:  false,
+			restart:   5,
+			sstNum:    1,
+			cacheSize: 1 * mB,
+			cacheType: go_block_cache.ClockPro,
+		},
+		{
+			name:      "volume = 100_000, all keys are unique, block cache disable, multiple tables",
+			isUnique:  true,
+			restart:   5,
+			sstNum:    3,
+			cacheType: go_block_cache.LRU,
+		},
+		{
+			name:      "volume = 100_000, keys are shared prefix, block cache disable, multiple tables",
+			isUnique:  false,
+			restart:   5,
+			sstNum:    3,
+			cacheType: go_block_cache.LRU,
 		},
 		{
 			name:      "volume = 100_000, all keys are unique, block cache enabled, multiple tables",
@@ -520,6 +641,7 @@ func (w *WalSuite) Test_Iterator_First_Then_Next_Ops() {
 			restart:   5,
 			sstNum:    3,
 			cacheSize: 1 * mB,
+			cacheType: go_block_cache.LRU,
 		},
 		{
 			name:      "volume = 100_000, keys are shared prefix, block cache enabled, multiple tables",
@@ -527,6 +649,23 @@ func (w *WalSuite) Test_Iterator_First_Then_Next_Ops() {
 			restart:   5,
 			sstNum:    3,
 			cacheSize: 1 * mB,
+			cacheType: go_block_cache.LRU,
+		},
+		{
+			name:      "ClockPro, volume = 100_000, all keys are unique, block cache enabled, multiple tables",
+			isUnique:  true,
+			restart:   5,
+			sstNum:    3,
+			cacheSize: 1 * mB,
+			cacheType: go_block_cache.ClockPro,
+		},
+		{
+			name:      "ClockPro, volume = 100_000, keys are shared prefix, block cache enabled, multiple tables",
+			isUnique:  false,
+			restart:   5,
+			sstNum:    3,
+			cacheSize: 1 * mB,
+			cacheType: go_block_cache.ClockPro,
 		},
 	}
 
@@ -569,8 +708,9 @@ func (w *WalSuite) Test_Iterator_First_Then_Next_Ops() {
 					var iterOpts []options.IteratorOptsFunc
 					if tc.cacheSize > 0 {
 						iterOpts = []options.IteratorOptsFunc{
-							options.WithBlockCache(go_block_cache.LRU, fd),
+							options.WithBlockCache(tc.cacheType, fd),
 							options.WithBlockCacheSize(int64(tc.cacheSize)),
+							options.WithShardNum(4),
 						}
 					}
 					sharedBufferPool := predictable_size.NewPredictablePool()

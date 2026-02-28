@@ -4,13 +4,17 @@ type CacheOpt func(c *hashMap)
 
 func WithShardNum(shardNum int) CacheOpt {
 	return func(c *hashMap) {
-		c.shardNum = shardNum
+		if shardNum > 0 {
+			c.shardNum = shardNum
+		}
 	}
 }
 
 func WithMaxSize(maxSize int64) CacheOpt {
 	return func(c *hashMap) {
-		c.maxSize = maxSize
+		if maxSize > 0 {
+			c.maxSize = maxSize
+		}
 	}
 }
 

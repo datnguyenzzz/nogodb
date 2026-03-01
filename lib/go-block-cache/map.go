@@ -1,6 +1,8 @@
 package go_block_cache
 
-import "go.uber.org/zap"
+import (
+	"go.uber.org/zap"
+)
 
 var (
 	B   = int64(1)

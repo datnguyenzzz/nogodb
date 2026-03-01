@@ -22,9 +22,9 @@ func (h *handle) Release() {
 		n := (*kv)(nPtr)
 
 		if atomic.AddInt32(&n.ref, -1) <= 0 {
-			n.s.mu.RLock()
+			n.s.mu.Lock()
 			_ = n.s.evict(n)
-			n.s.mu.RUnlock()
+			n.s.mu.Unlock()
 		}
 	}
 }
@@ -56,7 +56,7 @@ type kv struct {
 
 	// usedBit used for determining whether this node is being referenced by any instance
 	// that information is used for CLOCK-pro eviction algorithm
-	usedBit atomic.Bool
+	usedBit bool
 
 	// log points to the metadata log in the cache eviction list
 	log unsafe.Pointer

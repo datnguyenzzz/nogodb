@@ -351,7 +351,7 @@ func (w *WalSuite) Test_Iterator_Concurrently_Seeking_Ops_multiple_tables() {
 	}
 
 	tests := []param{
-		Sequence read
+		// Sequence read
 		{
 			name:       "volume = 100_000, all keys are unique, block cache disable",
 			isUnique:   true,
@@ -433,7 +433,7 @@ func (w *WalSuite) Test_Iterator_Concurrently_Seeking_Ops_multiple_tables() {
 			isRandomisedOrdered: true,
 			cacheType:           go_block_cache.LRU,
 		},
-		{ // TODO: DEADLOCK on this test 
+		{
 			name:                "ClockPro, volume = 100_000, all keys are unique, block cache enabled, randomised read order",
 			isUnique:            true,
 			restart:             5,

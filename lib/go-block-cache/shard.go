@@ -44,13 +44,15 @@ func (s *shard) getStats() Stats {
 }
 
 func (s *shard) getInUsed() int64 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	return s.cacher.GetInUsed()
 }
 
 func (s *shard) set(fileNum, key uint64, value Value) bool {
-	s.mu.RLock()
+	s.mu.Lock()
 	if s.closed {
-		s.mu.RUnlock()
+		s.mu.Unlock()
 		return false
 	}
 
@@ -74,7 +76,7 @@ func (s *shard) set(fileNum, key uint64, value Value) bool {
 
 		if value == nil || computeSize(value) == 0 {
 			s.evict(node)
-			s.mu.RUnlock()
+			s.mu.Unlock()
 			return true
 		}
 
@@ -83,7 +85,7 @@ func (s *shard) set(fileNum, key uint64, value Value) bool {
 		node.SetValue(value, valSize)
 		atomic.StoreInt32(&node.ref, 0)
 		atomic.AddInt64(&s.stats.statSet, 1)
-		s.mu.RUnlock()
+		s.mu.Unlock()
 
 		if s.cacher != nil {
 			if ok := s.cacher.Promote(node, diffSize, opSet); !ok {
@@ -122,6 +124,7 @@ func (s *shard) get(fileNum, key uint64) (LazyValue, bool) {
 
 		if computeSize(node.value) == 0 {
 			atomic.AddInt64(&s.stats.statMiss, 1)
+			s.mu.RUnlock()
 			return nil, false
 		}
 
@@ -141,8 +144,8 @@ func (s *shard) get(fileNum, key uint64) (LazyValue, bool) {
 }
 
 func (s *shard) delete(fileNum, key uint64) bool {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if s.closed {
 		return false
 	}
@@ -169,7 +172,7 @@ func (s *shard) delete(fileNum, key uint64) bool {
 }
 
 // evict removes a node entirely from a hashmap
-// Important: caller must ensure the Rlock of the hashmap
+// Important: caller must ensure the lock of the hashmap
 func (s *shard) evict(node *kv) bool {
 	if s.closed {
 		return false

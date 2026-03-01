@@ -40,9 +40,9 @@ func (l *lru) SetCapacity(capacity int64) {
 	l.mu.Unlock()
 
 	for _, n := range evicted {
-		n.s.mu.RLock()
+		n.s.mu.Lock()
 		n.s.evict(n)
-		n.s.mu.RUnlock()
+		n.s.mu.Unlock()
 	}
 }
 
@@ -69,9 +69,9 @@ func (l *lru) Promote(node *kv, diffSize int64, o op) bool {
 	l.mu.Unlock()
 
 	for _, n := range evicted {
-		n.s.mu.RLock()
+		n.s.mu.Lock()
 		n.s.evict(n)
-		n.s.mu.RUnlock()
+		n.s.mu.Unlock()
 	}
 
 	return true

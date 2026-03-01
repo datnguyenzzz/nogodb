@@ -421,31 +421,42 @@ func Test_HashMap_Close(t *testing.T) {
 		ClockPro,
 	}
 
+	parallelisms := []int{
+		1,
+		10,
+	}
+
 	for _, cp := range cachePolicies {
-		t.Run(fmt.Sprintf("Test_HashMap_Close_%s", cp.toString()), func(t *testing.T) {
-			cache := NewMap(
-				WithCacheType(cp),
-				WithMaxSize(100),
-				WithShardNum(4),
-			)
-			for i := 0; i < 10; i++ {
-				ok := cache.Set(uint64(i), uint64(1), dummy10Bytes)
-				assert.True(t, ok)
-			}
+		for _, parallelism := range parallelisms {
+			t.Run(fmt.Sprintf("Test_HashMap_Close_%s_parallel_%d", cp.toString(), parallelism), func(t *testing.T) {
+				cache := NewMap(
+					WithCacheType(cp),
+					WithMaxSize(100),
+					WithShardNum(4),
+				)
+				eg, _ := errgroup.WithContext(context.Background())
+				eg.SetLimit(parallelism)
 
-			eg, _ := errgroup.WithContext(context.Background())
-			for i := 0; i < 10; i++ {
-				eg.Go(func() error {
-					_, _ = cache.Get(uint64(i), uint64(1))
-					return nil
-				})
-			}
+				for i := 0; i < 100; i++ {
+					eg.Go(func() error {
+						ok := cache.Set(uint64(i), uint64(1), dummy10Bytes)
+						assert.True(t, ok)
+						return nil
+					})
 
-			require.NoError(t, eg.Wait())
+					eg.Go(func() error {
+						_, _ = cache.Get(uint64(i), uint64(1))
+						return nil
+					})
+				}
 
-			cache.Close()
+				err := eg.Wait()
+				require.NoError(t, err)
 
-			assert.Zero(t, cache.GetInUsed())
-		})
+				cache.Close()
+
+				assert.Zero(t, cache.GetInUsed())
+			})
+		}
 	}
 }

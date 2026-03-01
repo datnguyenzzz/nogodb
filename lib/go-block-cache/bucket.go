@@ -18,7 +18,7 @@ const (
 // bucket: Dynamic-sized nonblocking hash tables
 // https://dl.acm.org/doi/10.1145/2611462.2611495
 type bucket struct {
-	mu sync.Mutex
+	mu sync.RWMutex
 
 	// nodes are sorted by its key
 	nodes []*kv
@@ -34,8 +34,8 @@ func (b *bucket) seekGTE(fileNum, key uint64) int {
 }
 
 func (b *bucket) Get(fileNum, key uint64) (isFrozen bool, n *kv) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
+	b.mu.RLock()
+	defer b.mu.RUnlock()
 	if b.state == frozen {
 		return true, nil
 	}

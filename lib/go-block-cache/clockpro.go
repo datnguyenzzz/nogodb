@@ -25,6 +25,7 @@ type clockPro struct {
 func (c *clockPro) GetInUsed() int64 {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
+
 	inUsed := c.sizeHot + c.sizeCold
 
 	return inUsed
@@ -33,21 +34,22 @@ func (c *clockPro) GetInUsed() int64 {
 // Promote promotes the given node in the cache
 // diffSize is the size difference between the new value and the old value of the node
 func (c *clockPro) Promote(node *kv, diffSize int64, o op) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	switch o {
 	case opGet:
-		if !node.usedBit.Load() {
-			node.usedBit.Store(true)
-		}
+		node.usedBit = true
 	case opSet:
 		switch {
 		case node.log == nil:
 			// new node that is not yet in the cache,
 			// move it to the cold node
-			node.usedBit.Store(false)
+			node.usedBit = false
 			if !c.logAdd(node, cold) {
 				return false
 			}
-			atomic.AddInt64(&c.sizeCold, diffSize)
+			c.sizeCold += diffSize
 
 		case (*log)(atomic.LoadPointer(&node.log)).clockType == test:
 			// belongs to the test nodes
@@ -56,33 +58,29 @@ func (c *clockPro) Promote(node *kv, diffSize int64, o op) bool {
 				return false
 			}
 
-			node.usedBit.Store(false)
-			if atomic.LoadInt64(&c.maxCold) < atomic.LoadInt64(&c.maxSize) {
-				atomic.AddInt64(&c.maxCold, diffSize)
+			node.usedBit = false
+			if c.maxCold < c.maxSize {
+				c.maxCold += diffSize
 			}
-			atomic.AddInt64(&c.sizeTest, -diffSize)
+			c.sizeTest -= diffSize
 
 			if !c.logAdd(node, hot) {
 				return false
 			}
-			atomic.AddInt64(&c.sizeHot, diffSize)
+			c.sizeHot += diffSize
 
 		default:
 			// belongs to the hot or cold nodes
-			if !node.usedBit.Load() {
-				node.usedBit.Store(true)
-			}
+			node.usedBit = true
 			l := (*log)(node.log)
 			if l.clockType == hot {
-				atomic.AddInt64(&c.sizeHot, diffSize)
+				c.sizeHot += diffSize
 			} else {
 				// TODO (low): should we move to hot ?
-				atomic.AddInt64(&c.sizeCold, diffSize)
+				c.sizeCold += diffSize
 			}
 
-			c.mu.Lock()
 			c.evict()
-			c.mu.Unlock()
 		}
 	default:
 		panic("unsupported operation")
@@ -92,17 +90,20 @@ func (c *clockPro) Promote(node *kv, diffSize int64, o op) bool {
 }
 
 func (c *clockPro) Evict(node *kv) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	if node.log == nil {
 		return
 	}
 	clockType := (*log)(atomic.LoadPointer(&node.log)).clockType
 	switch clockType {
 	case hot:
-		atomic.AddInt64(&c.sizeHot, -node.size)
+		c.sizeHot -= node.size
 	case cold:
-		atomic.AddInt64(&c.sizeCold, -node.size)
+		c.sizeCold -= node.size
 	case test:
-		atomic.AddInt64(&c.sizeTest, -node.size)
+		c.sizeTest -= node.size
 	default:
 		panic("unsupported clock type")
 	}
@@ -120,9 +121,6 @@ func (c *clockPro) SetCapacity(capacity int64) {
 // logAdd adds new log after the handHot
 // and evicts data if needed
 func (c *clockPro) logAdd(node *kv, ct clockType) bool {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
 	c.evict()
 	l := &log{n: node, clockType: ct}
 	l.next = l
@@ -145,9 +143,6 @@ func (c *clockPro) logAdd(node *kv, ct clockType) bool {
 }
 
 func (c *clockPro) logDel(node *kv) bool {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
 	l := (*log)(node.log)
 	node.log = nil
 
@@ -179,12 +174,12 @@ func (c *clockPro) evict() {
 func (c *clockPro) runHandCold() {
 	if c.handCold.clockType == cold {
 		n := c.handCold.n
-		ref := n.usedBit.Load()
+		ref := n.usedBit
 		c.sizeCold -= n.size
 
 		if ref {
 			// move to hot
-			n.usedBit.Store(false)
+			n.usedBit = false
 			c.handCold.clockType = hot
 			c.sizeHot += n.size
 		} else {
@@ -219,9 +214,9 @@ func (c *clockPro) runHandHot() {
 
 	n := c.handHot.n
 	if c.handHot.clockType == hot {
-		ref := n.usedBit.Load()
+		ref := n.usedBit
 		if ref {
-			n.usedBit.Store(false)
+			n.usedBit = false
 		} else {
 			// move to cold
 			c.handHot.clockType = cold
@@ -248,9 +243,9 @@ func (c *clockPro) runHandTest() {
 		c.maxCold = max(c.maxCold, 0)
 
 		c.mu.Unlock()
-		n.s.mu.RLock()
+		n.s.mu.Lock()
 		n.s.evict(n)
-		n.s.mu.RUnlock()
+		n.s.mu.Unlock()
 		c.mu.Lock()
 	}
 

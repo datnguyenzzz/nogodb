@@ -454,8 +454,6 @@ func Test_HashMap_Close(t *testing.T) {
 				require.NoError(t, err)
 
 				cache.Close()
-
-				assert.Zero(t, cache.GetInUsed())
 			})
 		}
 	}

@@ -2,7 +2,7 @@
 
 Referrence: https://www.pdl.cmu.edu/PDL-FTP/Database/pax.pdf
 
-### Data layout
+### Block layout
 Every columnar block begins with a header describing the structure and schema of the block. Then columns values are encoded in sequence. The block ends with a single padding byte.
 
 The block header begins with:
@@ -38,4 +38,7 @@ Then follows a column-header for each column. Each column header encodes the dat
 +-------------+
 ```
 
-The trailing padding byte exists to allow columns to represent the end of column data, using a pointer to the byte after the end of the column. The padding byte ensures that the pointer will always fall within the allocated memory. 
+The trailing padding byte exists to allow columns to represent the end of column data, using a pointer to the byte after the end of the column.
+
+### Entry layout
+How are the key-value encoded to the columns ? How do the keys get compressed based on their prefix ?

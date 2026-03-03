@@ -12,6 +12,12 @@
 - [x] P0: Implement Clock-based eviction policy and benchmark against the LRU policy for the go-block-cache
 -   [x] P0: Implement Sharding on the go-block-cache
 - [ ] P0: Implement columnar block format in the go-sstable
+  - [ ] P0: Research on the key prefix compression , similarly performed by rowblk
+  - [!Important] The key don't need to have a MVCC version yet
+- [ ] P1: Learn about the MVCC and how to apply it on the go-sstables
+  - MVCC provides "an isolation level" called "snapshot isolation"
+  - It does this by storing historical versions of key/value pairs. The version number is simply a number that's incremented for every new transaction
+  - Each transaction has its own unique version number. When it writes a key/value pair it appends its version number to the key
 
 ## H2 - 2025
 

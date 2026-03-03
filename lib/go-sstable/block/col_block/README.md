@@ -2,7 +2,7 @@
 
 Referrence: https://www.pdl.cmu.edu/PDL-FTP/Database/pax.pdf
 
-### Format
+### Data layout
 Every columnar block begins with a header describing the structure and schema of the block. Then columns values are encoded in sequence. The block ends with a single padding byte.
 
 The block header begins with:

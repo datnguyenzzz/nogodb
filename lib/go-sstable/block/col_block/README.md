@@ -79,6 +79,15 @@ __to be updated__
 
 __to be updated__
 
-3. Uint
+3. Uint column encoder (any unsigned integer with 8, 16, 32, 64 bit)
 
-__to be updated__
+- The low bits indicate how many bytes per integer are used, with allowed values 0, 1, 2, 4, or 8.
+
+- A base (8-byte) value is encoded separately and each encoded value is a delta from that base.
+
+Layout:
+```
++----------+----------------+--------------+--------------+--------------+
+| Type(1B) | Min Value (8B) | Delta 1 (xB) | Delta 2 (xB) | .....
++----------+----------------+--------------+--------------+--------------+
+```

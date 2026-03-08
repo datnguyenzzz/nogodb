@@ -59,7 +59,8 @@ func (e *UintEncoder[T]) Finish(offset uint32, buf []byte) uint32 {
 	offset += 1
 	offset = serialise(buf, offset, uint64(minV)) // 8B
 	for _, v := range e.values {
-		offset = serialise(buf, offset, v-minV) //reqB If reqB = 8, then the delta encoding won't be much beneficial
+		//reqB per block, If reqB = 8, then the delta encoding won't be much beneficial
+		offset = serialise(buf, offset, v-minV)
 	}
 
 	return offset
@@ -118,3 +119,6 @@ func byteWidth[T colblock.UintType](num T) byte {
 
 	return byteWidthTable[bitWidth]
 }
+
+// assert UintEncoder implements the IColumnEncoder interface
+var _ colblock.IColumnEncoder[uint64] = (*UintEncoder[uint64])(nil)

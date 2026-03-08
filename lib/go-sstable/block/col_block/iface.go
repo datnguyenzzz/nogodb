@@ -12,5 +12,5 @@ type IColumnEncoder[T EncodableDataType] interface {
 }
 
 type IColumnDecoder[T EncodableDataType] interface {
-	// todo: add me
+	Get(row uint32) T
 }

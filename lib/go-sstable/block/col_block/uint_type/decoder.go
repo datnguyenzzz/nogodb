@@ -49,7 +49,7 @@ func NewUintDecoder[T colblock.UintType](
 	return &UintDecoder[T]{
 		ptr:       unsafe.Pointer(&buf[offset]),
 		rows:      rows,
-		width:     buf[offset],
+		width:     width,
 		baseValue: baseValue,
 	}, offset + rows*uint32(width)
 }

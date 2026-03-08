@@ -2,6 +2,7 @@ package uinttype
 
 import (
 	"encoding/binary"
+	"fmt"
 	"math/bits"
 
 	colblock "github.com/datnguyenzzz/nogodb/lib/go-sstable/block/col_block"
@@ -18,15 +19,16 @@ func (e *UintEncoder[T]) Init() {
 
 // Reset reuses the existing encoder with its already allocated memory
 func (e *UintEncoder[T]) Reset() {
-	clear(e.values)
+	e.values = e.values[:0]
+	e.rows = 0
 }
 
 func (e *UintEncoder[T]) Append(v T) {
 	e.rows += 1
 	if cap(e.values) <= int(e.rows) {
-		newSize := max(32, 1<<cap(e.values))
+		newSize := max(32, cap(e.values)<<1)
 		for newSize <= int(e.rows) {
-			if newSize < 1024 {
+			if newSize <= 1024 {
 				newSize = newSize << 1
 			} else {
 				newSize += newSize / 4
@@ -51,34 +53,38 @@ func (e *UintEncoder[T]) Size(offset uint32) uint32 {
 
 // Finish serialises the encoded column into a [buf] from [offset], return the offset after written
 func (e *UintEncoder[T]) Finish(offset uint32, buf []byte) uint32 {
+	if e.rows != uint32(len(e.values)) {
+		// sense check
+		panic(fmt.Sprintf("len of values: %d <> rows: %d", len(e.values), e.rows))
+	}
+
 	minV, maxV := e.findMinMaxValue()
 	reqB := byteWidth(maxV - minV)
 	// start encoding and serialising to the [buf]
 	// refer to the col_block/README.md for more detail about the layout
 	buf[offset] = reqB // 1B
 	offset += 1
-	offset = serialise(buf, offset, uint64(minV)) // 8B
+	offset = serialise(buf, offset, 8, uint64(minV)) // 8B
 	for _, v := range e.values {
-		//reqB per block, If reqB = 8, then the delta encoding won't be much beneficial
-		offset = serialise(buf, offset, v-minV)
+		offset = serialise(buf, offset, reqB, T(v-minV))
 	}
 
 	return offset
 }
 
 // serialise puts the v into buf[offset:]
-func serialise[T colblock.UintType](buf []byte, offset uint32, v T) (nextOffset uint32) {
-	switch any(v).(type) {
-	case uint8:
+func serialise[T colblock.UintType](buf []byte, offset uint32, width byte, v T) (nextOffset uint32) {
+	switch width {
+	case 1:
 		buf[offset] = byte(v)
 		nextOffset = offset + 1
-	case uint16:
+	case 2:
 		binary.LittleEndian.PutUint16(buf[offset:], uint16(v))
 		nextOffset = offset + 2
-	case uint32:
+	case 4:
 		binary.LittleEndian.PutUint32(buf[offset:], uint32(v))
 		nextOffset = offset + 4
-	case uint64:
+	case 8:
 		binary.LittleEndian.PutUint64(buf[offset:], uint64(v))
 		nextOffset = offset + 8
 	default:

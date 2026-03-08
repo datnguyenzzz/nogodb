@@ -36,6 +36,12 @@ Then follows a column-header for each column. Each column header encodes the dat
 +-------------+
 ```
 
+The trailing padding byte exists to allow columns to represent the end of
+column data using a pointer to the byte after the end of the column. The
+padding byte ensures that the pointer will always fall within the allocated
+memory. Without the padding byte, such a pointer would be invalid according
+to Go's pointer rules.
+
 Columns data order 
 
 | No | Type                            | Data type               |

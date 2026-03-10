@@ -1,4 +1,4 @@
-package uinttype
+package uintcodex
 
 import (
 	"encoding/binary"

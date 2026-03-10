@@ -83,7 +83,12 @@ __to be updated__
 
 2. Bytes 
 
-__to be updated__
+Layout
+```
++-----------------------------------------------+-------+-------+-----
+| Uint Encoded of [len(buf_1), len(buf_2), ...] | buf_1 | buf_2 | ...
++-----------------------------------------------+-------+-------+-----
+```
 
 3. Uint column encoder (any unsigned integer with 8, 16, 32, 64 bit)
 

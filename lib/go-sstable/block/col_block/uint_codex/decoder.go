@@ -1,4 +1,4 @@
-package uinttype
+package uintcodex
 
 import (
 	"encoding/binary"
@@ -19,6 +19,10 @@ type UintDecoder[T colblock.UintType] struct {
 }
 
 func (u *UintDecoder[T]) Get(row uint32) uint64 {
+	if row >= u.rows {
+		panic("outside of column block RawBytesDecoder")
+	}
+
 	switch u.width {
 	case 0:
 		return 0

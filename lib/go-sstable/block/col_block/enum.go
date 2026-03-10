@@ -10,9 +10,13 @@ const (
 )
 
 type EncodableDataType interface {
-	UintType | ~[]byte
+	UintType | ByteType
 }
 
 type UintType interface {
 	~uint8 | ~uint16 | ~uint32 | ~uint64
+}
+
+type ByteType interface {
+	~[]byte
 }

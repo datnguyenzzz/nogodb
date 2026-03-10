@@ -1,0 +1,83 @@
+package rawbytescodex
+
+import (
+	"bytes"
+	"fmt"
+	"testing"
+
+	"github.com/datnguyenzzz/nogodb/lib/go-bytesbufferpool/predictable_size"
+	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
+	"github.com/go-faker/faker/v4"
+	"github.com/stretchr/testify/assert"
+)
+
+func Test_codex(t *testing.T) {
+	type param struct {
+		desc string
+		size uint32
+	}
+
+	testCases := []param{
+		{
+			desc: "small size",
+			size: 5,
+		},
+		{
+			desc: "medium size",
+			size: 100,
+		},
+		{
+			desc: "big size",
+			size: 5000,
+		},
+	}
+
+	enc := new(RawByteEncoder)
+	bp := predictable_size.NewPredictablePool()
+
+	for _, tc := range testCases {
+		t.Run(tc.desc, func(t *testing.T) {
+			enc.Reset()
+
+			values := make([][]byte, tc.size)
+			for i := 0; i < int(tc.size); i++ {
+				values[i] = randomByte()
+			}
+
+			for _, v := range values {
+				enc.Append(v)
+			}
+
+			// encode
+			offset := uint32(0)
+			buf := make([]byte, enc.Size(offset)+1) // need to reserve 1 unused byte
+			totalSize := enc.Finish(offset, buf)
+
+			// decode
+			lz := common.NewBlankInternalLazyValue(common.ValueFromBuffer)
+			lz.ReserveBuffer(bp, len(buf))
+			lz.SetBufferValue(buf)
+			dec, nextOffset := NewRawBytesDecoder(tc.size, offset, &lz)
+
+			assert.Equal(t, nextOffset, totalSize)
+			for i, v := range values {
+				val := dec.Get(uint32(i))
+				assert.Zero(t, bytes.Equal(val, v))
+			}
+		})
+	}
+}
+
+func randomByte() []byte {
+	quote := struct {
+		FixedByteList []byte `faker:"slice_len=1000"`
+	}{}
+
+	err := faker.FakeData(&quote)
+	if err != nil {
+		fmt.Println(err)
+		return nil
+	}
+
+	return quote.FixedByteList
+}

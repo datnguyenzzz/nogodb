@@ -79,7 +79,66 @@ Then the data layout after encoding will be following (for illustration purpose 
 ### Encoding detail methods 
 1. Prefix-compressed bytes data type 
 
-__to be updated__
+Prefix-compressed encodes a list of bytes that are lexicographically ordered, with compressing their prefix (similar idea with how do we encode the row_block keys).
+Note that the key are not unique, because in the MVCC model, a same key will have multiple version, they will be distincted by the suffix ID number (auto-increased id, timestamp, ...)
+
+Let's review how does the encoder work in the below example, where we want to encode a list of 16 keys 
+
+```
+     0123456789
+0    aaaaaaa
+1    aaaaaab
+2    aaaaabb
+3    aaaaaba
+4    aabbbc
+5    aabbbcc
+6    aabbccd
+7    aabbce
+8    aabbe
+9    aabbe
+10   aabbef
+11   aabbee
+12   aacde
+13   aacdf
+14   aacdf
+15   aacdgg
+```
+
+The table below shows the encoded for these 16 keys when using a bundle size of 4 (which results in 4 bundles in toal). 
+
+There are encoded into 21 slices: 1 block prefix, 4 bundle prefixes, and 16 suffixes. The first slice in the table is the block prefix that is shared by all keys in the block. The first slice in each bundle is the bundle prefix
+which is shared by all keys in the bundle.
+
+```
+ idx | offset | data 
+-----+--------+------
+                aa 
+                ..aaa
+    0           .....aa
+    1           .....ab
+    2           .....bb
+    3           .....ba
+-----+--------+------
+                ..bb
+    4           ....bc
+    5           ....bcc
+    6           ....ccd
+    7           ....ce
+-----+--------+------
+                ..bbe
+    8           .....
+    9           .....
+    10          .....f
+    11          .....e
+-----+--------+------
+                ..cd
+    12          ....e
+    13          ....f
+    14          ....f
+    15          ....gg                
+```
+
+
 
 2. Bytes 
 

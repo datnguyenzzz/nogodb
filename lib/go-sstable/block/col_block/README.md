@@ -104,12 +104,12 @@ Let's review how does the encoder work in the below example, where we want to en
 15   aacdgg
 ```
 
-The table below shows the encoded for these 16 keys when using a bundle size of 4 (which results in 4 bundles in toal). 
+The table below shows the encoded for these 16 keys when using a bundle size of 4 (which results in 4 bundles in toal)
 
 There are encoded into 21 slices: 1 block prefix, 4 bundle prefixes, and 16 suffixes. The first slice in the table is the block prefix that is shared by all keys in the block. The first slice in each bundle is the bundle prefix
 which is shared by all keys in the bundle.
 
-```
+```text
  idx | offset | data 
 -----+--------+------
                 aa 
@@ -118,26 +118,31 @@ which is shared by all keys in the bundle.
     1           .....ab
     2           .....bb
     3           .....ba
------+--------+------
                 ..bb
     4           ....bc
     5           ....bcc
     6           ....ccd
     7           ....ce
------+--------+------
                 ..bbe
     8           .....
     9           .....
     10          .....f
     11          .....e
------+--------+------
                 ..cd
     12          ....e
     13          ....f
     14          ....f
     15          ....gg                
+-----+--------+------ 
 ```
 
+Physical representation
+
+```text
++------------------+---------------------------------------------------------------------------------+
+| Bundle size (1B) | Raw bytes encoding (1 block prefix, (n+bs-1)/(bs) bundle prefixes, n suffixes ) | 
++------------------+---------------------------------------------------------------------------------+
+```
 
 
 2. Bytes 

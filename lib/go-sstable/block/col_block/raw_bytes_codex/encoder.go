@@ -20,6 +20,7 @@ func (r *RawByteEncoder) Init() {
 // Reset reuses the existing encoder with its already allocated memory
 func (r *RawByteEncoder) Reset() {
 	r.rows = 0
+	// TODO: The allocated memory for e.values will keep growing. Should we keep it?
 	r.values = r.values[:0]
 	r.offsets.Reset()
 }

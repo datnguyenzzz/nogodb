@@ -33,11 +33,7 @@ func ReadFooter(
 	size uint64,
 ) (*Footer, error) {
 	buf := make([]byte, common.MaxPossibleFooterSize)
-	offset := size - uint64(common.MaxPossibleFooterSize)
-	if offset < 0 {
-		offset = 0
-		buf = buf[:size]
-	}
+	offset := max(0, size-uint64(common.MaxPossibleFooterSize))
 	if err := reader.ReadAt(buf, offset); err != nil {
 		return nil, err
 	}

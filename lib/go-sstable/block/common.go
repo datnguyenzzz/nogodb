@@ -1,6 +1,8 @@
 package block
 
 import (
+	"encoding/binary"
+
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common/block"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/compression"
@@ -17,4 +19,27 @@ func CompressToPb(
 	pb.SetData(compressed)
 	pb.SetTrailer(byte(compressor.GetType()), checksum)
 	return pb
+}
+
+func CommonPrefix(a, b []byte) int {
+	var shared int
+	compare8Byte := func(idx int) bool {
+		va := binary.LittleEndian.Uint64(a[idx:])
+		vb := binary.LittleEndian.Uint64(b[idx:])
+		return va == vb
+	}
+	for ; shared+8 < min(len(a), len(b)); shared += 8 {
+		// Iterate 8 bytes at once
+		if !compare8Byte(shared) {
+			break
+		}
+	}
+
+	for ; shared < min(len(a), len(b)); shared++ {
+		if a[shared] != b[shared] {
+			break
+		}
+	}
+
+	return shared
 }

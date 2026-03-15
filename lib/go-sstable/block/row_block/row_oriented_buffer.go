@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/datnguyenzzz/nogodb/lib/go-bytesbufferpool/predictable_size"
+	"github.com/datnguyenzzz/nogodb/lib/go-sstable/block"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
 )
 
@@ -117,23 +118,7 @@ func (d *rowBlockBuf) writeToBuf(value []byte) error {
 		d.nextRestartEntry = d.nEntries + d.restartInterval
 		d.restartOffset = append(d.restartOffset, uint32(len(d.buf)))
 	} else {
-		compare8Byte := func(idx int) bool {
-			curKeyPref := binary.LittleEndian.Uint64(d.curKey[idx:])
-			prevKeyPref := binary.LittleEndian.Uint64(d.prevKey[idx:])
-			return curKeyPref == prevKeyPref
-		}
-		for ; shared < min(len(d.curKey), len(d.prevKey)); shared += 8 {
-			// Iterate 8 bytes at once
-			if !compare8Byte(shared) {
-				break
-			}
-		}
-
-		for ; shared < min(len(d.curKey), len(d.prevKey)); shared++ {
-			if d.curKey[shared] != d.prevKey[shared] {
-				break
-			}
-		}
+		shared = block.CommonPrefix(d.prevKey, d.curKey)
 	}
 
 	// Append to the buffer

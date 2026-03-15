@@ -1,0 +1,147 @@
+package prefixbytescodex
+
+import (
+	"github.com/datnguyenzzz/nogodb/lib/go-sstable/block"
+	colblock "github.com/datnguyenzzz/nogodb/lib/go-sstable/block/col_block"
+	rawbytescodex "github.com/datnguyenzzz/nogodb/lib/go-sstable/block/col_block/raw_bytes_codex"
+)
+
+type PrefixBytesEncoder struct {
+	rows uint32
+
+	bundlePrefix []byte
+
+	// values is the concatenated of values, without prefix compression
+	values        [][]byte
+	valuesEncoder *rawbytescodex.RawByteEncoder
+
+	// bundle
+	bundleSize byte
+}
+
+func (e *PrefixBytesEncoder) Init() {
+	if e.bundleSize <= 0 {
+		panic("PrefixBytesEncoder must have bundleSize > 0")
+	}
+	if e.bundleSize&(e.bundleSize-1) != 0 {
+		panic("PrefixBytesEncoder must have bundleSize of 2^x")
+	}
+
+	e.valuesEncoder = new(rawbytescodex.RawByteEncoder)
+
+	e.Reset()
+}
+
+// Reset reuses the existing encoder with its already allocated memory
+func (e *PrefixBytesEncoder) Reset() {
+	e.rows = 0
+	e.bundlePrefix = nil
+
+	e.values = e.values[:0]
+	e.values = append(e.values, nil) // reserve 1 slot for the block prefix
+	e.valuesEncoder.Reset()
+}
+
+func (e *PrefixBytesEncoder) Append(v []byte) {
+	if e.rows%uint32(e.bundleSize) == 0 {
+		e.bundlePrefix = v
+		e.values = append(e.values, nil) // reserve 1 slot for the bundle prefix
+	} else {
+		lcp := block.CommonPrefix(e.bundlePrefix, v)
+		e.bundlePrefix = e.bundlePrefix[:lcp]
+	}
+
+	e.rows += 1
+	e.values = append(e.values, v)
+
+	if e.rows%uint32(e.bundleSize) == 0 {
+		e.compressBundle()
+	}
+}
+
+func (e *PrefixBytesEncoder) compressBundle() {
+	bundlePrefixPos := (e.rows/uint32(e.bundleSize)-1)*(uint32(e.bundleSize)+1) + 1
+	e.values[bundlePrefixPos] = e.bundlePrefix
+
+	for i := int(bundlePrefixPos) + 1; i < len(e.values); i++ {
+		e.values[i] = e.values[i][len(e.bundlePrefix):]
+	}
+}
+
+// Size returns the "estimated" size of the column,
+// if the its row were encoded starting from an [offset]
+// The "estimated" size will always be greater than the actual size after encoded
+func (e *PrefixBytesEncoder) Size(offset uint32) uint32 {
+	var totalLen uint32
+	for _, v := range e.values {
+		totalLen += uint32(len(v))
+	}
+
+	// account for the last bundle that has not yet compressed
+	if e.rows%uint32(e.bundleSize) != 0 {
+		bundlePrefixPos := (e.rows/uint32(e.bundleSize)-1)*(uint32(e.bundleSize)+1) + 1
+		totalLen += uint32(len(e.bundlePrefix))
+		totalLen -= max(0, uint32(len(e.values))-bundlePrefixPos-1) * uint32(len(e.bundlePrefix))
+	}
+
+	var blockPrefix []byte = e.bundlePrefix
+	for i := 0; i < len(e.values); i += int(e.bundleSize) + 1 {
+		if len(e.values[i]) == 0 {
+			continue
+		}
+		lcp := block.CommonPrefix(blockPrefix, e.values[i])
+		blockPrefix = blockPrefix[:lcp]
+	}
+
+	return (1 +
+		/* block prefix len*/ uint32(len(blockPrefix)) +
+		totalLen +
+		/* 4-byte per offsets */ uint32(len(e.values)*4) +
+		1 + 8)
+}
+
+// Finish serialises the encoded column into a [buf] from [offset], return the offset after written
+func (e *PrefixBytesEncoder) Finish(offset uint32, buf []byte) uint32 {
+	// compress the unfinished bundle
+	if e.rows%uint32(e.bundleSize) != 0 {
+		e.compressBundle()
+	}
+
+	// find the block prefix
+	var blockPrefix []byte = nil
+	for i := 1; i < len(e.values); i += int(e.bundleSize) + 1 {
+		if blockPrefix == nil {
+			blockPrefix = e.values[i]
+			continue
+		}
+
+		lcp := block.CommonPrefix(blockPrefix, e.values[i])
+		blockPrefix = blockPrefix[:lcp]
+	}
+	e.values[0] = blockPrefix
+
+	// adjust the bundle prefix
+	for i := 1; i < len(e.values); i += int(e.bundleSize) + 1 {
+		e.values[i] = e.values[i][len(blockPrefix):]
+	}
+
+	// start encoding into the [buf]
+	// refer to the colblock/README.md for more detail about the layout
+	buf[offset] = byte(e.bundleSize)
+	offset++
+	for true {
+		v := e.values[0]
+		e.valuesEncoder.Append(v)
+
+		if len(e.values) == 1 {
+			break
+		}
+
+		e.values = e.values[1:]
+	}
+	offset = e.valuesEncoder.Finish(offset, buf)
+
+	return offset
+}
+
+var _ colblock.IColumnEncoder[[]byte] = (*PrefixBytesEncoder)(nil)

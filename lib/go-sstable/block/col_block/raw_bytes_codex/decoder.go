@@ -9,7 +9,7 @@ import (
 type RawBytesDecoder struct {
 	rows       uint32
 	offsetsDec *uintcodex.UintDecoder[uint16]
-	data       *common.InternalLazyValue
+	data       []byte
 }
 
 func (u *RawBytesDecoder) Get(row uint32) []byte {
@@ -24,7 +24,7 @@ func (u *RawBytesDecoder) Get(row uint32) []byte {
 
 	end := u.offsetsDec.Get(row)
 
-	return u.data.Value()[start:end]
+	return u.data[start:end]
 }
 
 // NewRawBytesDecoder returns a RawBytesDecoder with the offset of the next block
@@ -36,7 +36,7 @@ func NewRawBytesDecoder(
 	return &RawBytesDecoder{
 		rows:       rows,
 		offsetsDec: dec,
-		data:       data,
+		data:       data.Value()[offset:],
 	}, offset + uint32(valuesLen)
 }
 

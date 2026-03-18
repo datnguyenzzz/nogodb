@@ -62,7 +62,7 @@ func Test_codex(t *testing.T) {
 			assert.Equal(t, nextOffset, totalSize)
 			for i, v := range values {
 				val := dec.Get(uint32(i))
-				assert.Zero(t, bytes.Equal(val, v))
+				assert.True(t, bytes.Equal(val, v))
 			}
 		})
 	}

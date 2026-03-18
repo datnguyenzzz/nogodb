@@ -60,7 +60,7 @@ func (e *PrefixBytesEncoder) Append(v []byte) {
 }
 
 func (e *PrefixBytesEncoder) compressBundle() {
-	bundlePrefixPos := (e.rows/uint32(e.bundleSize)-1)*(uint32(e.bundleSize)+1) + 1
+	bundlePrefixPos := GetBundlePrefixPos(e.rows-1, e.bundleSize)
 	e.values[bundlePrefixPos] = e.bundlePrefix
 
 	for i := int(bundlePrefixPos) + 1; i < len(e.values); i++ {
@@ -79,7 +79,7 @@ func (e *PrefixBytesEncoder) Size(offset uint32) uint32 {
 
 	// account for the last bundle that has not yet compressed
 	if e.rows%uint32(e.bundleSize) != 0 {
-		bundlePrefixPos := (e.rows/uint32(e.bundleSize)-1)*(uint32(e.bundleSize)+1) + 1
+		bundlePrefixPos := GetBundlePrefixPos(e.rows-1, e.bundleSize)
 		totalLen += uint32(len(e.bundlePrefix))
 		totalLen -= max(0, uint32(len(e.values))-bundlePrefixPos-1) * uint32(len(e.bundlePrefix))
 	}
@@ -96,8 +96,8 @@ func (e *PrefixBytesEncoder) Size(offset uint32) uint32 {
 	return (1 +
 		/* block prefix len*/ uint32(len(blockPrefix)) +
 		totalLen +
-		/* 4-byte per offsets */ uint32(len(e.values)*4) +
-		1 + 8)
+		1 + 8 +
+		/* 4-byte per offsets */ uint32(len(e.values)*4))
 }
 
 // Finish serialises the encoded column into a [buf] from [offset], return the offset after written

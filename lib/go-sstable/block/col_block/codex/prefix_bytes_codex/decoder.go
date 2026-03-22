@@ -3,10 +3,8 @@ package prefixbytescodex
 import (
 	"slices"
 
-	"github.com/datnguyenzzz/nogodb/lib/go-bytesbufferpool/predictable_size"
-	colblock "github.com/datnguyenzzz/nogodb/lib/go-sstable/block/col_block"
-	rawbytescodex "github.com/datnguyenzzz/nogodb/lib/go-sstable/block/col_block/raw_bytes_codex"
-	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
+	"github.com/datnguyenzzz/nogodb/lib/go-sstable/block/col_block/codex"
+	rawbytescodex "github.com/datnguyenzzz/nogodb/lib/go-sstable/block/col_block/codex/raw_bytes_codex"
 )
 
 type PrefixBytesDecoder struct {
@@ -29,23 +27,22 @@ func (u *PrefixBytesDecoder) Get(row uint32) []byte {
 	return slices.Concat(u.blockPrefix, bundlePrefix, suffix)
 }
 
+func (e *PrefixBytesDecoder) DataType() codex.DataType {
+	return codex.PrefixCompressedBytesDT
+}
+
 func NewPrefixBytesDecoder(
 	rows, offset uint32,
-	data *common.InternalLazyValue,
-	bp *predictable_size.PredictablePool,
+	data []byte,
 ) (*PrefixBytesDecoder, uint32) {
 	dec := &PrefixBytesDecoder{rows: rows}
 
-	dec.bundleSize = data.Value()[offset]
-
-	rawBytes := common.NewBlankInternalLazyValue(common.ValueFromBuffer)
-	rawBytes.ReserveBuffer(bp, len(data.Value())-1)
-	rawBytes.SetBufferValue(data.Value()[1:])
+	dec.bundleSize = data[offset]
 
 	rawSize := GetPosFromRow(rows-1, dec.bundleSize) + 1
 
 	dec.rawBytesDec, offset = rawbytescodex.NewRawBytesDecoder(
-		rawSize, offset, &rawBytes,
+		rawSize, offset, data[1:],
 	)
 
 	offset += 1 // skip 1 byte for the bundle size
@@ -53,4 +50,4 @@ func NewPrefixBytesDecoder(
 	return dec, offset
 }
 
-var _ colblock.IColumnDecoder[[]byte] = (*PrefixBytesDecoder)(nil)
+var _ codex.IColumnDecoder[[]byte] = (*PrefixBytesDecoder)(nil)

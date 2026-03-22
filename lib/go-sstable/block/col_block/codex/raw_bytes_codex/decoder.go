@@ -1,9 +1,8 @@
 package rawbytescodex
 
 import (
-	colblock "github.com/datnguyenzzz/nogodb/lib/go-sstable/block/col_block"
-	uintcodex "github.com/datnguyenzzz/nogodb/lib/go-sstable/block/col_block/uint_codex"
-	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
+	"github.com/datnguyenzzz/nogodb/lib/go-sstable/block/col_block/codex"
+	uintcodex "github.com/datnguyenzzz/nogodb/lib/go-sstable/block/col_block/codex/uint_codex"
 )
 
 type RawBytesDecoder struct {
@@ -27,17 +26,21 @@ func (u *RawBytesDecoder) Get(row uint32) []byte {
 	return u.data[start:end]
 }
 
+func (e *RawBytesDecoder) DataType() codex.DataType {
+	return codex.RawBytesDT
+}
+
 // NewRawBytesDecoder returns a RawBytesDecoder with the offset of the next block
 func NewRawBytesDecoder(
-	rows, offset uint32, data *common.InternalLazyValue,
+	rows, offset uint32, data []byte,
 ) (*RawBytesDecoder, uint32) {
 	dec, offset := uintcodex.NewUintDecoder[uint16](rows, offset, data)
 	valuesLen := dec.Get(rows - 1)
 	return &RawBytesDecoder{
 		rows:       rows,
 		offsetsDec: dec,
-		data:       data.Value()[offset:],
+		data:       data[offset:],
 	}, offset + uint32(valuesLen)
 }
 
-var _ colblock.IColumnDecoder[[]byte] = (*RawBytesDecoder)(nil)
+var _ codex.IColumnDecoder[[]byte] = (*RawBytesDecoder)(nil)

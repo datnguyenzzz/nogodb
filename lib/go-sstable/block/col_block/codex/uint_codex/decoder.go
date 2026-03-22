@@ -4,11 +4,10 @@ import (
 	"encoding/binary"
 	"unsafe"
 
-	colblock "github.com/datnguyenzzz/nogodb/lib/go-sstable/block/col_block"
-	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
+	"github.com/datnguyenzzz/nogodb/lib/go-sstable/block/col_block/codex"
 )
 
-type UintDecoder[T colblock.UintType] struct {
+type UintDecoder[T codex.UintType] struct {
 	// ptr points to the offset, where the UintColumn's values encoded to after [width][baseValue]
 	// [width][baseValue]|[values...]
 	//.                  |<-- ptr
@@ -39,12 +38,15 @@ func (u *UintDecoder[T]) Get(row uint32) uint64 {
 	}
 }
 
+func (e *UintDecoder[T]) DataType() codex.DataType {
+	return codex.UintDT
+}
+
 // NewUintDecoder returns a UintDecoder with the offset of the next block
-func NewUintDecoder[T colblock.UintType](
-	rows, offset uint32, data *common.InternalLazyValue,
+func NewUintDecoder[T codex.UintType](
+	rows, offset uint32, buf []byte,
 ) (*UintDecoder[T], uint32) {
 	// Refer to the col_block/README.md for more detail about the layout
-	buf := data.Value()
 	width := buf[offset]
 	offset += 1
 	baseValue := binary.LittleEndian.Uint64(buf[offset:])
@@ -58,5 +60,4 @@ func NewUintDecoder[T colblock.UintType](
 	}, offset + rows*uint32(width)
 }
 
-// assert UintEncoder implements the IColumnEncoder interface
-var _ colblock.IColumnDecoder[uint64] = (*UintDecoder[uint64])(nil)
+var _ codex.IColumnDecoder[uint64] = (*UintDecoder[uint64])(nil)

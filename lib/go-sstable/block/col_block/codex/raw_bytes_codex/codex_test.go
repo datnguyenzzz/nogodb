@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/datnguyenzzz/nogodb/lib/go-bytesbufferpool/predictable_size"
-	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
 	"github.com/go-faker/faker/v4"
 	"github.com/stretchr/testify/assert"
 )
@@ -33,7 +31,6 @@ func Test_codex(t *testing.T) {
 	}
 
 	enc := new(RawByteEncoder)
-	bp := predictable_size.NewPredictablePool()
 
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
@@ -54,10 +51,7 @@ func Test_codex(t *testing.T) {
 			totalSize := enc.Finish(offset, buf)
 
 			// decode
-			lz := common.NewBlankInternalLazyValue(common.ValueFromBuffer)
-			lz.ReserveBuffer(bp, len(buf))
-			lz.SetBufferValue(buf)
-			dec, nextOffset := NewRawBytesDecoder(tc.size, offset, &lz)
+			dec, nextOffset := NewRawBytesDecoder(tc.size, offset, buf)
 
 			assert.Equal(t, nextOffset, totalSize)
 			for i, v := range values {

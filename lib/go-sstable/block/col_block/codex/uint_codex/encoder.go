@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"math/bits"
 
-	colblock "github.com/datnguyenzzz/nogodb/lib/go-sstable/block/col_block"
+	"github.com/datnguyenzzz/nogodb/lib/go-sstable/block/col_block/codex"
 )
 
-type UintEncoder[T colblock.UintType] struct {
+type UintEncoder[T codex.UintType] struct {
 	values []T
 	rows   uint32
 }
@@ -51,6 +51,10 @@ func (e *UintEncoder[T]) Size(offset uint32) uint32 {
 	return 1 + 8 + e.rows*uint32(reqB)
 }
 
+func (e *UintEncoder[T]) DataType() codex.DataType {
+	return codex.UintDT
+}
+
 // Finish serialises the encoded column into a [buf] from [offset], return the offset after written
 func (e *UintEncoder[T]) Finish(offset uint32, buf []byte) uint32 {
 	if e.rows != uint32(len(e.values)) {
@@ -73,7 +77,7 @@ func (e *UintEncoder[T]) Finish(offset uint32, buf []byte) uint32 {
 }
 
 // serialise puts the v into buf[offset:]
-func serialise[T colblock.UintType](buf []byte, offset uint32, width byte, v T) (nextOffset uint32) {
+func serialise[T codex.UintType](buf []byte, offset uint32, width byte, v T) (nextOffset uint32) {
 	switch width {
 	case 1:
 		buf[offset] = byte(v)
@@ -106,7 +110,7 @@ func (e *UintEncoder[T]) findMinMaxValue() (T, T) {
 
 // byteWidth returns maximum needed bytes to present a num
 // only returns [0, 1, 2, 4, 8]
-func byteWidth[T colblock.UintType](num T) byte {
+func byteWidth[T codex.UintType](num T) byte {
 	bitWidth := bits.Len64(uint64(num))
 
 	byteWidthTable := [65]uint8{
@@ -126,5 +130,4 @@ func byteWidth[T colblock.UintType](num T) byte {
 	return byteWidthTable[bitWidth]
 }
 
-// assert UintEncoder implements the IColumnEncoder interface
-var _ colblock.IColumnEncoder[uint64] = (*UintEncoder[uint64])(nil)
+var _ codex.IColumnEncoder[uint64] = (*UintEncoder[uint64])(nil)

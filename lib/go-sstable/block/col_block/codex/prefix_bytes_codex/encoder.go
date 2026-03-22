@@ -2,8 +2,8 @@ package prefixbytescodex
 
 import (
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/block"
-	colblock "github.com/datnguyenzzz/nogodb/lib/go-sstable/block/col_block"
-	rawbytescodex "github.com/datnguyenzzz/nogodb/lib/go-sstable/block/col_block/raw_bytes_codex"
+	"github.com/datnguyenzzz/nogodb/lib/go-sstable/block/col_block/codex"
+	rawbytescodex "github.com/datnguyenzzz/nogodb/lib/go-sstable/block/col_block/codex/raw_bytes_codex"
 )
 
 type PrefixBytesEncoder struct {
@@ -100,6 +100,10 @@ func (e *PrefixBytesEncoder) Size(offset uint32) uint32 {
 		/* 4-byte per offsets */ uint32(len(e.values)*4))
 }
 
+func (e *PrefixBytesEncoder) DataType() codex.DataType {
+	return codex.PrefixCompressedBytesDT
+}
+
 // Finish serialises the encoded column into a [buf] from [offset], return the offset after written
 func (e *PrefixBytesEncoder) Finish(offset uint32, buf []byte) uint32 {
 	// compress the unfinished bundle
@@ -144,4 +148,4 @@ func (e *PrefixBytesEncoder) Finish(offset uint32, buf []byte) uint32 {
 	return offset
 }
 
-var _ colblock.IColumnEncoder[[]byte] = (*PrefixBytesEncoder)(nil)
+var _ codex.IColumnEncoder[[]byte] = (*PrefixBytesEncoder)(nil)

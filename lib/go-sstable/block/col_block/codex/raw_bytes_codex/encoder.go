@@ -1,8 +1,8 @@
 package rawbytescodex
 
 import (
-	colblock "github.com/datnguyenzzz/nogodb/lib/go-sstable/block/col_block"
-	unit_codex "github.com/datnguyenzzz/nogodb/lib/go-sstable/block/col_block/uint_codex"
+	"github.com/datnguyenzzz/nogodb/lib/go-sstable/block/col_block/codex"
+	unit_codex "github.com/datnguyenzzz/nogodb/lib/go-sstable/block/col_block/codex/uint_codex"
 )
 
 type RawByteEncoder struct {
@@ -35,6 +35,10 @@ func (r *RawByteEncoder) Append(v []byte) {
 	r.offsets.Append(uint32(len(r.values)))
 }
 
+func (e *RawByteEncoder) DataType() codex.DataType {
+	return codex.RawBytesDT
+}
+
 // Size returns the size of the column, if the its row were encoded starting from an [offset]
 func (r *RawByteEncoder) Size(offset uint32) uint32 {
 	return uint32(len(r.values)) + r.offsets.Size(offset)
@@ -47,4 +51,4 @@ func (r *RawByteEncoder) Finish(offset uint32, buf []byte) uint32 {
 	return offset + uint32(len(r.values))
 }
 
-var _ colblock.IColumnEncoder[[]byte] = (*RawByteEncoder)(nil)
+var _ codex.IColumnEncoder[[]byte] = (*RawByteEncoder)(nil)

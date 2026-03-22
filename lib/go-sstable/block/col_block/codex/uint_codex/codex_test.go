@@ -8,9 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/datnguyenzzz/nogodb/lib/go-bytesbufferpool/predictable_size"
-	colblock "github.com/datnguyenzzz/nogodb/lib/go-sstable/block/col_block"
-	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
+	"github.com/datnguyenzzz/nogodb/lib/go-sstable/block/col_block/codex"
 )
 
 type param struct {
@@ -165,9 +163,8 @@ func Test_Uint_Codex_uint64(t *testing.T) {
 	uint_codex_test[uint64](t, testCases)
 }
 
-func uint_codex_test[T colblock.UintType](t *testing.T, testCases []param) {
+func uint_codex_test[T codex.UintType](t *testing.T, testCases []param) {
 	enc := new(UintEncoder[T])
-	bp := predictable_size.NewPredictablePool()
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
 			enc.Reset()
@@ -185,22 +182,18 @@ func uint_codex_test[T colblock.UintType](t *testing.T, testCases []param) {
 			assert.Equal(t, tc.expectedSize, nextOffset, "next offset after encoding doesn't match")
 
 			// Decode
-			lz := common.NewBlankInternalLazyValue(common.ValueFromBuffer)
-			lz.ReserveBuffer(bp, len(buf))
-			lz.SetBufferValue(buf)
-			dec, nextOffset := NewUintDecoder[T](tc.rows, offset, &lz)
+			dec, nextOffset := NewUintDecoder[T](tc.rows, offset, buf)
 			assert.Equal(t, tc.expectedSize, nextOffset, "next offset after decoding doesn't match")
 			for i := 0; i < int(tc.rows); i++ {
 				val := dec.Get(uint32(i))
 				require.Equal(t, uint64(values[i]), val, fmt.Sprintf("failed on row %d-th", i))
 			}
 
-			lz.Release()
 		})
 	}
 }
 
-func generateValues[T colblock.UintType](width byte, rows uint32) []T {
+func generateValues[T codex.UintType](width byte, rows uint32) []T {
 	res := make([]T, rows)
 	maxV := ^T(0)
 	minV := maxV - (1<<(8*width) - 1)

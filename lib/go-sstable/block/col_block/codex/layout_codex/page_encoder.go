@@ -1,0 +1,63 @@
+package layoutcodex
+
+import (
+	"encoding/binary"
+
+	"github.com/datnguyenzzz/nogodb/lib/go-sstable/block/col_block/codex"
+)
+
+const (
+	maxBlockRetainedSize = 256 << 10
+	// 1B - data type, 4B - offset to the column
+	columnHeadSize = 5
+)
+
+type PageEncoder struct {
+	buf          []byte
+	headerOffset uint32
+	pageOffset   uint32
+}
+
+func (p *PageEncoder) Init(size int, h *Header) {
+	if cap(p.buf) < size {
+		newSize := max(32, cap(p.buf)<<1)
+		for newSize <= size {
+			if newSize <= 1024 {
+				newSize <<= 1
+			} else {
+				newSize += newSize / 4
+			}
+		}
+
+		p.buf = make([]byte, newSize)
+	} else {
+		p.buf = p.buf[:size]
+	}
+
+	p.headerOffset = h.Encode(0, p.buf)
+	// refer to the README to understand the page layout
+	p.pageOffset = p.headerOffset + uint32(h.columns)*columnHeadSize
+}
+
+func (p *PageEncoder) Reset() {
+	if cap(p.buf) >= maxBlockRetainedSize {
+		p.buf = nil
+	}
+
+	p.headerOffset = 0
+}
+
+// Encode finishes the given column encoder into the row-th
+// refer to the README to understand the layout
+func (p *PageEncoder) Encode(row uint32, enc codex.IEncoderFinisher) {
+	p.buf[p.headerOffset] = byte(enc.DataType())
+	binary.LittleEndian.PutUint32(p.buf[p.headerOffset:], p.pageOffset)
+	p.headerOffset += columnHeadSize
+
+	p.pageOffset = enc.Finish(p.pageOffset, p.buf)
+}
+
+func (p *PageEncoder) Data() []byte {
+	p.buf[p.pageOffset] = 0x00 // padding unused byte
+	return p.buf
+}

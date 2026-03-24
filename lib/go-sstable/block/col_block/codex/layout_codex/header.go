@@ -9,7 +9,7 @@ type Header struct {
 }
 
 const (
-	headerOffset = 7
+	HeaderOffset = 7
 )
 
 func NewHeader(version byte, cols uint16, rows uint32) *Header {
@@ -36,5 +36,5 @@ func DecodeHeader(offset uint32, buf []byte) (*Header, uint32) {
 		version: buf[offset],
 		columns: binary.LittleEndian.Uint16(buf[offset+1:]),
 		rows:    binary.LittleEndian.Uint32(buf[offset+1+2:]),
-	}, offset + headerOffset
+	}, offset + HeaderOffset
 }

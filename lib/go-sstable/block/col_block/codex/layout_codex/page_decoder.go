@@ -22,7 +22,7 @@ func NewLayoutDecoder(data []byte) *LayoutDecoder {
 }
 
 func (d *LayoutDecoder) DataType(col uint16) codex.DataType {
-	offset := headerOffset + columnHeadSize*col
+	offset := HeaderOffset + ColumnHeadSize*col
 
 	ptr := unsafe.Add(unsafe.Pointer(&d.data[0]), uintptr(offset))
 
@@ -30,7 +30,7 @@ func (d *LayoutDecoder) DataType(col uint16) codex.DataType {
 }
 
 func (d *LayoutDecoder) PageOffset(col uint16) uint32 {
-	offset := headerOffset + columnHeadSize*col + /*1B for data type*/ 1
+	offset := HeaderOffset + ColumnHeadSize*col + /*1B for data type*/ 1
 
 	ptr := unsafe.Add(unsafe.Pointer(&d.data[0]), uintptr(offset))
 

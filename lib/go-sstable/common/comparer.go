@@ -22,11 +22,15 @@ type IComparer interface {
 	// Trivial implementation is just simply return "b", however we try to return
 	// a shorter "x" to reduce the SSTable size
 	Successor(b []byte) []byte
+
+	// Split return the prefix of a given key, that uses to separate
+	// the actual user key and MVCC id
+	Split(b []byte) int
 }
 
-type comparer struct{}
+type defaultComparer struct{}
 
-func (c comparer) Separator(a, b []byte) []byte {
+func (c defaultComparer) Separator(a, b []byte) []byte {
 	var prefixLen int
 	n := min(len(a), len(b))
 	for prefixLen = 0; prefixLen < n && a[prefixLen] == b[prefixLen]; prefixLen++ {
@@ -48,7 +52,7 @@ func (c comparer) Separator(a, b []byte) []byte {
 	}
 }
 
-func (c comparer) Successor(b []byte) []byte {
+func (c defaultComparer) Successor(b []byte) []byte {
 	for i, v := range b {
 		// get first byte i'th that < 255 --> append [b[0] ... b[i]+1] to dst
 		if v < 0xff {
@@ -61,12 +65,16 @@ func (c comparer) Successor(b []byte) []byte {
 	return b
 }
 
-func (c comparer) Compare(a, b []byte) int {
+func (c defaultComparer) Compare(a, b []byte) int {
 	return bytes.Compare(a, b)
 }
 
-func NewComparer() IComparer {
-	return &comparer{}
+func (c defaultComparer) Split(b []byte) int {
+	return len(b)
 }
 
-var _ IComparer = (*comparer)(nil)
+func NewComparer() IComparer {
+	return &defaultComparer{}
+}
+
+var _ IComparer = (*defaultComparer)(nil)

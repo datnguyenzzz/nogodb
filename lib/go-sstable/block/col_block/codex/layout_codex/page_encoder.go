@@ -9,16 +9,16 @@ import (
 const (
 	maxBlockRetainedSize = 256 << 10
 	// 1B - data type, 4B - offset to the column
-	columnHeadSize = 5
+	ColumnHeadSize = 5
 )
 
-type PageEncoder struct {
+type LayoutEncoder struct {
 	buf          []byte
 	headerOffset uint32
 	pageOffset   uint32
 }
 
-func (p *PageEncoder) Init(size int, h *Header) {
+func (p *LayoutEncoder) Init(size int, h *Header) {
 	if cap(p.buf) < size {
 		newSize := max(32, cap(p.buf)<<1)
 		for newSize <= size {
@@ -36,10 +36,10 @@ func (p *PageEncoder) Init(size int, h *Header) {
 
 	p.headerOffset = h.Encode(0, p.buf)
 	// refer to the README to understand the page layout
-	p.pageOffset = p.headerOffset + uint32(h.columns)*columnHeadSize
+	p.pageOffset = p.headerOffset + uint32(h.columns)*ColumnHeadSize
 }
 
-func (p *PageEncoder) Reset() {
+func (p *LayoutEncoder) Reset() {
 	if cap(p.buf) >= maxBlockRetainedSize {
 		p.buf = nil
 	}
@@ -49,15 +49,15 @@ func (p *PageEncoder) Reset() {
 
 // Encode finishes the given column encoder into the row-th
 // refer to the README to understand the layout
-func (p *PageEncoder) Encode(row uint32, enc codex.IEncoderFinisher) {
+func (p *LayoutEncoder) Encode(row uint32, enc codex.IEncoderFinisher) {
 	p.buf[p.headerOffset] = byte(enc.DataType())
 	binary.LittleEndian.PutUint32(p.buf[p.headerOffset:], p.pageOffset)
-	p.headerOffset += columnHeadSize
+	p.headerOffset += ColumnHeadSize
 
 	p.pageOffset = enc.Finish(p.pageOffset, p.buf)
 }
 
-func (p *PageEncoder) Data() []byte {
+func (p *LayoutEncoder) Data() []byte {
 	p.buf[p.pageOffset] = 0x00 // padding unused byte
 	return p.buf
 }

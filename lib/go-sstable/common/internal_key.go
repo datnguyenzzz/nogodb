@@ -41,6 +41,10 @@ const InternalKeyTrailerLen = 8
 //	+-------------+------------+----------+
 //	| UserKey (N) | SeqNum (7) | Kind (1) |
 //	+-------------+------------+----------+
+//
+// In the MVCC model, a same key can have multiple versions.
+// So the UserKey is composed by "[prefix - actual user key][suffix - MVCC id]"
+// To find the prefix of a key, we should implement the comparer.Split()
 type InternalKey struct {
 	UserKey []byte
 	Trailer InternalKeyTrailer

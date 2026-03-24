@@ -37,6 +37,7 @@ NogoDB is an analytics database management system.
 
 
 
+
 ## Test Coverage
 
 | Package | Coverage |
@@ -48,5 +49,5 @@ NogoDB is an analytics database management system.
 | go-bytesbufferpool | ![Coverage](https://img.shields.io/badge/coverage-90-green) |
 | go-context-aware-lock | ![Coverage](https://img.shields.io/badge/coverage-57-yellow) |
 | go-fs | ![Coverage](https://img.shields.io/badge/coverage-41-red) |
-| go-sstable | ![Coverage](https://img.shields.io/badge/coverage-39-red) |
+| go-sstable | ![Coverage](https://img.shields.io/badge/coverage-38-red) |
 | go-wal | ![Coverage](https://img.shields.io/badge/coverage-16-red) |

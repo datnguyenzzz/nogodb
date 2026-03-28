@@ -18,6 +18,7 @@ type LayoutEncoder struct {
 	pageOffset   uint32
 }
 
+// Init caller must calculate and pass the total needed size after encoding
 func (p *LayoutEncoder) Init(size int, h *Header) {
 	if cap(p.buf) < size {
 		newSize := max(32, cap(p.buf)<<1)

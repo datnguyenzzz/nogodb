@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	totalColumns = 4
+	dataBlockTotalColumns = 4
 )
 
 type DataBlockWriter struct {
@@ -58,8 +58,7 @@ func (d *DataBlockWriter) Add(key common.InternalKey, value []byte) {
 
 func (d *DataBlockWriter) Size() uint32 {
 	// refer to the README to understand the layout
-	// header
-	offset := uint32(layoutcodex.HeaderOffset + layoutcodex.ColumnHeadSize*totalColumns)
+	offset := uint32(layoutcodex.HeaderOffset + layoutcodex.ColumnHeadSize*dataBlockTotalColumns)
 	offset = d.keyEncoder.prefix.Size(offset)
 	offset = d.keyEncoder.suffix.Size(offset)
 	offset = d.columnEncoder.trailer.Size(offset)
@@ -70,9 +69,11 @@ func (d *DataBlockWriter) Size() uint32 {
 }
 
 // Finish the writing to the current page, and prepare data for flushing to the storage
+//
 // Caller of the function must keep track of the current accumlated size of the block
+// or using  DataBlockWriter.Size() function to get the size before finishing
 func (d *DataBlockWriter) Finish(size int) (finished []byte) {
-	h := layoutcodex.NewHeader(1, totalColumns, d.rows)
+	h := layoutcodex.NewHeader(1, dataBlockTotalColumns, d.rows)
 
 	d.layoutEncoder.Init(size, h)
 	d.layoutEncoder.Encode(d.rows, &d.keyEncoder.prefix)

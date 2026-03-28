@@ -82,29 +82,63 @@ func Test_Encoder_Handcrafted(t *testing.T) {
 
 func Test_Codex(t *testing.T) {
 	type param struct {
-		desc   string
-		unique bool
-		size   int
+		desc         string
+		unique       bool
+		size         int
+		finishedRows int
 	}
 
 	testCases := []param{
 		{
-			desc:   "unique, small size",
-			size:   20,
-			unique: true,
+			desc:         "unique, small size",
+			size:         20,
+			finishedRows: 20,
+			unique:       true,
 		},
 		{
-			desc:   "unique, big size",
-			size:   10_000,
-			unique: true,
+			desc:         "unique, big size",
+			size:         10_000,
+			finishedRows: 10_000,
+			unique:       true,
 		},
 		{
-			desc: "not unique, small size",
-			size: 20,
+			desc:         "not unique, small size",
+			size:         20,
+			finishedRows: 20,
 		},
 		{
-			desc: "not unique, big size",
-			size: 10_000,
+			desc:         "not unique, big size",
+			size:         10_000,
+			finishedRows: 10_000,
+		},
+
+		{
+			desc:         "unique, small size, less rows",
+			size:         20,
+			finishedRows: 19,
+			unique:       true,
+		},
+		{
+			desc:         "unique, small size, exact 1 block, less rows",
+			size:         17,
+			finishedRows: 16,
+			unique:       true,
+		},
+		{
+			desc:         "unique, big size, less rows",
+			size:         10_000,
+			finishedRows: 9999,
+			unique:       true,
+		},
+		{
+			desc:         "not unique, small size, less rows",
+			size:         20,
+			finishedRows: 19,
+		},
+		{
+			desc:         "not unique, big size, less rows",
+			size:         10_000,
+			finishedRows: 9999,
 		},
 	}
 
@@ -125,16 +159,16 @@ func Test_Codex(t *testing.T) {
 			offset := uint32(0)
 			buf := make([]byte, enc.Size(uint32(offset)))
 
-			offset = enc.Finish(uint32(len(input)), uint32(offset), buf)
+			offset = enc.Finish(uint32(tc.finishedRows), uint32(offset), buf)
 			buf = buf[:offset]
 
 			// decode
 			offset = 0
-			dec, offset := NewPrefixBytesDecoder(uint32(len(input)), offset, buf)
+			dec, offset := NewPrefixBytesDecoder(uint32(tc.finishedRows), offset, buf)
 
-			for i := 0; i < tc.size; i++ {
+			for i := 0; i < tc.finishedRows; i++ {
 				out := dec.Get(uint32(i))
-				require.True(t, bytes.Equal(out, input[i]))
+				require.True(t, bytes.Equal(out, input[i]), fmt.Sprintf("input at %d-th isn't match", i))
 			}
 		})
 	}

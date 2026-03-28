@@ -8,6 +8,7 @@ import (
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/compression"
 )
 
+// CompressToPb compress the raw bytes by using the given compressor
 func CompressToPb(
 	compressor compression.ICompression,
 	checksumer common.IChecksum,

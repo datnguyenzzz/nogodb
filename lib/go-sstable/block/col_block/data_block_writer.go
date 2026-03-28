@@ -27,7 +27,7 @@ type DataBlockWriter struct {
 
 	layoutEncoder layoutcodex.LayoutEncoder
 
-	prevKey []byte
+	currKey *common.InternalKey
 	rows    uint32
 }
 
@@ -40,12 +40,13 @@ func (d *DataBlockWriter) Reset() {
 
 	d.layoutEncoder.Reset()
 	d.rows = 0
-	d.prevKey = nil
+	d.currKey = nil
 }
 
 // Add adds a key-value pair to the sstable.
 func (d *DataBlockWriter) Add(key common.InternalKey, value []byte) {
 	d.rows += 1
+	d.currKey = &key
 
 	prefixLen := d.comparer.Split(key.UserKey)
 	d.keyEncoder.prefix.Append(key.UserKey[:prefixLen])
@@ -54,6 +55,14 @@ func (d *DataBlockWriter) Add(key common.InternalKey, value []byte) {
 	d.columnEncoder.trailer.Append(uint64(key.Trailer))
 
 	d.columnEncoder.values.Append(value)
+}
+
+func (d *DataBlockWriter) Rows() uint32 {
+	return d.rows
+}
+
+func (d *DataBlockWriter) CurrKey() *common.InternalKey {
+	return d.currKey
 }
 
 func (d *DataBlockWriter) Size() uint32 {
@@ -72,14 +81,18 @@ func (d *DataBlockWriter) Size() uint32 {
 //
 // Caller of the function must keep track of the current accumlated size of the block
 // or using  DataBlockWriter.Size() function to get the size before finishing
-func (d *DataBlockWriter) Finish(size int) (finished []byte) {
-	h := layoutcodex.NewHeader(1, dataBlockTotalColumns, d.rows)
+func (d *DataBlockWriter) Finish(rows uint32, size int) (finished []byte) {
+	if rows < d.rows-1 {
+		panic("DataBlockWriter only accepts to finish either all rows, or [all rows minus 1]")
+	}
+
+	h := layoutcodex.NewHeader(1, dataBlockTotalColumns, rows)
 
 	d.layoutEncoder.Init(size, h)
-	d.layoutEncoder.Encode(d.rows, &d.keyEncoder.prefix)
-	d.layoutEncoder.Encode(d.rows, &d.keyEncoder.suffix)
-	d.layoutEncoder.Encode(d.rows, &d.columnEncoder.trailer)
-	d.layoutEncoder.Encode(d.rows, &d.columnEncoder.values)
+	d.layoutEncoder.Encode(rows, &d.keyEncoder.prefix)
+	d.layoutEncoder.Encode(rows, &d.keyEncoder.suffix)
+	d.layoutEncoder.Encode(rows, &d.columnEncoder.trailer)
+	d.layoutEncoder.Encode(rows, &d.columnEncoder.values)
 
 	finished = d.layoutEncoder.Data()
 

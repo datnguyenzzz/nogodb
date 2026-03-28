@@ -1,15 +1,19 @@
 package colblock
 
 import (
+	blockCommon "github.com/datnguyenzzz/nogodb/lib/go-sstable/block"
 	layoutcodex "github.com/datnguyenzzz/nogodb/lib/go-sstable/block/col_block/codex/layout_codex"
 	rawbytescodex "github.com/datnguyenzzz/nogodb/lib/go-sstable/block/col_block/codex/raw_bytes_codex"
 	uintcodex "github.com/datnguyenzzz/nogodb/lib/go-sstable/block/col_block/codex/uint_codex"
+	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common/block"
 )
 
 const (
 	indexTotalColumns = 3
 )
+
+// TODO(high): Support 2 layered index
 
 type IndexBlockWriter struct {
 	// index key is the raw byte separator of 2 internal keys
@@ -45,13 +49,15 @@ func (i *IndexBlockWriter) Init() {
 	i.rows = 0
 }
 
-func (i *IndexBlockWriter) AddKey(key []byte, handle block.BlockHandle) {
+func (i *IndexBlockWriter) Add(key *common.InternalKey, bh *block.BlockHandle) error {
 	i.rows += 1
 
-	i.keyEncoder.Append(key)
+	// for index key, we only interested in the UserKey
+	i.keyEncoder.Append(key.UserKey)
 
-	i.blockHandleEncoder.offset.Append(handle.Offset)
-	i.blockHandleEncoder.length.Append(handle.Length)
+	i.blockHandleEncoder.offset.Append(bh.Offset)
+	i.blockHandleEncoder.length.Append(bh.Length)
+	return nil
 }
 
 func (i *IndexBlockWriter) Size() uint32 {
@@ -79,3 +85,27 @@ func (i *IndexBlockWriter) Finish(size int) []byte {
 
 	return i.layoutEncoder.Data()
 }
+
+func NewIndexBlockWriter() *IndexBlockWriter {
+	i := &IndexBlockWriter{
+		keyEncoder:    rawbytescodex.RawByteEncoder{},
+		layoutEncoder: layoutcodex.LayoutEncoder{},
+	}
+	i.keyEncoder.Init()
+	i.layoutEncoder.Reset()
+
+	i.blockHandleEncoder = struct {
+		offset uintcodex.UintEncoder[uint64]
+		length uintcodex.UintEncoder[uint64]
+	}{
+		offset: uintcodex.UintEncoder[uint64]{},
+		length: uintcodex.UintEncoder[uint64]{},
+	}
+
+	i.blockHandleEncoder.offset.Init()
+	i.blockHandleEncoder.length.Init()
+
+	return i
+}
+
+var _ blockCommon.IIndexWriter = (*IndexBlockWriter)(nil)

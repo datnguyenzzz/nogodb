@@ -55,7 +55,7 @@ func (p *LayoutEncoder) Encode(row uint32, enc codex.IEncoderFinisher) {
 	binary.LittleEndian.PutUint32(p.buf[p.headerOffset:], p.pageOffset)
 	p.headerOffset += ColumnHeadSize
 
-	p.pageOffset = enc.Finish(p.pageOffset, p.buf)
+	p.pageOffset = enc.Finish(row, p.pageOffset, p.buf)
 }
 
 func (p *LayoutEncoder) Data() []byte {

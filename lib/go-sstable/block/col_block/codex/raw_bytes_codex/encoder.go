@@ -1,6 +1,8 @@
 package rawbytescodex
 
 import (
+	"fmt"
+
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/block/col_block/codex"
 	unit_codex "github.com/datnguyenzzz/nogodb/lib/go-sstable/block/col_block/codex/uint_codex"
 )
@@ -9,7 +11,8 @@ type RawByteEncoder struct {
 	values []byte
 	rows   uint32
 	// len of values should be fit in 32-bits
-	offsets unit_codex.UintEncoder[uint32]
+	offsets    unit_codex.UintEncoder[uint32]
+	lastOffset int
 }
 
 func (r *RawByteEncoder) Init() {
@@ -29,7 +32,7 @@ func (r *RawByteEncoder) Append(v []byte) {
 	if uint64(len(r.values))+uint64(len(v)) > uint64(^uint32(0)) {
 		panic("RawByteEncoder values becomes too large")
 	}
-
+	r.lastOffset = len(r.values)
 	r.rows++
 	r.values = append(r.values, v...)
 	r.offsets.Append(uint32(len(r.values)))
@@ -45,8 +48,19 @@ func (r *RawByteEncoder) Size(offset uint32) uint32 {
 }
 
 // Finish serialises the encoded column into a [buf] from [offset], return the offset after written
-func (r *RawByteEncoder) Finish(offset uint32, buf []byte) uint32 {
-	offset = r.offsets.Finish(offset, buf)
+func (r *RawByteEncoder) Finish(rows, offset uint32, buf []byte) uint32 {
+	if rows < r.rows-1 {
+		panic(fmt.Sprintf("RawByteEncoder only accepts to finish either all rows, or [all rows minus 1] %d >< %d", rows, r.rows))
+	}
+
+	offset = r.offsets.Finish(rows, offset, buf)
+
+	end := len(r.values)
+	if rows == r.rows-1 {
+		end = r.lastOffset
+	}
+	r.values = r.values[:end]
+
 	copy(buf[offset:], r.values)
 	return offset + uint32(len(r.values))
 }

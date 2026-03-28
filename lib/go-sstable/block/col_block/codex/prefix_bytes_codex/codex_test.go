@@ -74,7 +74,7 @@ func Test_Encoder_Handcrafted(t *testing.T) {
 	offset := uint32(0)
 	buf := make([]byte, enc.Size(uint32(offset)))
 
-	offset = enc.Finish(uint32(offset), buf)
+	offset = enc.Finish(uint32(len(input)), uint32(offset), buf)
 	buf = buf[:offset]
 
 	assert.True(t, bytes.Equal(expectedOut, buf))
@@ -125,7 +125,7 @@ func Test_Codex(t *testing.T) {
 			offset := uint32(0)
 			buf := make([]byte, enc.Size(uint32(offset)))
 
-			offset = enc.Finish(uint32(offset), buf)
+			offset = enc.Finish(uint32(len(input)), uint32(offset), buf)
 			buf = buf[:offset]
 
 			// decode

@@ -24,7 +24,7 @@ type ByteType interface {
 type IEncoderFinisher interface {
 	DataType() DataType
 	// Finish serialises the encoded column into a [buf] from [offset], return the offset after written
-	Finish(offset uint32, buf []byte) uint32
+	Finish(row, offset uint32, buf []byte) uint32
 }
 
 type IColumnEncoder[T EncodableDataType] interface {

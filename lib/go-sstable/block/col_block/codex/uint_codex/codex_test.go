@@ -178,7 +178,7 @@ func uint_codex_test[T codex.UintType](t *testing.T, testCases []param) {
 			// Encode
 			offset := uint32(0)
 			buf := make([]byte, enc.Size(offset)+1) // need reserve 1 un-used byte
-			nextOffset := enc.Finish(offset, buf)
+			nextOffset := enc.Finish(uint32(len(values)), offset, buf)
 			assert.Equal(t, tc.expectedSize, nextOffset, "next offset after encoding doesn't match")
 
 			// Decode

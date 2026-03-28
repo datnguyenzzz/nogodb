@@ -56,11 +56,17 @@ func (e *UintEncoder[T]) DataType() codex.DataType {
 }
 
 // Finish serialises the encoded column into a [buf] from [offset], return the offset after written
-func (e *UintEncoder[T]) Finish(offset uint32, buf []byte) uint32 {
+func (e *UintEncoder[T]) Finish(rows, offset uint32, buf []byte) uint32 {
 	if e.rows != uint32(len(e.values)) {
 		// sense check
 		panic(fmt.Sprintf("len of values: %d <> rows: %d", len(e.values), e.rows))
 	}
+
+	if rows < e.rows-1 {
+		panic(fmt.Sprintf("RawByteEncoder only accepts to finish either all rows, or [all rows minus 1] %d >< %d", rows, e.rows))
+	}
+
+	e.values = e.values[:rows]
 
 	minV, maxV := e.findMinMaxValue()
 	reqB := byteWidth(maxV - minV)

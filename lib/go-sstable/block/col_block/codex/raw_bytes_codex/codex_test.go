@@ -48,7 +48,7 @@ func Test_codex(t *testing.T) {
 			// encode
 			offset := uint32(0)
 			buf := make([]byte, enc.Size(offset)+1) // need to reserve 1 unused byte
-			totalSize := enc.Finish(offset, buf)
+			totalSize := enc.Finish(uint32(len(values)), offset, buf)
 
 			// decode
 			dec, nextOffset := NewRawBytesDecoder(tc.size, offset, buf)

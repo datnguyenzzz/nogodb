@@ -1,6 +1,8 @@
 package prefixbytescodex
 
 import (
+	"fmt"
+
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/block"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/block/col_block/codex"
 	rawbytescodex "github.com/datnguyenzzz/nogodb/lib/go-sstable/block/col_block/codex/raw_bytes_codex"
@@ -105,11 +107,26 @@ func (e *PrefixBytesEncoder) DataType() codex.DataType {
 }
 
 // Finish serialises the encoded column into a [buf] from [offset], return the offset after written
-func (e *PrefixBytesEncoder) Finish(offset uint32, buf []byte) uint32 {
+func (e *PrefixBytesEncoder) Finish(rows, offset uint32, buf []byte) uint32 {
+	if rows < e.rows-1 {
+		panic(fmt.Sprintf("PrefixBytesEncoder only accepts to finish either all rows, or [all rows minus 1], %d >< %d", rows, e.rows))
+	}
+
 	// compress the unfinished bundle
 	if e.rows%uint32(e.bundleSize) != 0 {
 		e.compressBundle()
 	}
+
+	end := len(e.values)
+	if rows == e.rows-1 {
+		end -= 1
+		if e.rows%uint32(e.bundleSize) == 1 {
+			// remove the bundle prefix
+			end -= 1
+		}
+	}
+
+	e.values = e.values[:end]
 
 	// find the block prefix
 	var blockPrefix []byte = nil
@@ -133,17 +150,11 @@ func (e *PrefixBytesEncoder) Finish(offset uint32, buf []byte) uint32 {
 	// refer to the colblock/README.md for more detail about the layout
 	buf[offset] = byte(e.bundleSize)
 	offset++
-	for true {
-		v := e.values[0]
+	for _, v := range e.values {
 		e.valuesEncoder.Append(v)
-
-		if len(e.values) == 1 {
-			break
-		}
-
-		e.values = e.values[1:]
 	}
-	offset = e.valuesEncoder.Finish(offset, buf)
+
+	offset = e.valuesEncoder.Finish(uint32(len(e.values)), offset, buf)
 
 	return offset
 }

@@ -3,7 +3,6 @@ package colblock
 import (
 	"fmt"
 
-	"github.com/datnguyenzzz/nogodb/lib/go-bytesbufferpool/predictable_size"
 	go_fs "github.com/datnguyenzzz/nogodb/lib/go-fs"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/block"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
@@ -15,13 +14,14 @@ import (
 )
 
 const (
-	flushQueueLen = 100_000
+	flushQueueLen        = 100_000
+	maxBlockRetainedSize = 256 << 10
 )
 
 type ColBlockWriter struct {
-	opt             options.BlockWriteOpt
-	bytesBufferPool *predictable_size.PredictablePool
-	tableVersion    common.TableVersion
+	opt          options.BlockWriteOpt
+	tableVersion common.TableVersion
+	uncompressed []byte
 
 	// storage
 	storageWriter storage.ILayoutWriter
@@ -91,20 +91,19 @@ func (c *ColBlockWriter) validate(key common.InternalKey) error {
 }
 
 // doFlushWithoutLastKey flush the data block except the last key
-func (c *ColBlockWriter) doFlushWithoutLastKey(
-	size int,
-	indexKey *common.InternalKey,
-) error {
+func (c *ColBlockWriter) doFlushWithoutLastKey(size int, indexKey *common.InternalKey) error {
 	currRows := c.dataBlock.Rows()
 
-	uncompressed := c.dataBlock.Finish(currRows-1, size)
+	block.GrowSize(&c.uncompressed, size)
+
+	c.uncompressed = c.dataBlock.Finish(currRows-1, size)
 
 	task := block.SpawnNewTask()
 	task.StorageWriter = c.storageWriter
 	task.Physical = block.CompressToPb(
 		c.compressors,
 		c.checksumer,
-		uncompressed,
+		c.uncompressed,
 	)
 	task.IndexKey = indexKey
 	task.IndexWriter = c.indexBlock
@@ -113,6 +112,9 @@ func (c *ColBlockWriter) doFlushWithoutLastKey(
 
 	// reset the data block for the new writes
 	c.dataBlock.Reset()
+	if cap(c.uncompressed) > maxBlockRetainedSize {
+		c.uncompressed = nil
+	}
 
 	return nil
 }
@@ -124,9 +126,8 @@ func NewColBlockWriter(
 ) *ColBlockWriter {
 	comparer := common.NewComparer()
 	return &ColBlockWriter{
-		opt:             opts,
-		bytesBufferPool: predictable_size.NewPredictablePool(),
-		tableVersion:    ver,
+		opt:          opts,
+		tableVersion: ver,
 
 		storageWriter: storage.NewLayoutWriter(w),
 

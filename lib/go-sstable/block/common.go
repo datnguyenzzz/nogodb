@@ -44,3 +44,23 @@ func CommonPrefix(a, b []byte) int {
 
 	return shared
 }
+
+// GrowSize inlinely grows size of the buf to expectedSize
+func GrowSize[T any](buf *[]T, expectedSize int) {
+	if cap(*buf) < expectedSize {
+		newCap := max(32, cap(*buf)<<1)
+		for newCap <= expectedSize {
+			if newCap <= 1024 {
+				newCap <<= 1
+			} else {
+				newCap += newCap / 4
+			}
+		}
+
+		nb := make([]T, expectedSize, newCap)
+		copy(nb[:len(*buf)], *buf)
+		*buf = nb
+	} else {
+		*buf = (*buf)[:expectedSize]
+	}
+}

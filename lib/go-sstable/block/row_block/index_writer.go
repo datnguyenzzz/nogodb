@@ -10,7 +10,6 @@ import (
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/compression"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/options"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/storage"
-	"go.uber.org/zap"
 )
 
 const (
@@ -102,7 +101,7 @@ func (w *indexWriter) flushFirstLevelIndexToMem(key *common.InternalKey) {
 }
 
 // buildIndex build the 2-level index for the SST
-func (w *indexWriter) BuildIndex() error {
+func (w *indexWriter) BuildIndex() (*commonBlock.BlockHandle, error) {
 	// flush all of pending/un-finished 1-level indices to mem
 	w.flushFirstLevelIndexToMem(w.firstLevelBlock.CurKey())
 	for _, idx := range w.firstLevelIndices {
@@ -110,14 +109,14 @@ func (w *indexWriter) BuildIndex() error {
 		pb := block.CompressToPb(w.compressor, w.checksumer, idx.finishedBlock)
 		bh, err := w.storageWriter.WritePhysicalBlock(*pb)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		// 2. Write the encoded value of the 1-level index block handle
 		// into buffer
 		encodedBH := make([]byte, commonBlock.MaxBlockHandleBytes)
 		n := bh.EncodeInto(encodedBH)
 		if err := w.secondLevelBlock.WriteEntry(*idx.key, encodedBH[:n]); err != nil {
-			return err
+			return nil, err
 		}
 	}
 
@@ -128,22 +127,12 @@ func (w *indexWriter) BuildIndex() error {
 	pb := block.CompressToPb(w.compressor, w.checksumer, uncompressed)
 	bh, err := w.storageWriter.WritePhysicalBlock(*pb)
 	if err == nil {
-		// save the block location of the 2-level index to the index
-		// key - 1 byte indicate block kind , value - varint encoded of the block handle
-		encodedBH := make([]byte, commonBlock.MaxBlockHandleBytes)
-		n := bh.EncodeInto(encodedBH)
-		err := w.metaIndexBlock.WriteEntry(
-			common.MakeMetaIndexKey(commonBlock.BlockKindIndex),
-			encodedBH[:n],
-		)
-		if err != nil {
-			zap.L().Error("failed to write the 2-level index block to the meta index", zap.Error(err))
-		}
+		return &bh, nil
 	}
 
 	w.bytesBufferPool.Put(uncompressed)
 	uncompressed = nil
-	return err
+	return nil, err
 }
 
 func (w *indexWriter) Release() {

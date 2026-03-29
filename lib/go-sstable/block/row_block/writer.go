@@ -8,6 +8,7 @@ import (
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/block"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
 	blockCommon "github.com/datnguyenzzz/nogodb/lib/go-sstable/common/block"
+	commonBlock "github.com/datnguyenzzz/nogodb/lib/go-sstable/common/block"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/compression"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/filter"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/options"
@@ -100,10 +101,25 @@ func (rw *RowBlockWriter) Close() error {
 		}
 	}
 	// Build and Flush index block to the stable storage
-	if err := rw.indexWriter.BuildIndex(); err != nil {
-		zap.L().Error("failed to build/finish the index", zap.Error(err))
-		return err
+	{
+		indexBh, err := rw.indexWriter.BuildIndex()
+		if err != nil {
+			zap.L().Error("failed to build/finish the index", zap.Error(err))
+			return err
+		}
+		// save the block location of the 2-level index to the index
+		// key - 1 byte indicate block kind , value - varint encoded of the block handle
+		encodedBH := make([]byte, commonBlock.MaxBlockHandleBytes)
+		n := indexBh.EncodeInto(encodedBH)
+		err = rw.metaIndexBlock.WriteEntry(
+			common.MakeMetaIndexKey(commonBlock.BlockKindIndex),
+			encodedBH[:n],
+		)
+		if err != nil {
+			zap.L().Error("failed to write the 2-level index block to the meta index", zap.Error(err))
+		}
 	}
+
 	// write the meta index block
 	metaIndexRaw := rw.bytesBufferPool.Get(rw.metaIndexBlock.EstimateSize())
 	metaIndexRaw = metaIndexRaw[:rw.metaIndexBlock.EstimateSize()]

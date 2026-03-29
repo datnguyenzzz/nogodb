@@ -102,7 +102,7 @@ func (w *indexWriter) flushFirstLevelIndexToMem(key *common.InternalKey) {
 }
 
 // buildIndex build the 2-level index for the SST
-func (w *indexWriter) buildIndex() error {
+func (w *indexWriter) BuildIndex() error {
 	// flush all of pending/un-finished 1-level indices to mem
 	w.flushFirstLevelIndexToMem(w.firstLevelBlock.CurKey())
 	for _, idx := range w.firstLevelIndices {

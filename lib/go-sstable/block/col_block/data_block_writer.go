@@ -82,7 +82,7 @@ func (d *DataBlockWriter) Size() uint32 {
 // Caller of the function must keep track of the current accumlated size of the block
 // or using  DataBlockWriter.Size() function to get the size before finishing
 func (d *DataBlockWriter) Finish(rows uint32, size int) (finished []byte) {
-	if rows < d.rows-1 {
+	if rows < d.rows-1 || rows > d.rows {
 		panic("DataBlockWriter only accepts to finish either all rows, or [all rows minus 1]")
 	}
 

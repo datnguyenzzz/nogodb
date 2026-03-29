@@ -1,111 +1,103 @@
 package colblock
 
 import (
-	blockCommon "github.com/datnguyenzzz/nogodb/lib/go-sstable/block"
-	layoutcodex "github.com/datnguyenzzz/nogodb/lib/go-sstable/block/col_block/codex/layout_codex"
-	rawbytescodex "github.com/datnguyenzzz/nogodb/lib/go-sstable/block/col_block/codex/raw_bytes_codex"
-	uintcodex "github.com/datnguyenzzz/nogodb/lib/go-sstable/block/col_block/codex/uint_codex"
+	"github.com/datnguyenzzz/nogodb/lib/go-sstable/block"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
-	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common/block"
+	commonBlock "github.com/datnguyenzzz/nogodb/lib/go-sstable/common/block"
+	"github.com/datnguyenzzz/nogodb/lib/go-sstable/compression"
+	"github.com/datnguyenzzz/nogodb/lib/go-sstable/storage"
 )
 
-const (
-	indexTotalColumns = 3
-)
+type IndexWriter struct {
+	firstLevelIndex *IndexBlockWriter
+	uncompressed    []byte
 
-// TODO(high): Support 2 layered index
+	secondLevelIndex *IndexBlockWriter
 
-type IndexBlockWriter struct {
-	// index key is the raw byte separator of 2 internal keys
-	// prev_key ≤ index_key < current_key
-	keyEncoder rawbytescodex.RawByteEncoder
+	// storage
+	storageWriter storage.ILayoutWriter
 
-	blockHandleEncoder struct {
-		offset uintcodex.UintEncoder[uint64]
-		length uintcodex.UintEncoder[uint64]
+	// utilities
+	flushDecider common.IFlushDecider
+	comparer     common.IComparer
+	compressor   compression.ICompression
+	checksumer   common.IChecksum
+
+	// indexBuffer holds the all compressed block of the completed first level index
+	// and they will be flushed to the storage at once when the SSTable is closed.
+	indexBuffer []struct {
+		key        *common.InternalKey
+		rows       int
+		compressed *commonBlock.PhysicalBlock
 	}
 
-	layoutEncoder layoutcodex.LayoutEncoder
-	rows          uint32
+	prevKey *common.InternalKey
 }
 
-func (i *IndexBlockWriter) Reset() {
-	i.keyEncoder.Reset()
+func NewIndexWriter(
+	storageWriter storage.ILayoutWriter,
+	flushDecider common.IFlushDecider,
+	comparer common.IComparer,
+	compressor compression.ICompression,
+	checksumer common.IChecksum,
+) *IndexWriter {
+	return &IndexWriter{
+		firstLevelIndex:  NewIndexBlockWriter(),
+		secondLevelIndex: NewIndexBlockWriter(),
 
-	i.blockHandleEncoder.offset.Reset()
-	i.blockHandleEncoder.length.Reset()
-
-	i.rows = 0
+		storageWriter: storageWriter,
+		flushDecider:  flushDecider,
+		comparer:      comparer,
+		compressor:    compressor,
+		checksumer:    checksumer,
+	}
 }
 
-func (i *IndexBlockWriter) Init() {
-	i.keyEncoder.Init()
+func (iw *IndexWriter) Add(key *common.InternalKey, bh *commonBlock.BlockHandle) error {
+	sizeBefore := iw.firstLevelIndex.Size()
 
-	i.blockHandleEncoder.offset.Init()
-	i.blockHandleEncoder.length.Init()
+	iw.firstLevelIndex.Add(key.UserKey, bh)
 
-	i.layoutEncoder.Reset()
+	if iw.flushDecider.ShouldFlush(int(sizeBefore), int(iw.firstLevelIndex.Size())) {
+		// flush the first index block to the buffered memory
+		// then re-adding the current KV because the first level index block
+		// will be reset after flushing
+		iw.flushToMemWithoutLastKey(int(sizeBefore))
+		iw.firstLevelIndex.Add(key.UserKey, bh)
+	}
 
-	i.rows = 0
-}
-
-func (i *IndexBlockWriter) Add(key *common.InternalKey, bh *block.BlockHandle) error {
-	i.rows += 1
-
-	// for index key, we only interested in the UserKey
-	i.keyEncoder.Append(key.UserKey)
-
-	i.blockHandleEncoder.offset.Append(bh.Offset)
-	i.blockHandleEncoder.length.Append(bh.Length)
+	iw.prevKey = key
 	return nil
 }
 
-func (i *IndexBlockWriter) Size() uint32 {
-	offset := uint32(layoutcodex.HeaderOffset + layoutcodex.ColumnHeadSize*indexTotalColumns)
-	offset = i.keyEncoder.Size(offset)
-	offset = i.blockHandleEncoder.offset.Size(offset)
-	offset = i.blockHandleEncoder.length.Size(offset)
-	offset += 1
-
-	return offset
+func (iw *IndexWriter) BuildIndex() error {
+	panic("not implemented")
 }
 
-// Finish the writing to the current page, and prepare data for flushing to the storage
-//
-// Caller of the function must keep track of the current accumlated size of the block
-// or using  DataBlockWriter.Size() function to get the size before finishing
-func (i *IndexBlockWriter) Finish(size int) []byte {
-	header := layoutcodex.NewHeader(1, indexTotalColumns, i.rows)
-
-	i.layoutEncoder.Init(size, header)
-
-	i.layoutEncoder.Encode(i.rows, &i.keyEncoder)
-	i.layoutEncoder.Encode(i.rows, &i.blockHandleEncoder.offset)
-	i.layoutEncoder.Encode(i.rows, &i.blockHandleEncoder.length)
-
-	return i.layoutEncoder.Data()
-}
-
-func NewIndexBlockWriter() *IndexBlockWriter {
-	i := &IndexBlockWriter{
-		keyEncoder:    rawbytescodex.RawByteEncoder{},
-		layoutEncoder: layoutcodex.LayoutEncoder{},
-	}
-	i.keyEncoder.Init()
-	i.layoutEncoder.Reset()
-
-	i.blockHandleEncoder = struct {
-		offset uintcodex.UintEncoder[uint64]
-		length uintcodex.UintEncoder[uint64]
+// flushToMemWithoutLastKey flushes the current first level index block to the memory
+// without the last key, and reset the first level index block for the next entries
+func (iw *IndexWriter) flushToMemWithoutLastKey(size int) {
+	rows := int(iw.firstLevelIndex.Rows())
+	idx := struct {
+		key        *common.InternalKey
+		rows       int
+		compressed *commonBlock.PhysicalBlock
 	}{
-		offset: uintcodex.UintEncoder[uint64]{},
-		length: uintcodex.UintEncoder[uint64]{},
+		key:        iw.prevKey,
+		rows:       rows - 1,
+		compressed: nil,
 	}
 
-	i.blockHandleEncoder.offset.Init()
-	i.blockHandleEncoder.length.Init()
+	block.GrowSize(&iw.uncompressed, size)
+	iw.uncompressed = iw.firstLevelIndex.Finish(uint32(rows-1), size)
+	idx.compressed = block.CompressToPb(iw.compressor, iw.checksumer, iw.uncompressed)
+	iw.indexBuffer = append(iw.indexBuffer, idx)
 
-	return i
+	// reset the first level index block for the next entries
+	iw.firstLevelIndex.Reset()
+	if cap(iw.uncompressed) > maxBlockRetainedSize {
+		iw.uncompressed = nil
+	}
 }
 
-var _ blockCommon.IIndexWriter = (*IndexBlockWriter)(nil)
+var _ block.IIndexWriter = (*IndexWriter)(nil)

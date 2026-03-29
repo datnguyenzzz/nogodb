@@ -49,7 +49,7 @@ func (r *RawByteEncoder) Size(offset uint32) uint32 {
 
 // Finish serialises the encoded column into a [buf] from [offset], return the offset after written
 func (r *RawByteEncoder) Finish(rows, offset uint32, buf []byte) uint32 {
-	if rows < r.rows-1 {
+	if rows < r.rows-1 || rows > r.rows {
 		panic(fmt.Sprintf("RawByteEncoder only accepts to finish either all rows, or [all rows minus 1] %d >< %d", rows, r.rows))
 	}
 

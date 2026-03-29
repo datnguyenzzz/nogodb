@@ -40,7 +40,7 @@ type ColBlockWriter struct {
 
 	// data and indexes
 	dataBlock  *DataBlockWriter
-	indexBlock *IndexBlockWriter
+	indexBlock block.IIndexWriter
 }
 
 // Add adds a key-value pair to the sstable.
@@ -125,23 +125,34 @@ func NewColBlockWriter(
 	ver common.TableVersion,
 ) *ColBlockWriter {
 	comparer := common.NewComparer()
+	storageWriter := storage.NewLayoutWriter(w)
+	flushDecider := common.NewFlushDecider(opts.BlockSize, opts.BlockSizeThreshold)
+	compressor := compression.NewCompressor(opts.DefaultCompression)
+	checksumer := common.NewChecksumer(common.CRC32Checksum)
+
 	return &ColBlockWriter{
 		opt:          opts,
 		tableVersion: ver,
 
-		storageWriter: storage.NewLayoutWriter(w),
+		storageWriter: storageWriter,
 
 		taskQueue: queue.NewQueue(flushQueueLen, false),
 
 		filterWriter: filter.NewFilterWriter(filter.BloomFilter),
 
-		flushDecider: common.NewFlushDecider(opts.BlockSize, opts.BlockSizeThreshold),
+		flushDecider: flushDecider,
 		comparer:     comparer,
-		compressors:  compression.NewCompressor(opts.DefaultCompression),
-		checksumer:   common.NewChecksumer(common.CRC32Checksum),
+		compressors:  compressor,
+		checksumer:   checksumer,
 
-		dataBlock:  NewDataBlockWriter(comparer),
-		indexBlock: NewIndexBlockWriter(),
+		dataBlock: NewDataBlockWriter(comparer),
+		indexBlock: NewIndexWriter(
+			storageWriter,
+			flushDecider,
+			comparer,
+			compressor,
+			checksumer,
+		),
 	}
 }
 

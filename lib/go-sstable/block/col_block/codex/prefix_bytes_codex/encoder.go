@@ -108,7 +108,7 @@ func (e *PrefixBytesEncoder) DataType() codex.DataType {
 
 // Finish serialises the encoded column into a [buf] from [offset], return the offset after written
 func (e *PrefixBytesEncoder) Finish(rows, offset uint32, buf []byte) uint32 {
-	if rows < e.rows-1 {
+	if rows < e.rows-1 || rows > e.rows {
 		panic(fmt.Sprintf("PrefixBytesEncoder only accepts to finish either all rows, or [all rows minus 1], %d >< %d", rows, e.rows))
 	}
 

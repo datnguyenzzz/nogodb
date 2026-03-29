@@ -100,7 +100,7 @@ func (rw *RowBlockWriter) Close() error {
 		}
 	}
 	// Build and Flush index block to the stable storage
-	if err := rw.indexWriter.buildIndex(); err != nil {
+	if err := rw.indexWriter.BuildIndex(); err != nil {
 		zap.L().Error("failed to build/finish the index", zap.Error(err))
 		return err
 	}

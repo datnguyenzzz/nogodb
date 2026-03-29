@@ -7,5 +7,7 @@ import (
 
 type IIndexWriter interface {
 	Add(key *common.InternalKey, bh *commonBlock.BlockHandle) error
+	// BuildIndex build the 2-level index for the SST, and write to the stable storage
+	BuildIndex() error
 	// ...
 }

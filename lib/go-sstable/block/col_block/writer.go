@@ -6,6 +6,7 @@ import (
 	go_fs "github.com/datnguyenzzz/nogodb/lib/go-fs"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/block"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
+	blockCommon "github.com/datnguyenzzz/nogodb/lib/go-sstable/common/block"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/compression"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/filter"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/options"
@@ -41,6 +42,8 @@ type ColBlockWriter struct {
 	// data and indexes
 	dataBlock  *DataBlockWriter
 	indexBlock block.IIndexWriter
+
+	metaIndexBlock *KVBlockWriter
 }
 
 // Add adds a key-value pair to the sstable.
@@ -73,6 +76,87 @@ func (c *ColBlockWriter) Add(key common.InternalKey, value []byte) error {
 
 // Close finishes writing the table and closes the underlying file that the table was written to.
 func (c *ColBlockWriter) Close() error {
+	defer func() {
+		c.storageWriter.Abort()
+	}()
+
+	if c.dataBlock.Rows() > 0 {
+		if err := c.doFlushAll(); err != nil {
+			return err
+		}
+	}
+	var err error
+	// wait for all pending flush tasks to finish, then close the queue
+	if err := c.taskQueue.Close(); err != nil {
+		return err
+	}
+
+	// Build and Flush filter block
+	{
+		if c.filterWriter != nil {
+			var rawData []byte
+			c.filterWriter.Build(&rawData)
+			pb := block.CompressToPb(c.compressors, c.checksumer, rawData)
+			bh, err := c.storageWriter.WritePhysicalBlock(*pb)
+			if err != nil {
+				return err
+			}
+
+			encodedBH := make([]byte, blockCommon.MaxBlockHandleBytes)
+			n := bh.EncodeInto(encodedBH)
+			c.metaIndexBlock.Add(
+				common.MakeMetaIndexKey(blockCommon.BlockKindFilter).UserKey,
+				encodedBH[:n],
+			)
+		}
+	}
+	// Build and Flush index block to the stable storage
+	{
+		indexBh, err := c.indexBlock.BuildIndex()
+		if err != nil {
+			return err
+		}
+
+		encodedBH := make([]byte, blockCommon.MaxBlockHandleBytes)
+		n := indexBh.EncodeInto(encodedBH)
+		c.metaIndexBlock.Add(
+			common.MakeMetaIndexKey(blockCommon.BlockKindIndex).UserKey,
+			encodedBH[:n],
+		)
+	}
+	// Build and Flush meta index block to the stable storage
+	var metaBh blockCommon.BlockHandle
+	{
+		metaSize := int(c.metaIndexBlock.Size())
+		block.GrowSize(&c.uncompressed, metaSize)
+		c.uncompressed = c.metaIndexBlock.Finish(uint32(c.metaIndexBlock.Rows()), metaSize)
+		pb := block.CompressToPb(c.compressors, c.checksumer, c.uncompressed)
+		metaBh, err = c.storageWriter.WritePhysicalBlock(*pb)
+		if err != nil {
+			return err
+		}
+
+		c.uncompressed = nil
+	}
+	// Write footer
+	{
+		footer := &block.Footer{
+			Version:     c.tableVersion,
+			MetaIndexBH: metaBh,
+		}
+		footerBuf := footer.Serialise()
+		if _, err := c.storageWriter.WriteRawBytes(footerBuf); err != nil {
+			return err
+		}
+	}
+	// Closes all buffers
+	if err := c.storageWriter.Finish(); err != nil {
+		return err
+	}
+	c.dataBlock = nil
+	c.indexBlock = nil
+	c.metaIndexBlock = nil
+
 	return nil
 }
 
@@ -97,6 +181,36 @@ func (c *ColBlockWriter) doFlushWithoutLastKey(size int, indexKey *common.Intern
 	block.GrowSize(&c.uncompressed, size)
 
 	c.uncompressed = c.dataBlock.Finish(currRows-1, size)
+
+	task := block.SpawnNewTask()
+	task.StorageWriter = c.storageWriter
+	task.Physical = block.CompressToPb(
+		c.compressors,
+		c.checksumer,
+		c.uncompressed,
+	)
+	task.IndexKey = indexKey
+	task.IndexWriter = c.indexBlock
+
+	c.taskQueue.Put(task)
+
+	// reset the data block for the new writes
+	c.dataBlock.Reset()
+	if cap(c.uncompressed) > maxBlockRetainedSize {
+		c.uncompressed = nil
+	}
+
+	return nil
+}
+
+func (c *ColBlockWriter) doFlushAll() error {
+	currRows := c.dataBlock.Rows()
+	size := int(c.dataBlock.Size())
+	indexKey := c.dataBlock.CurrKey()
+
+	block.GrowSize(&c.uncompressed, size)
+
+	c.uncompressed = c.dataBlock.Finish(currRows, size)
 
 	task := block.SpawnNewTask()
 	task.StorageWriter = c.storageWriter
@@ -153,6 +267,8 @@ func NewColBlockWriter(
 			compressor,
 			checksumer,
 		),
+
+		metaIndexBlock: NewKVBlockWriter(),
 	}
 }
 

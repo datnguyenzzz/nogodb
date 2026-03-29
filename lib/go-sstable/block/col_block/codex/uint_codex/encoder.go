@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math/bits"
 
+	"github.com/datnguyenzzz/nogodb/lib/go-sstable/block"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/block/col_block/codex"
 )
 
@@ -25,22 +26,9 @@ func (e *UintEncoder[T]) Reset() {
 
 func (e *UintEncoder[T]) Append(v T) {
 	e.rows += 1
-	if cap(e.values) <= int(e.rows) {
-		newSize := max(32, cap(e.values)<<1)
-		for newSize <= int(e.rows) {
-			if newSize <= 1024 {
-				newSize = newSize << 1
-			} else {
-				newSize += newSize / 4
-			}
-		}
+	block.GrowSize(&e.values, int(e.rows))
 
-		values := make([]T, len(e.values), newSize)
-		copy(values, e.values)
-		e.values = values
-	}
-
-	e.values = append(e.values, v)
+	e.values[e.rows-1] = v
 }
 
 // Size returns the size of the column, if the its row were encoded starting from an [offset]

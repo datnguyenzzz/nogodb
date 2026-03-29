@@ -3,6 +3,7 @@ package layoutcodex
 import (
 	"encoding/binary"
 
+	"github.com/datnguyenzzz/nogodb/lib/go-sstable/block"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/block/col_block/codex"
 )
 
@@ -20,20 +21,7 @@ type LayoutEncoder struct {
 
 // Init caller must calculate and pass the total needed size after encoding
 func (p *LayoutEncoder) Init(size int, h *Header) {
-	if cap(p.buf) < size {
-		newSize := max(32, cap(p.buf)<<1)
-		for newSize <= size {
-			if newSize <= 1024 {
-				newSize <<= 1
-			} else {
-				newSize += newSize / 4
-			}
-		}
-
-		p.buf = make([]byte, newSize)
-	} else {
-		p.buf = p.buf[:size]
-	}
+	block.GrowSize(&p.buf, size)
 
 	p.headerOffset = h.Encode(0, p.buf)
 	// refer to the README to understand the page layout

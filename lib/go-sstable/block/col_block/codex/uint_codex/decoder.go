@@ -42,6 +42,18 @@ func (e *UintDecoder[T]) DataType() codex.DataType {
 	return codex.UintDT
 }
 
+func (e *UintDecoder[T]) SeekGTE(key T) (rowIndex uint32, isEqual bool) {
+	panic("UintDecoder can not support SeekGTE")
+}
+
+func (e *UintDecoder[T]) Slice(from, to uint32) T {
+	panic("UintDecoder can not support Slice")
+}
+
+func (e *UintDecoder[T]) Rows() uint32 {
+	return e.rows
+}
+
 // NewUintDecoder returns a UintDecoder with the offset of the next block
 func NewUintDecoder[T codex.UintType](
 	rows, offset uint32, buf []byte,

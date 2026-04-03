@@ -40,7 +40,10 @@ type IColumnEncoder[T EncodableDataType] interface {
 
 type IColumnDecoder[T EncodableDataType] interface {
 	Get(row uint32) T
+	Slice(from, to uint32) T
 	DataType() DataType
+	SeekGTE(key T) (rowIndex uint32, isEqual bool)
+	Rows() uint32
 }
 
 // DecoderInstructor create a decoder for a column that has "rows" rows

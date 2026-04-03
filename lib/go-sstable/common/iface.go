@@ -13,9 +13,9 @@ type InternalWriter interface {
 	// TODO(med): support range query (delete, ...)
 }
 
-// InternalIterator iterates over a DB's key/value pairs in key order. Implementations may vary
-// depending on the TableFormat being written.
-type InternalIterator interface {
+// InternalSeeker defines an interface for seeking within an sstable. Implementations may vary
+// depending on the TableFormat being read.
+type InternalSeeker interface {
 	// SeekGTE moves the iterator to the first key/value pair whose key ≥ to the given key.
 	SeekGTE(key []byte) *InternalKV
 
@@ -25,6 +25,12 @@ type InternalIterator interface {
 
 	// SeekLTE moves the iterator to the last key/value pair whose key ≤ to the given key.
 	SeekLTE(key []byte) *InternalKV
+}
+
+// InternalIterator iterates over a DB's key/value pairs in key order. Implementations may vary
+// depending on the TableFormat being written.
+type InternalIterator interface {
+	InternalSeeker
 
 	// First moves the iterator the first key/value pair.
 	First() *InternalKV

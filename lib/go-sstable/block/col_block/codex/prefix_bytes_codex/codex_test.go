@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/datnguyenzzz/nogodb/lib/go-sstable/block"
+	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
 	"github.com/go-faker/faker/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -90,6 +92,12 @@ func Test_Codex(t *testing.T) {
 
 	testCases := []param{
 		{
+			desc:         "unique, small size p1",
+			size:         16,
+			finishedRows: 16,
+			unique:       true,
+		},
+		{
 			desc:         "unique, small size",
 			size:         20,
 			finishedRows: 20,
@@ -105,6 +113,11 @@ func Test_Codex(t *testing.T) {
 			desc:         "not unique, small size",
 			size:         20,
 			finishedRows: 20,
+		},
+		{
+			desc:         "not unique, small size p1",
+			size:         16,
+			finishedRows: 16,
 		},
 		{
 			desc:         "not unique, big size",
@@ -129,6 +142,11 @@ func Test_Codex(t *testing.T) {
 			size:         10_000,
 			finishedRows: 9999,
 			unique:       true,
+		},
+		{
+			desc:         "not unique, small size, less rows",
+			size:         16,
+			finishedRows: 15,
 		},
 		{
 			desc:         "not unique, small size, less rows",
@@ -164,14 +182,54 @@ func Test_Codex(t *testing.T) {
 
 			// decode
 			offset = 0
-			dec, offset := NewPrefixBytesDecoder(uint32(tc.finishedRows), offset, buf)
+			dec, offset := NewPrefixBytesDecoder(common.NewComparer(), uint32(tc.finishedRows), offset, buf)
 
+			// Verify decoder.Get()
 			for i := 0; i < tc.finishedRows; i++ {
 				out := dec.Get(uint32(i))
 				require.True(t, bytes.Equal(out, input[i]), fmt.Sprintf("input at %d-th isn't match", i))
 			}
+
+			// Verify decoder.SeekGTE()
+			for i := 1; i < tc.finishedRows; i++ {
+				// fmt.Println("Testing row", i, "th")
+				// seek equal to the key
+				rowIndex, isEqual := dec.SeekGTE(input[i])
+				require.True(t, isEqual, fmt.Sprintf("the key index %v should be exactly matched in the codex", i))
+				require.Equal(t, uint32(i), rowIndex, fmt.Sprintf("the row index of key %v should be %d but got %d", input[i], i, rowIndex))
+
+				// seek with a smaller key
+				smallerKey := getIntermediateKey(input[i-1], input[i])
+				if bytes.Compare(smallerKey, input[i]) >= 0 || bytes.Compare(smallerKey, input[i-1]) <= 0 {
+					continue
+				}
+
+				rowIndex, isEqual = dec.SeekGTE(smallerKey)
+				require.False(t, isEqual, fmt.Sprintf("the found key index %v must not equal", i))
+				require.Equal(t, uint32(i), rowIndex, fmt.Sprintf("the row index of key %v should be %d but got %d", smallerKey, i, rowIndex))
+			}
+
+			// key is outside of the block
+			// fmt.Println("Testing bigger row", tc.finishedRows-1, "th")
+			biggerKey := append(input[tc.finishedRows-1], 0x1)
+			rowIndex, isEqual := dec.SeekGTE(biggerKey)
+			require.False(t, isEqual)
+			require.Equal(t, uint32(tc.finishedRows), rowIndex)
 		})
 	}
+}
+
+// getIntermediateKey returns a key that is lexicographically between key1 and key2
+func getIntermediateKey(key1, key2 []byte) []byte {
+	lcp := block.CommonPrefix(key1, key2)
+	res := make([]byte, lcp+1)
+	copy(res, key1[:lcp])
+	if lcp == len(key1) {
+		res[len(res)-1] = 0x1
+	} else {
+		res[len(res)-1] = key1[lcp] + 1
+	}
+	return res
 }
 
 // generateSortedBytes Generate list of []byte in an increasing order of key

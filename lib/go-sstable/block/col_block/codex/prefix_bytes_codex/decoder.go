@@ -132,10 +132,8 @@ func NewPrefixBytesDecoder(
 	rawSize := GetOffsetFromRow(rows-1, dec.bundleSize) + 1
 
 	dec.rawBytesDec, offset = rawbytescodex.NewRawBytesDecoder(
-		rawSize, offset, data[1:],
+		rawSize, offset+1, data, // skip 1 byte for bundle size
 	)
-
-	offset += 1 // skip 1 byte for the bundle size
 
 	return dec, offset
 }

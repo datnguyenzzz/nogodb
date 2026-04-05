@@ -5,11 +5,12 @@ import (
 
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/block/col_block/codex"
 	uintcodex "github.com/datnguyenzzz/nogodb/lib/go-sstable/block/col_block/codex/uint_codex"
+	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
 )
 
 type RawBytesDecoder struct {
 	rows       uint32
-	offsetsDec *uintcodex.UintDecoder[uint16]
+	offsetsDec *uintcodex.UintDecoder[uint32]
 	data       []byte
 }
 
@@ -18,7 +19,7 @@ func (u *RawBytesDecoder) Get(row uint32) []byte {
 		panic("outside of column block RawBytesDecoder")
 	}
 
-	start := uint64(0)
+	start := uint32(0)
 	if row > 0 {
 		start = u.offsetsDec.Get(row - 1)
 	}
@@ -33,7 +34,7 @@ func (u *RawBytesDecoder) Slice(from, to uint32) []byte {
 		panic(fmt.Sprintf("Slice [%d-%d] outside of column block RawBytesDecoder, %d", from, to, u.rows))
 	}
 
-	start := uint64(0)
+	start := uint32(0)
 	if from > 0 {
 		start = u.offsetsDec.Get(from - 1)
 	}
@@ -57,9 +58,14 @@ func (e *RawBytesDecoder) Rows() uint32 {
 
 // NewRawBytesDecoder returns a RawBytesDecoder with the offset of the next block
 func NewRawBytesDecoder(
-	rows, offset uint32, data []byte,
-) (*RawBytesDecoder, uint32) {
-	dec, offset := uintcodex.NewUintDecoder[uint16](rows, offset, data)
+	comparer common.IComparer, rows, offset uint32, data []byte,
+) (codex.IColumnDecoder[[]byte], uint32) {
+	iDec, offset := uintcodex.NewUintDecoder[uint32](comparer, rows, offset, data)
+	dec, ok := iDec.(*uintcodex.UintDecoder[uint32])
+	if !ok {
+		panic("NewRawBytesDecoder failed to assert to uintcodex.UintDecoder[uint32]")
+	}
+
 	valuesLen := dec.Get(rows - 1)
 	return &RawBytesDecoder{
 		rows:       rows,

@@ -1,5 +1,7 @@
 package codex
 
+import "github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
+
 type DataType byte
 
 const (
@@ -48,4 +50,4 @@ type IColumnDecoder[T EncodableDataType] interface {
 
 // DecoderInstructor create a decoder for a column that has "rows" rows
 // and from data[offset:]
-type DecoderInstructor[T EncodableDataType] func(rows, offset uint32, data []byte) (IColumnDecoder[T], uint32)
+type DecoderInstructor[T EncodableDataType] func(comparer common.IComparer, rows, offset uint32, data []byte) (IColumnDecoder[T], uint32)

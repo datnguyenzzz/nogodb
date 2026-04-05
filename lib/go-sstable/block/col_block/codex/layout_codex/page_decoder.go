@@ -6,6 +6,7 @@ import (
 	"unsafe"
 
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/block/col_block/codex"
+	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
 )
 
 type LayoutDecoder struct {
@@ -38,6 +39,7 @@ func (d *LayoutDecoder) PageOffset(col uint16) uint32 {
 }
 
 func Decode[T codex.EncodableDataType](
+	cp common.IComparer,
 	d *LayoutDecoder,
 	col uint16,
 	instructor codex.DecoderInstructor[T],
@@ -50,7 +52,7 @@ func Decode[T codex.EncodableDataType](
 
 	dt := d.DataType(col)
 
-	dec, offset := instructor(d.header.rows, d.PageOffset(col), d.data)
+	dec, offset := instructor(cp, d.header.rows, d.PageOffset(col), d.data)
 
 	if dt != dec.DataType() {
 		panic("data type is mismatched when decoding")

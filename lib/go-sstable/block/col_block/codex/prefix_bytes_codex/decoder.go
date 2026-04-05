@@ -124,18 +124,24 @@ func NewPrefixBytesDecoder(
 	comparer common.IComparer,
 	rows, offset uint32,
 	data []byte,
-) (*PrefixBytesDecoder, uint32) {
+) (codex.IColumnDecoder[[]byte], uint32) {
 	dec := &PrefixBytesDecoder{rows: rows, comparer: comparer}
 
 	dec.bundleSize = data[offset]
 
 	rawSize := GetOffsetFromRow(rows-1, dec.bundleSize) + 1
 
-	dec.rawBytesDec, offset = rawbytescodex.NewRawBytesDecoder(
-		rawSize, offset+1, data, // skip 1 byte for bundle size
+	d, newOffset := rawbytescodex.NewRawBytesDecoder(
+		comparer, rawSize, offset+1, data, // skip 1 byte for bundle size
 	)
 
-	return dec, offset
+	var ok bool
+	dec.rawBytesDec, ok = d.(*rawbytescodex.RawBytesDecoder)
+	if !ok {
+		panic("NewPrefixBytesDecoder, fail to assert to RawBytesDecoder")
+	}
+
+	return dec, newOffset
 }
 
 var _ codex.IColumnDecoder[[]byte] = (*PrefixBytesDecoder)(nil)

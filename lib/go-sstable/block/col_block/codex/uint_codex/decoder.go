@@ -5,6 +5,7 @@ import (
 	"unsafe"
 
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/block/col_block/codex"
+	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
 )
 
 type UintDecoder[T codex.UintType] struct {
@@ -17,7 +18,7 @@ type UintDecoder[T codex.UintType] struct {
 	baseValue uint64
 }
 
-func (u *UintDecoder[T]) Get(row uint32) uint64 {
+func (u *UintDecoder[T]) Get(row uint32) T {
 	if row >= u.rows {
 		panic("outside of column block RawBytesDecoder")
 	}
@@ -26,13 +27,13 @@ func (u *UintDecoder[T]) Get(row uint32) uint64 {
 	case 0:
 		return 0
 	case 1:
-		return u.baseValue + uint64(*(*uint8)(unsafe.Add(u.ptr, uintptr(row))))
+		return T(u.baseValue) + T(*(*uint8)(unsafe.Add(u.ptr, uintptr(row))))
 	case 2:
-		return u.baseValue + uint64(*(*uint16)(unsafe.Add(u.ptr, uintptr(row)<<1))) // 2 bytes per value
+		return T(u.baseValue) + T(*(*uint16)(unsafe.Add(u.ptr, uintptr(row)<<1))) // 2 bytes per value
 	case 4:
-		return u.baseValue + uint64(*(*uint32)(unsafe.Add(u.ptr, uintptr(row)<<2))) // 4 bytes per value
+		return T(u.baseValue) + T(*(*uint32)(unsafe.Add(u.ptr, uintptr(row)<<2))) // 4 bytes per value
 	case 8:
-		return u.baseValue + *(*uint64)(unsafe.Add(u.ptr, uintptr(row)<<3)) // 8 bytes per value
+		return T(u.baseValue) + T(*(*uint64)(unsafe.Add(u.ptr, uintptr(row)<<3))) // 8 bytes per value
 	default:
 		panic("try decoding an UintDecoder but with a corrupted width")
 	}
@@ -56,8 +57,8 @@ func (e *UintDecoder[T]) Rows() uint32 {
 
 // NewUintDecoder returns a UintDecoder with the offset of the next block
 func NewUintDecoder[T codex.UintType](
-	rows, offset uint32, buf []byte,
-) (*UintDecoder[T], uint32) {
+	comparer common.IComparer, rows, offset uint32, buf []byte,
+) (codex.IColumnDecoder[T], uint32) {
 	// Refer to the col_block/README.md for more detail about the layout
 	width := buf[offset]
 	offset += 1

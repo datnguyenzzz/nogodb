@@ -29,7 +29,9 @@ func (e *PrefixBytesDecoder) DataType() codex.DataType {
 }
 
 // SeekGTE moves the iterator to the first key/value pair whose key ≥ to the given key.
-// Only PrefixBytesDecoder can support this function because the keys are sorted
+// Only PrefixBytesDecoder can support this function because the keys are sorted.
+//
+// NOTE: [0, rows-1] is used instead of [from, to]
 func (u *PrefixBytesDecoder) SeekGTE(key []byte, from, to uint32) (rowIndex uint32, isEqual bool) {
 	blockPrefix := u.rawBytesDec.Get(0)
 

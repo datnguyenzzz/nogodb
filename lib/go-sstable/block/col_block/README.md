@@ -48,8 +48,9 @@ Columns data order
 | -- | ------------------------------- | ----------------------- |
 | 0  | InternalKey.UserKey             | Prefix-compressed bytes |
 | 1  | InternalKey.UserKey suffix MVCC | Bytes                   |
-| 2  | InternalKey.Trailer             | Uint                    |
-| 3  | Value                           | Bytes                   |
+| 2  | Prefix changed position.        | Uint                    |
+| 3  | InternalKey.Trailer             | Uint                    |
+| 4  | Value                           | Bytes                   |
 | .. | ...                             | ...                     |
 
 For example we have 3 entries:
@@ -166,3 +167,4 @@ Layout:
 | Type(1B) | Min Value (8B) | Delta 1 (xB) | Delta 2 (xB) | .....
 +----------+----------------+--------------+--------------+--------------+
 ```
+

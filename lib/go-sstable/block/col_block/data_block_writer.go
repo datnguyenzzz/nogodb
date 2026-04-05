@@ -1,6 +1,8 @@
 package colblock
 
 import (
+	"fmt"
+
 	layoutcodex "github.com/datnguyenzzz/nogodb/lib/go-sstable/block/col_block/codex/layout_codex"
 	prefixbytescodex "github.com/datnguyenzzz/nogodb/lib/go-sstable/block/col_block/codex/prefix_bytes_codex"
 	rawbytescodex "github.com/datnguyenzzz/nogodb/lib/go-sstable/block/col_block/codex/raw_bytes_codex"
@@ -8,27 +10,52 @@ import (
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
 )
 
-const (
-	dataBlockTotalColumns = 4
+var (
+	columnsOrder = []string{
+		"prefix",
+		"suffix",
+		"trailer",
+		"values",
+		"prefixChangedAt",
+	}
 )
 
 type DataBlockWriter struct {
 	comparer common.IComparer
 
 	keyEncoder struct {
+		// prefix stores the prefix of an user key, aka an actual user key
 		prefix prefixbytescodex.PrefixBytesEncoder
+		// suffix stores the MVCC index of the key
 		suffix rawbytescodex.RawByteEncoder
 	}
 
 	columnEncoder struct {
+		// trailer stores internalKey.Trailer
 		trailer uintcodex.UintEncoder[uint64]
-		values  rawbytescodex.RawByteEncoder
+		// values stores values
+		values rawbytescodex.RawByteEncoder
+		// prefixChanged keeps track when a new key prefix begin
+		// For example:
+		//   aaabbb|c  < 0
+		//   aaabbb|d
+		//   aaabbb|e
+		//   aaabb|c   < 3
+		//   aaa|c     < 4
+		//   aaa|e
+		//   a|d       < 6
+		// Why:
+		//   We need it for seeking the key. After finding the i-th prefix that equals
+		//   the target key, we need to seek the suffix in [prefixChange[i-1], prefixChange[i]-1]
+		//   because the keys are in increasing order, which ensures that the suffix in that range is sorted.
+		prefixChangedAt uintcodex.UintEncoder[uint32]
 	}
 
 	layoutEncoder layoutcodex.LayoutEncoder
 
-	currKey *common.InternalKey
-	rows    uint32
+	currKey    *common.InternalKey
+	lastPrefix []byte
+	rows       uint32
 }
 
 func (d *DataBlockWriter) Reset() {
@@ -40,6 +67,7 @@ func (d *DataBlockWriter) Reset() {
 
 	d.layoutEncoder.Reset()
 	d.rows = 0
+	d.lastPrefix = nil
 	d.currKey = nil
 }
 
@@ -51,6 +79,11 @@ func (d *DataBlockWriter) Add(key common.InternalKey, value []byte) {
 	prefixLen := d.comparer.Split(key.UserKey)
 	d.keyEncoder.prefix.Append(key.UserKey[:prefixLen])
 	d.keyEncoder.suffix.Append(key.UserKey[prefixLen:])
+
+	if d.comparer.Compare(key.UserKey[:prefixLen], d.lastPrefix) != 0 {
+		d.lastPrefix = key.UserKey[:prefixLen]
+		d.columnEncoder.prefixChangedAt.Append(d.rows - 1)
+	}
 
 	d.columnEncoder.trailer.Append(uint64(key.Trailer))
 
@@ -67,11 +100,12 @@ func (d *DataBlockWriter) CurrKey() *common.InternalKey {
 
 func (d *DataBlockWriter) Size() uint32 {
 	// refer to the README to understand the layout
-	offset := uint32(layoutcodex.HeaderOffset + layoutcodex.ColumnHeadSize*dataBlockTotalColumns)
+	offset := uint32(layoutcodex.HeaderOffset + layoutcodex.ColumnHeadSize*len(columnsOrder))
 	offset = d.keyEncoder.prefix.Size(offset)
 	offset = d.keyEncoder.suffix.Size(offset)
 	offset = d.columnEncoder.trailer.Size(offset)
 	offset = d.columnEncoder.values.Size(offset)
+	offset = d.columnEncoder.prefixChangedAt.Size(offset)
 	offset += 1 // 1 un-used padding byte
 
 	return offset
@@ -86,13 +120,25 @@ func (d *DataBlockWriter) Finish(rows uint32, size int) (finished []byte) {
 		panic("DataBlockWriter only accepts to finish either all rows, or [all rows minus 1]")
 	}
 
-	h := layoutcodex.NewHeader(1, dataBlockTotalColumns, rows)
+	h := layoutcodex.NewHeader(1, uint16(len(columnsOrder)), rows)
 
 	d.layoutEncoder.Init(size, h)
-	d.layoutEncoder.Encode(rows, &d.keyEncoder.prefix)
-	d.layoutEncoder.Encode(rows, &d.keyEncoder.suffix)
-	d.layoutEncoder.Encode(rows, &d.columnEncoder.trailer)
-	d.layoutEncoder.Encode(rows, &d.columnEncoder.values)
+	for _, columnName := range columnsOrder {
+		switch columnName {
+		case "prefix":
+			d.layoutEncoder.Encode(rows, &d.keyEncoder.prefix)
+		case "suffix":
+			d.layoutEncoder.Encode(rows, &d.keyEncoder.suffix)
+		case "trailer":
+			d.layoutEncoder.Encode(rows, &d.columnEncoder.trailer)
+		case "values":
+			d.layoutEncoder.Encode(rows, &d.columnEncoder.values)
+		case "prefixChangedAt":
+			d.layoutEncoder.Encode(rows, &d.columnEncoder.prefixChangedAt)
+		default:
+			panic(fmt.Sprintf("Unhandled column: %s", columnName))
+		}
+	}
 
 	finished = d.layoutEncoder.Data()
 
@@ -115,18 +161,22 @@ func NewDataBlockWriter(comparer common.IComparer) *DataBlockWriter {
 	d.keyEncoder.suffix.Init()
 
 	d.columnEncoder = struct {
-		trailer uintcodex.UintEncoder[uint64]
-		values  rawbytescodex.RawByteEncoder
+		trailer         uintcodex.UintEncoder[uint64]
+		values          rawbytescodex.RawByteEncoder
+		prefixChangedAt uintcodex.UintEncoder[uint32]
 	}{
-		trailer: uintcodex.UintEncoder[uint64]{},
-		values:  rawbytescodex.RawByteEncoder{},
+		trailer:         uintcodex.UintEncoder[uint64]{},
+		values:          rawbytescodex.RawByteEncoder{},
+		prefixChangedAt: uintcodex.UintEncoder[uint32]{},
 	}
 	d.columnEncoder.trailer.Init()
 	d.columnEncoder.values.Init()
+	d.columnEncoder.prefixChangedAt.Init()
 
 	d.layoutEncoder = layoutcodex.LayoutEncoder{}
 	// we will init the layoutEncoder with the estimated size when the finish the block
 	d.layoutEncoder.Reset()
 
+	d.Reset()
 	return d
 }

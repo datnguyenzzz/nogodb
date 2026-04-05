@@ -1,6 +1,8 @@
 package colblock
 
 import (
+	"fmt"
+
 	"github.com/datnguyenzzz/nogodb/lib/go-bytesbufferpool/predictable_size"
 	layoutcodex "github.com/datnguyenzzz/nogodb/lib/go-sstable/block/col_block/codex/layout_codex"
 	prefixbytescodex "github.com/datnguyenzzz/nogodb/lib/go-sstable/block/col_block/codex/prefix_bytes_codex"
@@ -20,21 +22,12 @@ type DataBlockIter struct {
 		trailer *uintcodex.UintDecoder[uint64]
 	}
 
-	values *rawbytescodex.RawBytesDecoder
+	prefixChangedAt *uintcodex.UintDecoder[uint32]
+	values          *rawbytescodex.RawBytesDecoder
 
 	currRow uint32 // used for iterating over the block
 	closed  bool
 }
-
-var (
-	// Refer to the data_block_writer to get the order of columns after written
-	nameToColumns = map[string]uint16{
-		"prefix":  0,
-		"suffix":  1,
-		"trailer": 2,
-		"values":  3,
-	}
-)
 
 func (i *DataBlockIter) SeekGTE(key []byte) *common.InternalKV {
 	return nil
@@ -97,46 +90,63 @@ func NewDataBlockIter(
 	// Refer to the README and data_block_writer to understand
 	// the layout of the data block
 	decoder := layoutcodex.NewLayoutDecoder(data.Value())
-
 	var ok bool
-	d.keyDecoder.prefix, ok = layoutcodex.Decode(
-		cp,
-		decoder,
-		nameToColumns["prefix"],
-		prefixbytescodex.NewPrefixBytesDecoder,
-	).(*prefixbytescodex.PrefixBytesDecoder)
-	if !ok {
-		panic("NewDataBlockIter, failed to assert to PrefixBytesDecoder")
-	}
 
-	d.keyDecoder.suffix, ok = layoutcodex.Decode(
-		cp,
-		decoder,
-		nameToColumns["suffix"],
-		rawbytescodex.NewRawBytesDecoder,
-	).(*rawbytescodex.RawBytesDecoder)
-	if !ok {
-		panic("NewDataBlockIter, failed to assert to RawBytesDecoder")
-	}
-
-	d.keyDecoder.trailer, ok = layoutcodex.Decode(
-		cp,
-		decoder,
-		nameToColumns["trailer"],
-		uintcodex.NewUintDecoder[uint64],
-	).(*uintcodex.UintDecoder[uint64])
-	if !ok {
-		panic("NewDataBlockIter, failed to assert to UintDecoder")
-	}
-
-	d.values, ok = layoutcodex.Decode(
-		cp,
-		decoder,
-		nameToColumns["values"],
-		rawbytescodex.NewRawBytesDecoder,
-	).(*rawbytescodex.RawBytesDecoder)
-	if !ok {
-		panic("NewDataBlockIter, failed to assert to RawBytesDecoder")
+	for i, columnName := range columnsOrder {
+		switch columnName {
+		case "prefix":
+			d.keyDecoder.prefix, ok = layoutcodex.Decode(
+				cp,
+				decoder,
+				uint16(i),
+				prefixbytescodex.NewPrefixBytesDecoder,
+			).(*prefixbytescodex.PrefixBytesDecoder)
+			if !ok {
+				panic("NewDataBlockIter, failed to assert to PrefixBytesDecoder")
+			}
+		case "suffix":
+			d.keyDecoder.suffix, ok = layoutcodex.Decode(
+				cp,
+				decoder,
+				uint16(i),
+				rawbytescodex.NewRawBytesDecoder,
+			).(*rawbytescodex.RawBytesDecoder)
+			if !ok {
+				panic("NewDataBlockIter, failed to assert to RawBytesDecoder")
+			}
+		case "trailer":
+			d.keyDecoder.trailer, ok = layoutcodex.Decode(
+				cp,
+				decoder,
+				uint16(i),
+				uintcodex.NewUintDecoder[uint64],
+			).(*uintcodex.UintDecoder[uint64])
+			if !ok {
+				panic("NewDataBlockIter, failed to assert to UintDecoder")
+			}
+		case "values":
+			d.values, ok = layoutcodex.Decode(
+				cp,
+				decoder,
+				uint16(i),
+				rawbytescodex.NewRawBytesDecoder,
+			).(*rawbytescodex.RawBytesDecoder)
+			if !ok {
+				panic("NewDataBlockIter, failed to assert to RawBytesDecoder")
+			}
+		case "prefixChangedAt":
+			d.prefixChangedAt, ok = layoutcodex.Decode(
+				cp,
+				decoder,
+				uint16(i),
+				uintcodex.NewUintDecoder[uint32],
+			).(*uintcodex.UintDecoder[uint32])
+			if !ok {
+				panic("NewDataBlockIter, failed to assert to UintDecoder")
+			}
+		default:
+			panic(fmt.Sprintf("Unhandled column: %s", columnName))
+		}
 	}
 
 	return d

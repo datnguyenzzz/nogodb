@@ -14,6 +14,7 @@ const (
 type IndexBlockWriter struct {
 	// index key is the raw byte separator of 2 internal keys
 	// prev_key ≤ index_key < current_key
+	// The key is guarantee to be sorted in an increasing order
 	keyEncoder rawbytescodex.RawByteEncoder
 
 	blockHandleEncoder struct {

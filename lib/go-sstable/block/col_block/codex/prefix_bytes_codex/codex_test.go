@@ -182,7 +182,9 @@ func Test_Codex(t *testing.T) {
 
 			// decode
 			offset = 0
-			dec, offset := NewPrefixBytesDecoder(common.NewComparer(), uint32(tc.finishedRows), offset, buf)
+			d, offset := NewPrefixBytesDecoder(common.NewComparer(), uint32(tc.finishedRows), offset, buf)
+			dec, ok := d.(*PrefixBytesDecoder)
+			require.True(t, ok, "can not assert to PrefixBytesDecoder")
 
 			// Verify decoder.Get()
 			for i := 0; i < tc.finishedRows; i++ {
@@ -194,7 +196,7 @@ func Test_Codex(t *testing.T) {
 			for i := 1; i < tc.finishedRows; i++ {
 				// fmt.Println("Testing row", i, "th")
 				// seek equal to the key
-				rowIndex, isEqual := dec.SeekGTE(input[i])
+				rowIndex, isEqual := dec.SeekGTE(input[i], 0, uint32(tc.finishedRows)-1)
 				require.True(t, isEqual, fmt.Sprintf("the key index %v should be exactly matched in the codex", i))
 				require.Equal(t, uint32(i), rowIndex, fmt.Sprintf("the row index of key %v should be %d but got %d", input[i], i, rowIndex))
 
@@ -204,7 +206,7 @@ func Test_Codex(t *testing.T) {
 					continue
 				}
 
-				rowIndex, isEqual = dec.SeekGTE(smallerKey)
+				rowIndex, isEqual = dec.SeekGTE(smallerKey, 0, uint32(tc.finishedRows)-1)
 				require.False(t, isEqual, fmt.Sprintf("the found key index %v must not equal", i))
 				require.Equal(t, uint32(i), rowIndex, fmt.Sprintf("the row index of key %v should be %d but got %d", smallerKey, i, rowIndex))
 			}
@@ -212,7 +214,7 @@ func Test_Codex(t *testing.T) {
 			// key is outside of the block
 			// fmt.Println("Testing bigger row", tc.finishedRows-1, "th")
 			biggerKey := append(input[tc.finishedRows-1], 0x1)
-			rowIndex, isEqual := dec.SeekGTE(biggerKey)
+			rowIndex, isEqual := dec.SeekGTE(biggerKey, 0, uint32(tc.finishedRows)-1)
 			require.False(t, isEqual)
 			require.Equal(t, uint32(tc.finishedRows), rowIndex)
 		})

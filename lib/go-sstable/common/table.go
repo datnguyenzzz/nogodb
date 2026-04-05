@@ -17,7 +17,8 @@ const (
 type TableVersion byte
 
 const (
-	TableV1 TableVersion = iota
+	TableV1 TableVersion = iota // Row block table
+	TableV2                     // Column block table
 )
 
 const (

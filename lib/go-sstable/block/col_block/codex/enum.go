@@ -44,7 +44,7 @@ type IColumnDecoder[T EncodableDataType] interface {
 	Get(row uint32) T
 	Slice(from, to uint32) T
 	DataType() DataType
-	SeekGTE(key T) (rowIndex uint32, isEqual bool)
+	SeekGTE(key T, from, to uint32) (rowIndex uint32, isEqual bool)
 	Rows() uint32
 }
 

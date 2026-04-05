@@ -43,7 +43,7 @@ func (e *UintDecoder[T]) DataType() codex.DataType {
 	return codex.UintDT
 }
 
-func (e *UintDecoder[T]) SeekGTE(key T) (rowIndex uint32, isEqual bool) {
+func (e *UintDecoder[T]) SeekGTE(key T, from, to uint32) (rowIndex uint32, isEqual bool) {
 	panic("UintDecoder can not support SeekGTE")
 }
 

@@ -135,6 +135,8 @@ var dataBlockIteratorPool = sync.Pool{
 // SeekPrefixGTE the prefix is only used for checking with the bloom filter of the SSTable.
 // but not used later while iterating. Hence, we can use the existing iterator position
 // it did not fail bloom filter matching.
+//
+// key []byte is a full user key, aka internalKey.UserKey
 func (i *DataIterator) SeekPrefixGTE(prefix, key []byte) *common.InternalKV {
 	if !i.filter.MayContain(prefix) {
 		// don't invalidate the indexes and data block, the other iterator might still read it
@@ -143,6 +145,7 @@ func (i *DataIterator) SeekPrefixGTE(prefix, key []byte) *common.InternalKV {
 	return i.SeekGTE(key)
 }
 
+// key []byte is a full user key, aka internalKey.UserKey
 func (i *DataIterator) SeekGTE(key []byte) *common.InternalKV {
 	// Important notes:
 	//  - Ensure the data (lazyValue) is released properly once the block is no longer used
@@ -172,6 +175,7 @@ func (i *DataIterator) SeekGTE(key []byte) *common.InternalKV {
 	return i.dataIndexedIter.SeekGTE(key)
 }
 
+// key []byte is a full user key, aka internalKey.UserKey
 func (i *DataIterator) SeekLTE(key []byte) *common.InternalKV {
 	//TODO implement me
 	panic("implement me")

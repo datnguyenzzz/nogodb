@@ -9,6 +9,7 @@ import (
 )
 
 type RawBytesDecoder struct {
+	cp         common.IComparer
 	rows       uint32
 	offsetsDec *uintcodex.UintDecoder[uint32]
 	data       []byte
@@ -48,8 +49,34 @@ func (e *RawBytesDecoder) DataType() codex.DataType {
 	return codex.RawBytesDT
 }
 
-func (e *RawBytesDecoder) SeekGTE(key []byte) (rowIndex uint32, isEqual bool) {
-	panic("RawBytesDecoder can not support SeekGTE")
+// SeekGTE, by design, the RawBytesDecoder can't do Seek function.
+// Therefore, this function only works only if caller ensure that
+// RawBytesDecoder holds all keys in the sorted increasing order, from [from, to]
+func (e *RawBytesDecoder) SeekGTE(key []byte, from, to uint32) (rowIndex uint32, isEqual bool) {
+	if from >= e.rows || to >= e.rows || from > to {
+		panic("RawBytesDecoder: searching range is out-bound")
+	}
+	if e.cp.Compare(e.Get(from), key) >= 0 {
+		return 0, e.cp.Compare(e.Get(from), key) == 0
+	}
+
+	if e.cp.Compare(e.Get(to), key) < 0 {
+		return to + 1, false
+	}
+
+	for from <= to {
+		mid := (from + to) >> 1
+		cp := e.cp.Compare(e.Get(mid), key)
+		if cp >= 0 {
+			isEqual = cp == 0
+			rowIndex = mid
+			to = mid - 1
+		} else {
+			from = mid + 1
+		}
+	}
+
+	return rowIndex, isEqual
 }
 
 func (e *RawBytesDecoder) Rows() uint32 {
@@ -68,6 +95,7 @@ func NewRawBytesDecoder(
 
 	valuesLen := dec.Get(rows - 1)
 	return &RawBytesDecoder{
+		cp:         comparer,
 		rows:       rows,
 		offsetsDec: dec,
 		data:       data[offset:],

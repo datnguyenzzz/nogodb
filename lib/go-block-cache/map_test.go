@@ -239,11 +239,11 @@ func Test_Hashmap_Bulk_Set_Then_Get_And_Release_Async(t *testing.T) {
 				}
 			}()
 
-			r := rand.New(rand.NewSource(time.Now().UnixNano()))
 			for i := 0; i < tc.nObjects; i++ {
 				wg.Add(1)
 				// Set then Get new key/value pair to the cache
 				go func() {
+					r := rand.New(rand.NewSource(time.Now().UnixNano()))
 					defer wg.Done()
 
 					if t.Failed() {

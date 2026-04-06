@@ -32,7 +32,7 @@ func (e *PrefixBytesDecoder) DataType() codex.DataType {
 // Only PrefixBytesDecoder can support this function because the keys are sorted.
 //
 // NOTE: [0, rows-1] is used instead of [from, to]
-func (u *PrefixBytesDecoder) SeekGTE(key []byte, from, to uint32) (rowIndex uint32, isEqual bool) {
+func (u *PrefixBytesDecoder) SeekGTE(key []byte, from, to int32) (rowIndex uint32, isEqual bool) {
 	blockPrefix := u.rawBytesDec.Get(0)
 
 	if len(key) < len(blockPrefix) {
@@ -51,45 +51,55 @@ func (u *PrefixBytesDecoder) SeekGTE(key []byte, from, to uint32) (rowIndex uint
 	key = key[len(blockPrefix):]
 
 	// Binary search to find the right bundle
-	lo, bundle, hi := uint32(0), uint32(0), GetBundleFromRow(u.rows-1, u.bundleSize)
+	lo, hi := 0, int(GetBundleFromRow(u.rows-1, u.bundleSize))
+	// bundle is the largest bundle that < key
+	bundle := -1
 	for lo <= hi {
 		mid := (lo + hi) >> 1
-		offset := GetBundleStartOffset(mid, u.bundleSize)
+		offset := GetBundleStartOffset(uint32(mid), u.bundleSize)
 		firstKey := u.rawBytesDec.Slice(offset, offset+1)
 		cp := u.comparer.Compare(firstKey, key)
-		if cp <= 0 {
-			bundle = mid
+		if cp < 0 {
+			bundle = int(mid)
 			lo = mid + 1
 		} else {
 			hi = mid - 1
 		}
 	}
-	bundlePrefix := u.rawBytesDec.Get(GetBundleStartOffset(bundle, u.bundleSize))
+
+	if bundle == -1 {
+		// all keys are ≥ given [key]
+		key0 := u.rawBytesDec.Slice(1, 2)
+		return 0, u.comparer.Compare(key, key0) == 0
+	}
+
+	bundlePrefix := u.rawBytesDec.Get(GetBundleStartOffset(uint32(bundle), u.bundleSize))
 
 	if len(key) < len(bundlePrefix) || u.comparer.Compare(key[:len(bundlePrefix)], bundlePrefix) != 0 {
 		// the founded is the first key of next bundle
-		if bundle == GetBundleFromRow(u.rows-1, u.bundleSize) {
+		if uint32(bundle) == GetBundleFromRow(u.rows-1, u.bundleSize) {
 			// key is greater than all keys in the block
 			return u.rows, false
 		}
 
-		offset := GetBundleStartOffset(bundle+1, u.bundleSize)
+		offset := GetBundleStartOffset(uint32(bundle+1), u.bundleSize)
 		firstKey := u.rawBytesDec.Slice(offset, offset+1)
 
 		return GetRowFromOffset(offset+1, u.bundleSize), u.comparer.Compare(key, firstKey) == 0
 	}
 
 	// Binary search to find the index on the bundle
+	keyPrefix := key[:len(bundlePrefix)]
 	key = key[len(bundlePrefix):]
-	lo = GetBundleStartOffset(bundle, u.bundleSize) + 1
-	hi = min(GetBundleStartOffset(bundle+1, u.bundleSize)-1, GetOffsetFromRow(u.rows-1, u.bundleSize))
+	lo = int(GetBundleStartOffset(uint32(bundle), u.bundleSize) + 1)
+	hi = int(min(GetBundleStartOffset(uint32(bundle+1), u.bundleSize)-1, GetOffsetFromRow(u.rows-1, u.bundleSize)))
 	// fmt.Println("range:", lo, hi)
 	cpResult := 2
 	for lo <= hi {
 		mid := (lo + hi) >> 1
-		cp := u.comparer.Compare(u.rawBytesDec.Get(mid), key)
+		cp := u.comparer.Compare(u.rawBytesDec.Get(uint32(mid)), key)
 		if cp >= 0 {
-			rowIndex = GetRowFromOffset(mid, u.bundleSize)
+			rowIndex = GetRowFromOffset(uint32(mid), u.bundleSize)
 			cpResult = cp
 			hi = mid - 1
 		} else {
@@ -100,13 +110,14 @@ func (u *PrefixBytesDecoder) SeekGTE(key []byte, from, to uint32) (rowIndex uint
 	if cpResult == 2 {
 		// the key must be either not found if it is the last bundle
 		// or the first key of the next bundle
-		if bundle == GetBundleFromRow(u.rows-1, u.bundleSize) {
+		if uint32(bundle) == GetBundleFromRow(u.rows-1, u.bundleSize) {
 			// key is greater than all keys in the block
 			return u.rows, false
 		}
 
-		offset := GetBundleStartOffset(bundle+1, u.bundleSize)
-		firstKey := u.rawBytesDec.Get(offset + 1)
+		offset := GetBundleStartOffset(uint32(bundle+1), u.bundleSize)
+		firstKey := u.rawBytesDec.Slice(offset, offset+1)
+		key = slices.Concat(keyPrefix, key)
 
 		return GetRowFromOffset(offset+1, u.bundleSize), u.comparer.Compare(key, firstKey) == 0
 	}

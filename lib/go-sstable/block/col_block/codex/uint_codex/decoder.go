@@ -58,23 +58,23 @@ func (e *UintDecoder[T]) DataType() codex.DataType {
 // SeekGTE, by design, the RawBytesDecoder can't do Seek function.
 // Therefore, this function only works only if caller ensure that
 // RawBytesDecoder holds all keys in the sorted increasing order, from [from, to]
-func (e *UintDecoder[T]) SeekGTE(key T, from, to uint32) (rowIndex uint32, isEqual bool) {
-	if from >= e.rows || to >= e.rows || from > to {
+func (e *UintDecoder[T]) SeekGTE(key T, from, to int32) (rowIndex uint32, isEqual bool) {
+	if from >= int32(e.rows) || to >= int32(e.rows) || from > to {
 		panic("RawBytesDecoder: searching range is out-bound")
 	}
-	if e.Get(from) >= key {
-		return 0, e.Get(from) == key
+	if e.Get(uint32(from)) >= key {
+		return 0, e.Get(uint32(from)) == key
 	}
 
-	if e.Get(to) < key {
-		return to + 1, false
+	if e.Get(uint32(to)) < key {
+		return uint32(to) + 1, false
 	}
 
 	for from <= to {
 		mid := (from + to) >> 1
-		if e.Get(mid) >= key {
-			isEqual = e.Get(mid) == key
-			rowIndex = mid
+		if e.Get(uint32(mid)) >= key {
+			isEqual = e.Get(uint32(mid)) == key
+			rowIndex = uint32(mid)
 			to = mid - 1
 		} else {
 			from = mid + 1

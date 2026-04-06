@@ -28,9 +28,9 @@ type IComparer interface {
 	Split(b []byte) int
 }
 
-type defaultComparer struct{}
+type DefaultComparer struct{}
 
-func (c defaultComparer) Separator(a, b []byte) []byte {
+func (c DefaultComparer) Separator(a, b []byte) []byte {
 	var prefixLen int
 	n := min(len(a), len(b))
 	for prefixLen = 0; prefixLen < n && a[prefixLen] == b[prefixLen]; prefixLen++ {
@@ -52,7 +52,7 @@ func (c defaultComparer) Separator(a, b []byte) []byte {
 	}
 }
 
-func (c defaultComparer) Successor(b []byte) []byte {
+func (c DefaultComparer) Successor(b []byte) []byte {
 	for i, v := range b {
 		// get first byte i'th that < 255 --> append [b[0] ... b[i]+1] to dst
 		if v < 0xff {
@@ -65,16 +65,16 @@ func (c defaultComparer) Successor(b []byte) []byte {
 	return b
 }
 
-func (c defaultComparer) Compare(a, b []byte) int {
+func (c DefaultComparer) Compare(a, b []byte) int {
 	return bytes.Compare(a, b)
 }
 
-func (c defaultComparer) Split(b []byte) int {
+func (c DefaultComparer) Split(b []byte) int {
 	return len(b)
 }
 
-func NewComparer() IComparer {
-	return &defaultComparer{}
+func NewComparer() *DefaultComparer {
+	return &DefaultComparer{}
 }
 
-var _ IComparer = (*defaultComparer)(nil)
+var _ IComparer = (*DefaultComparer)(nil)

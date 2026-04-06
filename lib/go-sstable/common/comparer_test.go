@@ -236,6 +236,6 @@ func TestComparer_Successor(t *testing.T) {
 
 func TestComparer_Interface(t *testing.T) {
 	// Verify that comparer implements IComparer interface
-	var _ IComparer = (*defaultComparer)(nil)
+	var _ IComparer = (*DefaultComparer)(nil)
 	var _ IComparer = NewComparer()
 }

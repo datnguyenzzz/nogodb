@@ -10,15 +10,13 @@ import (
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
 )
 
-var (
-	columnsOrder = []string{
-		"prefix",
-		"suffix",
-		"trailer",
-		"values",
-		"prefixChangedAt",
-	}
-)
+var columnsOrder = []string{
+	"prefix",
+	"suffix",
+	"trailer",
+	"values",
+	"prefixChangedAt",
+}
 
 type DataBlockWriter struct {
 	comparer common.IComparer

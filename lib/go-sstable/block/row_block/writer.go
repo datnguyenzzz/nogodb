@@ -220,7 +220,7 @@ func (rw *RowBlockWriter) doFlush(key common.InternalKey) error {
 
 func NewRowBlockWriter(w go_fs.Writable, opts options.BlockWriteOpt, version common.TableVersion) *RowBlockWriter {
 	c := compressorPerBlock{}
-	for blockKind, _ := range blockCommon.BlockKindStrings {
+	for blockKind := range blockCommon.BlockKindStrings {
 		if _, ok := opts.Compression[blockKind]; !ok {
 			c[blockKind] = compression.NewCompressor(opts.DefaultCompression)
 			continue

@@ -35,7 +35,7 @@ type BlockIterator struct {
 }
 
 func (i *BlockIterator) SeekPrefixGTE(prefix, key []byte) *common.InternalKV {
-	//TODO implement me
+	// TODO implement me
 	panic("Block Iterator doesn't support SeekPrefixGE, this kind of function should be handled in the higher level iteration")
 }
 

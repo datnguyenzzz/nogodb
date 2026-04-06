@@ -30,6 +30,4 @@ var TableFooterSize = map[TableVersion]int{
 	TableV1: binary.MaxVarintLen64 + TableVersionLen + MagicNumberLen,
 }
 
-var (
-	MaxPossibleFooterSize = TableFooterSize[TableV1]
-)
+var MaxPossibleFooterSize = TableFooterSize[TableV1]

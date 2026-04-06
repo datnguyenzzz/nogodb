@@ -53,18 +53,18 @@ func (m *mockTask) waitForOnHold(timeout time.Duration) bool {
 func TestNewQueue(t *testing.T) {
 	// Test that NewQueue correctly initializes the coordinator
 	q := NewQueue(5, false)
-	
+
 	// Type assertion to check if q is of type *coordinator
 	c, ok := q.(*coordinator)
 	assert.True(t, ok, "Queue should be of type *coordinator")
-	
+
 	assert.NotNil(t, c.ch, "Channel should be initialized")
 	assert.Equal(t, 5, cap(c.ch), "Channel should have capacity 5")
 	assert.False(t, c.ignoreErr, "ignoreErr should be false")
 	assert.False(t, c.closed, "Queue should not be closed initially")
 	assert.Nil(t, c.err, "Error should be nil initially")
 	assert.NotNil(t, c.wg, "WaitGroup should be initialized")
-	
+
 	// Clean up
 	_ = q.Close()
 }
@@ -78,17 +78,17 @@ func TestCoordinator_Put(t *testing.T) {
 	}
 	c.wg.Add(1)
 	go c.drainTask()
-	
+
 	// Create a mock task
 	executedChan := make(chan struct{})
 	task := newMockTask(func() error {
 		close(executedChan)
 		return nil
 	})
-	
+
 	// Put the task in the queue
 	c.Put(task)
-	
+
 	// Verify the task was executed
 	select {
 	case <-executedChan:
@@ -96,11 +96,11 @@ func TestCoordinator_Put(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("Task was not executed within timeout")
 	}
-	
+
 	// Verify task was held and released
 	assert.True(t, task.onHold, "Task should have been held")
 	assert.True(t, task.released, "Task should have been released")
-	
+
 	// Clean up
 	_ = c.Close()
 }
@@ -114,19 +114,19 @@ func TestCoordinator_Close(t *testing.T) {
 	}
 	c.wg.Add(1)
 	go c.drainTask()
-	
+
 	// Put a task that will be executed
 	task := newMockTask(nil)
 	c.Put(task)
-	
+
 	// Wait for task to be processed
 	assert.True(t, task.waitForOnHold(time.Second), "Task OnHold should have been called")
-	
+
 	// Close the queue
 	err := c.Close()
 	assert.NoError(t, err, "Close should not return an error")
 	assert.True(t, c.closed, "Queue should be marked as closed")
-	
+
 	// Verify that calling Close again returns the same error
 	err2 := c.Close()
 	assert.NoError(t, err2, "Second Close should not return an error")
@@ -152,7 +152,7 @@ func TestCoordinator_Error_Propagation(t *testing.T) {
 			want:      errors.New("second error"),
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Create a coordinator
@@ -163,7 +163,7 @@ func TestCoordinator_Error_Propagation(t *testing.T) {
 			}
 			c.wg.Add(1)
 			go c.drainTask()
-			
+
 			// Put tasks with errors
 			for _, err := range tt.errors {
 				capturedErr := err // Capture err in the closure
@@ -172,7 +172,7 @@ func TestCoordinator_Error_Propagation(t *testing.T) {
 				})
 				c.Put(task)
 			}
-			
+
 			// Close and check error
 			err := c.Close()
 			assert.Equal(t, tt.want.Error(), err.Error())
@@ -189,11 +189,11 @@ func TestCoordinator_Multiple_Tasks(t *testing.T) {
 	}
 	c.wg.Add(1)
 	go c.drainTask()
-	
+
 	// Counter to track number of executed tasks
 	var executed int
 	var mu sync.Mutex
-	
+
 	// Create and put multiple tasks
 	tasksCount := 5
 	for i := 0; i < tasksCount; i++ {
@@ -205,11 +205,11 @@ func TestCoordinator_Multiple_Tasks(t *testing.T) {
 		})
 		c.Put(task)
 	}
-	
+
 	// Close and wait for all tasks to complete
 	err := c.Close()
 	assert.NoError(t, err)
-	
+
 	// Verify all tasks were executed
 	mu.Lock()
 	assert.Equal(t, tasksCount, executed, "All tasks should have been executed")
@@ -219,7 +219,7 @@ func TestCoordinator_Multiple_Tasks(t *testing.T) {
 func TestCoordinator_Fix_Init_Bug(t *testing.T) {
 	// There seems to be a bug in the NewQueue function where c.wg is not initialized
 	// Let's test that we can fix it by initializing the WaitGroup
-	
+
 	// Test the fixed version
 	fixedQueue := func(queueLen int, ignoreErr bool) IQueue {
 		c := &coordinator{
@@ -231,15 +231,15 @@ func TestCoordinator_Fix_Init_Bug(t *testing.T) {
 		go c.drainTask()
 		return c
 	}
-	
+
 	q := fixedQueue(5, false)
-	
+
 	// Type assertion to check if q is of type *coordinator
 	c, ok := q.(*coordinator)
 	assert.True(t, ok, "Queue should be of type *coordinator")
-	
+
 	assert.NotNil(t, c.wg, "WaitGroup should be initialized")
-	
+
 	// Clean up
 	_ = q.Close()
 }

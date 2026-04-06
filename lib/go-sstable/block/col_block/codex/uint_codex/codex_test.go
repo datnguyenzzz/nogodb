@@ -189,7 +189,6 @@ func uint_codex_test[T codex.UintType](t *testing.T, testCases []param) {
 				val := dec.Get(uint32(i))
 				require.Equal(t, T(values[i]), val, fmt.Sprintf("failed on row %d-th", i))
 			}
-
 		})
 	}
 }

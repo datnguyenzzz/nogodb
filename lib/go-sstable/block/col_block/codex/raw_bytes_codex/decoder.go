@@ -56,8 +56,8 @@ func (e *RawBytesDecoder) SeekGTE(key []byte, from, to uint32) (rowIndex uint32,
 	if from >= e.rows || to >= e.rows || from > to {
 		panic("RawBytesDecoder: searching range is out-bound")
 	}
-	if e.cp.Compare(e.Get(from), key) >= 0 {
-		return 0, e.cp.Compare(e.Get(from), key) == 0
+	if e.cp.Compare(e.Get(from), key) > 0 {
+		return 0, false
 	}
 
 	if e.cp.Compare(e.Get(to), key) < 0 {

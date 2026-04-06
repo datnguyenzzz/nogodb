@@ -177,7 +177,7 @@ func (i *DataIterator) SeekGTE(key []byte) *common.InternalKV {
 
 // key []byte is a full user key, aka internalKey.UserKey
 func (i *DataIterator) SeekLTE(key []byte) *common.InternalKV {
-	//TODO implement me
+	// TODO implement me
 	panic("implement me")
 }
 
@@ -207,7 +207,7 @@ func (i *DataIterator) First() *common.InternalKV {
 }
 
 func (i *DataIterator) Last() *common.InternalKV {
-	//TODO implement me
+	// TODO implement me
 	panic("implement me")
 }
 
@@ -255,7 +255,7 @@ func (i *DataIterator) Next() *common.InternalKV {
 }
 
 func (i *DataIterator) Prev() *common.InternalKV {
-	//TODO implement me
+	// TODO implement me
 	panic("implement me")
 }
 

@@ -23,12 +23,12 @@ var taskPool = sync.Pool{
 }
 
 func (t *Task) Execute() error {
-	//1. write the physical data to the durable storage
+	// 1. write the physical data to the durable storage
 	bh, err := t.StorageWriter.WritePhysicalBlock(*t.Physical)
 	if err != nil {
 		return err
 	}
-	//2. write new index block (includes compute index KV, flush, ....)
+	// 2. write new index block (includes compute index KV, flush, ....)
 	err = t.IndexWriter.Add(t.IndexKey, &bh)
 	return err
 }

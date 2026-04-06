@@ -18,14 +18,14 @@ type PrefixBytesEncoder struct {
 	valuesEncoder *rawbytescodex.RawByteEncoder
 
 	// bundle
-	bundleSize byte
+	BundleSize byte
 }
 
 func (e *PrefixBytesEncoder) Init() {
-	if e.bundleSize <= 0 {
+	if e.BundleSize <= 0 {
 		panic("PrefixBytesEncoder must have bundleSize > 0")
 	}
-	if e.bundleSize&(e.bundleSize-1) != 0 {
+	if e.BundleSize&(e.BundleSize-1) != 0 {
 		panic("PrefixBytesEncoder must have bundleSize of 2^x")
 	}
 
@@ -45,7 +45,7 @@ func (e *PrefixBytesEncoder) Reset() {
 }
 
 func (e *PrefixBytesEncoder) Append(v []byte) {
-	if e.rows%uint32(e.bundleSize) == 0 {
+	if e.rows%uint32(e.BundleSize) == 0 {
 		e.bundlePrefix = v
 		e.values = append(e.values, nil) // reserve 1 slot for the bundle prefix
 	} else {
@@ -56,13 +56,13 @@ func (e *PrefixBytesEncoder) Append(v []byte) {
 	e.rows += 1
 	e.values = append(e.values, v)
 
-	if e.rows%uint32(e.bundleSize) == 0 {
+	if e.rows%uint32(e.BundleSize) == 0 {
 		e.compressBundle()
 	}
 }
 
 func (e *PrefixBytesEncoder) compressBundle() {
-	bundlePrefixPos := GetBundlePrefixPos(e.rows-1, e.bundleSize)
+	bundlePrefixPos := GetBundlePrefixPos(e.rows-1, e.BundleSize)
 	e.values[bundlePrefixPos] = e.bundlePrefix
 
 	for i := int(bundlePrefixPos) + 1; i < len(e.values); i++ {
@@ -80,14 +80,14 @@ func (e *PrefixBytesEncoder) Size(offset uint32) uint32 {
 	}
 
 	// account for the last bundle that has not yet compressed
-	if e.rows%uint32(e.bundleSize) != 0 {
-		bundlePrefixPos := GetBundlePrefixPos(e.rows-1, e.bundleSize)
+	if e.rows%uint32(e.BundleSize) != 0 {
+		bundlePrefixPos := GetBundlePrefixPos(e.rows-1, e.BundleSize)
 		totalLen += uint32(len(e.bundlePrefix))
 		totalLen -= max(0, uint32(len(e.values))-bundlePrefixPos-1) * uint32(len(e.bundlePrefix))
 	}
 
 	var blockPrefix []byte = e.bundlePrefix
-	for i := 0; i < len(e.values); i += int(e.bundleSize) + 1 {
+	for i := 0; i < len(e.values); i += int(e.BundleSize) + 1 {
 		if len(e.values[i]) == 0 {
 			continue
 		}
@@ -113,14 +113,14 @@ func (e *PrefixBytesEncoder) Finish(rows, offset uint32, buf []byte) uint32 {
 	}
 
 	// compress the unfinished bundle
-	if e.rows%uint32(e.bundleSize) != 0 {
+	if e.rows%uint32(e.BundleSize) != 0 {
 		e.compressBundle()
 	}
 
 	end := len(e.values)
 	if rows == e.rows-1 {
 		end -= 1
-		if e.rows%uint32(e.bundleSize) == 1 {
+		if e.rows%uint32(e.BundleSize) == 1 {
 			// remove the bundle prefix
 			end -= 1
 		}
@@ -130,7 +130,7 @@ func (e *PrefixBytesEncoder) Finish(rows, offset uint32, buf []byte) uint32 {
 
 	// find the block prefix
 	var blockPrefix []byte = nil
-	for i := 1; i < len(e.values); i += int(e.bundleSize) + 1 {
+	for i := 1; i < len(e.values); i += int(e.BundleSize) + 1 {
 		if blockPrefix == nil {
 			blockPrefix = e.values[i]
 			continue
@@ -142,13 +142,13 @@ func (e *PrefixBytesEncoder) Finish(rows, offset uint32, buf []byte) uint32 {
 	e.values[0] = blockPrefix
 
 	// adjust the bundle prefix
-	for i := 1; i < len(e.values); i += int(e.bundleSize) + 1 {
+	for i := 1; i < len(e.values); i += int(e.BundleSize) + 1 {
 		e.values[i] = e.values[i][len(blockPrefix):]
 	}
 
 	// start encoding into the [buf]
 	// refer to the colblock/README.md for more detail about the layout
-	buf[offset] = byte(e.bundleSize)
+	buf[offset] = byte(e.BundleSize)
 	offset++
 	for _, v := range e.values {
 		e.valuesEncoder.Append(v)

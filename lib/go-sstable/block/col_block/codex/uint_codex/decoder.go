@@ -40,7 +40,19 @@ func (u *UintDecoder[T]) Get(row uint32) T {
 }
 
 func (e *UintDecoder[T]) DataType() codex.DataType {
-	return codex.UintDT
+	var zero T
+	switch any(zero).(type) {
+	case uint8:
+		return codex.Uint8DT
+	case uint16:
+		return codex.Uint16DT
+	case uint32:
+		return codex.Uint32DT
+	case uint64:
+		return codex.Uint64DT
+	default:
+		panic("try decoding an UintDecoder but with a corrupted width")
+	}
 }
 
 // SeekGTE, by design, the RawBytesDecoder can't do Seek function.

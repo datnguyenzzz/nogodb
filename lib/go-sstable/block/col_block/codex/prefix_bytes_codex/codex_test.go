@@ -66,7 +66,7 @@ func Test_Encoder_Handcrafted(t *testing.T) {
 	}
 
 	enc := &PrefixBytesEncoder{
-		bundleSize: 4,
+		BundleSize: 4,
 	}
 
 	enc.Init()
@@ -161,7 +161,7 @@ func Test_Codex(t *testing.T) {
 	}
 
 	enc := &PrefixBytesEncoder{
-		bundleSize: 16,
+		BundleSize: 16,
 	}
 	enc.Init()
 

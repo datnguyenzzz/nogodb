@@ -8,7 +8,10 @@ const (
 	UnknownDT DataType = iota
 	PrefixCompressedBytesDT
 	RawBytesDT
-	UintDT
+	Uint8DT
+	Uint16DT
+	Uint32DT
+	Uint64DT
 )
 
 type EncodableDataType interface {

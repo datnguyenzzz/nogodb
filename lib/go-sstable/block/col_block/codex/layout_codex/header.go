@@ -1,6 +1,10 @@
 package layoutcodex
 
-import "encoding/binary"
+import (
+	"encoding/binary"
+
+	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
+)
 
 type Header struct {
 	version byte
@@ -12,9 +16,9 @@ const (
 	HeaderOffset = 7
 )
 
-func NewHeader(version byte, cols uint16, rows uint32) *Header {
+func NewHeader(version common.TableVersion, cols uint16, rows uint32) *Header {
 	return &Header{
-		version: version,
+		version: byte(version),
 		columns: cols,
 		rows:    rows,
 	}

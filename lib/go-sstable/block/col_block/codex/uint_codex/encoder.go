@@ -40,7 +40,19 @@ func (e *UintEncoder[T]) Size(offset uint32) uint32 {
 }
 
 func (e *UintEncoder[T]) DataType() codex.DataType {
-	return codex.UintDT
+	var zero T
+	switch any(zero).(type) {
+	case uint8:
+		return codex.Uint8DT
+	case uint16:
+		return codex.Uint16DT
+	case uint32:
+		return codex.Uint32DT
+	case uint64:
+		return codex.Uint64DT
+	default:
+		panic("try decoding an UintDecoder but with a corrupted width")
+	}
 }
 
 // Finish serialises the encoded column into a [buf] from [offset], return the offset after written
@@ -50,8 +62,8 @@ func (e *UintEncoder[T]) Finish(rows, offset uint32, buf []byte) uint32 {
 		panic(fmt.Sprintf("len of values: %d <> rows: %d", len(e.values), e.rows))
 	}
 
-	if rows < e.rows-1 {
-		panic(fmt.Sprintf("RawByteEncoder only accepts to finish either all rows, or [all rows minus 1] %d >< %d", rows, e.rows))
+	if rows < e.rows-1 || rows > e.rows {
+		panic(fmt.Sprintf("UintEncoder only accepts to finish either all rows, or [all rows minus 1] target:%d >< total:%d", rows, e.rows))
 	}
 
 	e.values = e.values[:rows]

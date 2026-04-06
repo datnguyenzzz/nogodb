@@ -40,7 +40,7 @@ func (p *LayoutEncoder) Reset() {
 // refer to the README to understand the layout
 func (p *LayoutEncoder) Encode(row uint32, enc codex.IEncoderFinisher) {
 	p.buf[p.headerOffset] = byte(enc.DataType())
-	binary.LittleEndian.PutUint32(p.buf[p.headerOffset:], p.pageOffset)
+	binary.LittleEndian.PutUint32(p.buf[p.headerOffset+1:], p.pageOffset)
 	p.headerOffset += ColumnHeadSize
 
 	p.pageOffset = enc.Finish(row, p.pageOffset, p.buf)

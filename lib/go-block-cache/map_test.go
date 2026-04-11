@@ -16,7 +16,7 @@ import (
 )
 
 var (
-	dummy10Bytes = []byte{01, 12, 23, 34, 45, 56, 67, 78, 89, 90}
+	dummy10Bytes = []byte{0o1, 12, 23, 34, 45, 56, 67, 78, 89, 90}
 	dummy1Byte   = []byte{10}
 )
 
@@ -55,7 +55,7 @@ func Test_HashMap_Set_Then_Get_Sync(t *testing.T) {
 			stats := cache.GetStats()
 			assert.Zero(t, stats.statNodes, "Stats nodes should be zero")
 			assert.Zero(t, cache.GetInUsed(), "Stats size should be zero")
-			//fmt.Printf("STATS: %#v\n", stats)
+			// fmt.Printf("STATS: %#v\n", stats)
 
 			cache.Close()
 			assert.Zero(t, cache.GetInUsed())
@@ -145,7 +145,6 @@ func Test_LazyValue_Release(t *testing.T) {
 			assert.False(t, ok)
 		})
 	}
-
 }
 
 func Test_LazyValue_Small_Cache(t *testing.T) {
@@ -177,7 +176,6 @@ func Test_LazyValue_Small_Cache(t *testing.T) {
 			val = lazyValue.Load()
 			assert.Equal(t, dummy10Bytes, val, "lazy value should match")
 		})
-
 	}
 }
 
@@ -283,7 +281,7 @@ func Test_Hashmap_Bulk_Set_Then_Get_And_Release_Async(t *testing.T) {
 			atomic.StoreInt32(&isDone, 1)
 
 			// release all lazy values that are pending
-			for i, _ := range lazyValues {
+			for i := range lazyValues {
 				lazyValue := (*LazyValue)(atomic.LoadPointer(&lazyValues[i]))
 				if lazyValue != nil {
 					(*lazyValue).Release()
@@ -295,7 +293,7 @@ func Test_Hashmap_Bulk_Set_Then_Get_And_Release_Async(t *testing.T) {
 			stats := cache.GetStats()
 			assert.Zero(t, stats.statNodes, "Stats Nodes should be zero")
 			assert.Zero(t, cache.GetInUsed(), "Cached size should be zero")
-			//fmt.Printf("STATS: %#v\n", stats)
+			// fmt.Printf("STATS: %#v\n", stats)
 
 			cache.Close()
 			assert.Zero(t, cache.GetInUsed())
@@ -332,10 +330,9 @@ func Test_HashMap_Hit_And_Miss(t *testing.T) {
 				_, ok = cache.Get(uint64(0), uint64(i+keySize))
 				assert.False(t, ok)
 			}
-			//fmt.Printf("STATS: %#v\n", cache.GetStats())
+			// fmt.Printf("STATS: %#v\n", cache.GetStats())
 		})
 	}
-
 }
 
 func Test_HashMap_Delete(t *testing.T) {
@@ -412,7 +409,6 @@ func Test_HashMap_Eviction(t *testing.T) {
 			assert.Zero(t, cache.GetInUsed())
 		})
 	}
-
 }
 
 func Test_HashMap_Close(t *testing.T) {

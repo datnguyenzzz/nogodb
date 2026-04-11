@@ -32,7 +32,7 @@ func (n *NodeLeaf[V]) addChild(ctx context.Context, key byte, child *INode[V]) e
 }
 
 func (n *NodeLeaf[V]) removeChild(ctx context.Context, key byte) error {
-	return nil //node leaf doesn't support this function
+	return nil // node leaf doesn't support this function
 }
 
 func (n *NodeLeaf[V]) getChild(ctx context.Context, key byte) (*INode[V], error) {
@@ -44,19 +44,19 @@ func (n *NodeLeaf[V]) getAllChildren(ctx context.Context, order Order) []*INode[
 }
 
 func (n *NodeLeaf[V]) getChildByIndex(ctx context.Context, idx uint8) (byte, *INode[V], error) {
-	return 0, nil, nil //node leaf doesn't support this function
+	return 0, nil, nil // node leaf doesn't support this function
 }
 
 func (n *NodeLeaf[V]) grow(ctx context.Context) (*INode[V], error) {
-	return nil, nil //node leaf doesn't support this function
+	return nil, nil // node leaf doesn't support this function
 }
 
 func (n *NodeLeaf[V]) shrink(ctx context.Context) (*INode[V], error) {
-	return nil, nil //node leaf doesn't support this function
+	return nil, nil // node leaf doesn't support this function
 }
 
 func (n *NodeLeaf[V]) hasEnoughSpace(ctx context.Context) bool {
-	return false //node leaf doesn't support this function
+	return false // node leaf doesn't support this function
 }
 
 func (n *NodeLeaf[V]) isShrinkable(ctx context.Context) bool {

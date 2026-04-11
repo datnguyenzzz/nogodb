@@ -52,7 +52,7 @@ func (p *PredictablePool) Put(buf []byte) {
 		return
 	}
 
-	//reset the buffer and remains the capacity, and put into the pool
+	// reset the buffer and remains the capacity, and put into the pool
 	buf = buf[:0]
 	p.pools[id].Put(buf)
 }

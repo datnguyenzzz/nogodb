@@ -113,7 +113,7 @@ func Test_AddNewNode_Then_Get_Async(t *testing.T) {
 			}
 			wg.Wait()
 
-			for i, _ := range tc.expected {
+			for i := range tc.expected {
 				assert.Equal(t, tc.expected[i].fileNum, b.nodes[i].fileNum)
 				assert.Equal(t, tc.expected[i].key, b.nodes[i].key)
 
@@ -134,7 +134,7 @@ func Test_AddNewNode_Then_Get_Big_Async(t *testing.T) {
 		return NewKV(fileNum, key, murmur32(fileNum, key), &shard{})
 	}
 
-	for i, _ := range sequences {
+	for i := range sequences {
 		sequences[i] = newKV(0, uint64(i))
 	}
 
@@ -157,7 +157,7 @@ func Test_AddNewNode_Then_Get_Big_Async(t *testing.T) {
 	}
 	wg.Wait()
 
-	for i, _ := range sequences {
+	for i := range sequences {
 		assert.Equal(t, uint64(i), b.nodes[i].key)
 		_, node := b.Get(0, uint64(i))
 		assert.NotNil(t, node)

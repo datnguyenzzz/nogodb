@@ -11,9 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var (
-	valueSize = int(1 * KiB)
-)
+var valueSize = int(1 * KiB)
 
 // Ristretto V2
 

@@ -67,12 +67,12 @@ func (t *Tree[V]) Get(ctx context.Context, key Key) (V, error) {
 }
 
 func (t *Tree[V]) Minimum(ctx context.Context) (Key, V, bool) {
-	//TODO implement me
+	// TODO implement me
 	panic("implement me")
 }
 
 func (t *Tree[V]) Maximum(ctx context.Context) (Key, V, bool) {
-	//TODO implement me
+	// TODO implement me
 	panic("implement me")
 }
 

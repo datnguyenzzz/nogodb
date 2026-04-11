@@ -37,7 +37,7 @@ func (w *WalSuite) Test_ReadAfterWrite_Small_tests() {
 	// Do Write
 	for i := 0; i < totalTestCases; i++ {
 		d := generateBytes(minCap + rand.Intn(dataCap))
-		//w.T().Logf("Test_ReadAfterWrite_Small_tests: Write data %v-th, len = %v", i, len(d))
+		// w.T().Logf("Test_ReadAfterWrite_Small_tests: Write data %v-th, len = %v", i, len(d))
 		data[i] = d
 		p, err := wal.Write(ctx, d)
 		assert.NoError(w.T(), err, "should be able to write data")
@@ -80,7 +80,7 @@ func (w *WalSuite) Test_ReadAfterWrite_Medium_tests() {
 	ctx := context.Background()
 	for i := 0; i < totalTestCases; i++ {
 		d := generateBytes(minCap + rand.Intn(dataCap))
-		//w.T().Logf("Test_ReadAfterWrite_Medium_tests: Write data %v-th, len = %v", i, len(d))
+		// w.T().Logf("Test_ReadAfterWrite_Medium_tests: Write data %v-th, len = %v", i, len(d))
 		data[i] = d
 		p, err := wal.Write(ctx, d)
 		assert.NoError(w.T(), err, "should be able to write data")
@@ -122,7 +122,7 @@ func (w *WalSuite) Test_ReadAfterWrite_Big_tests() {
 	ctx := context.Background()
 	for i := 0; i < totalTestCases; i++ {
 		d := generateBytes(minCap + rand.Intn(dataCap))
-		//w.T().Logf("Test_ReadAfterWrite_Big_tests: Write data %v-th, len = %v", i, len(d))
+		// w.T().Logf("Test_ReadAfterWrite_Big_tests: Write data %v-th, len = %v", i, len(d))
 		data[i] = d
 		p, err := wal.Write(ctx, d)
 		assert.NoError(w.T(), err, "should be able to write data")

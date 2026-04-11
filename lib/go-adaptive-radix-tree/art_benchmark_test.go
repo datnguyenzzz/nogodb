@@ -36,7 +36,6 @@ func BenchmarkInsert(b *testing.B) {
 			}
 		})
 	}
-
 }
 
 func BenchmarkGet(b *testing.B) {

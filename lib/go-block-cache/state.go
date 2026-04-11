@@ -39,7 +39,7 @@ func (s *state) lazyLoadBucket(id uint32) *bucket {
 		return bucket
 	}
 
-	//fmt.Printf("init bucket %v\n", unsafe.Pointer(bucket))
+	// fmt.Printf("init bucket %v\n", unsafe.Pointer(bucket))
 
 	prevState := (*state)(atomic.LoadPointer(&s.prevState))
 	if prevState == nil {
@@ -75,7 +75,7 @@ func (s *state) lazyLoadBucket(id uint32) *bucket {
 }
 
 func (s *state) initBuckets() {
-	for i, _ := range s.buckets {
+	for i := range s.buckets {
 		s.lazyLoadBucket(uint32(i))
 	}
 

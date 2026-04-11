@@ -526,7 +526,7 @@ func Test_preorder_art_str_InsertAndRemoveNode_sync(t *testing.T) {
 				}
 			}
 
-			//verify the pre-ordered nodes in the tree
+			// verify the pre-ordered nodes in the tree
 			internal.PreorderTraverseAndValidate[string](
 				t, ctx, art.root,
 				tc.expectedPreorder, 0, 0,

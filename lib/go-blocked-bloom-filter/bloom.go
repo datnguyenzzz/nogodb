@@ -13,20 +13,22 @@ const (
 
 // bloomFilter is an implementation of the blocked Bloom Filter with the bit patterns
 // https://save-buffer.github.io/bloom_filter.html
-type bloomFilter struct{}
-type bloomFilterWriter struct {
-	// bitsPerKeys = <bits size of entire of an entire array> / <number of the keys>
-	// For the given eps (the desired false positive rate),
-	//   - The minimum of bitsPerKeys = log(2)*eps
-	//   - With the corresponding number of hash functions (probe), k = log(2)*eps
-	//
-	// Simply the equation backwards, we get: eps = bitPerKeys / log(2)
-	// Therefore, there are diminishing returns on eps past around bitsPerKeys = 10 (we chose 10 as defaultBitsPerKeys)
-	bitsPerKeys int
+type (
+	bloomFilter       struct{}
+	bloomFilterWriter struct {
+		// bitsPerKeys = <bits size of entire of an entire array> / <number of the keys>
+		// For the given eps (the desired false positive rate),
+		//   - The minimum of bitsPerKeys = log(2)*eps
+		//   - With the corresponding number of hash functions (probe), k = log(2)*eps
+		//
+		// Simply the equation backwards, we get: eps = bitPerKeys / log(2)
+		// Therefore, there are diminishing returns on eps past around bitsPerKeys = 10 (we chose 10 as defaultBitsPerKeys)
+		bitsPerKeys int
 
-	hashes  []uint32
-	numKeys int
-}
+		hashes  []uint32
+		numKeys int
+	}
+)
 
 // Writer \\
 
@@ -184,5 +186,7 @@ func bloomHash(b []byte) uint32 {
 	return h
 }
 
-var _ IFilter = (*bloomFilter)(nil)
-var _ IWriter = (*bloomFilterWriter)(nil)
+var (
+	_ IFilter = (*bloomFilter)(nil)
+	_ IWriter = (*bloomFilterWriter)(nil)
+)

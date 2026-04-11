@@ -134,7 +134,7 @@ func (i inmemStorage) Remove(objType ObjectType, num int64) error {
 
 func (i inmemStorage) List(objType ObjectType) []FileDesc {
 	res := make([]FileDesc, 0, len(i.files))
-	for fid, _ := range i.files {
+	for fid := range i.files {
 		fd := i.fromFileId(fid)
 		if fd.Type != objType {
 			continue

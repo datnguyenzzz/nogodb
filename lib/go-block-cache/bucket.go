@@ -60,7 +60,7 @@ func (b *bucket) Get(fileNum, key uint64) (isFrozen bool, n *kv) {
 func (b *bucket) AddNewNode(fileNum, key uint64, hash uint32, s *shard) (isFrozen bool, newNode *kv) {
 	b.mu.Lock()
 	if b.state == frozen {
-		//fmt.Println("AddNewNode to frozen bucket ....")
+		// fmt.Println("AddNewNode to frozen bucket ....")
 		b.mu.Unlock()
 		return true, nil
 	}
@@ -84,7 +84,7 @@ func (b *bucket) DeleteNode(fileNum, key uint64, hash uint32, s *shard) (isFroze
 	b.mu.Lock()
 
 	if b.state == frozen {
-		//fmt.Println("DeleteNode from frozen bucket ....")
+		// fmt.Println("DeleteNode from frozen bucket ....")
 		b.mu.Unlock()
 		return true, false
 	}
@@ -149,7 +149,7 @@ func (b *bucket) grow(s *shard, nodesCount int, currState *state) {
 		panic("Failed to swap the state when growing ")
 	}
 	atomic.AddInt32(&s.stats.statGrow, 1)
-	//fmt.Println("growing...")
+	// fmt.Println("growing...")
 
 	go newState.initBuckets()
 }
@@ -187,6 +187,6 @@ func (b *bucket) shrink(s *shard, nodesCount int, currState *state) {
 	}
 	atomic.AddInt32(&s.stats.statShrink, 1)
 
-	//fmt.Println("shinking...")
+	// fmt.Println("shinking...")
 	go newState.initBuckets()
 }

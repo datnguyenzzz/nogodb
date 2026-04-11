@@ -35,13 +35,13 @@ func (w *worker) scrape(t time.Time) {
 
 	// Create directory if it doesn't exist
 	dir := filepath.Dir(w.fileName)
-	err := os.MkdirAll(dir, 0755)
+	err := os.MkdirAll(dir, 0o755)
 	if err != nil {
 		fmt.Printf("Error creating directory: %v\n", err)
 		return
 	}
 
-	file, err := os.OpenFile(w.fileName, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	file, err := os.OpenFile(w.fileName, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
 	if err != nil {
 		fmt.Printf("Error opening output file: %v\n", err)
 		return
@@ -75,7 +75,7 @@ func (w *worker) Scrape(quit <-chan struct{}) {
 }
 
 func writeInputToFile(input [][]int64, dir string) error {
-	err := os.MkdirAll(dir, 0755)
+	err := os.MkdirAll(dir, 0o755)
 	if err != nil {
 		return err
 	}

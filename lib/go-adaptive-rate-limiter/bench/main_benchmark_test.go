@@ -30,8 +30,8 @@ const (
 	randomisedTestMin   = 700
 	randomisedTestCases = 3
 
-	//randomisedTestEntries = 5
-	//randomisedTestCases   = 3
+	// randomisedTestEntries = 5
+	// randomisedTestCases   = 3
 )
 
 var sharedInputForRandomisedTest [][][]int64
@@ -42,7 +42,7 @@ func getOrSetSharedInputforRandomisedTest() [][][]int64 {
 	}
 
 	sharedInputForRandomisedTest = make([][][]int64, randomisedTestCases)
-	for i, _ := range sharedInputForRandomisedTest {
+	for i := range sharedInputForRandomisedTest {
 		inputCount := randomisedTestMin + 100*i
 		sharedInputForRandomisedTest[i] = generateRandomisedFunction(inputCount)
 	}
@@ -279,7 +279,6 @@ func BenchmarkAdaptiveRLCosineWave(b *testing.B) {
 func BenchmarkAdaptiveRLConstFunc(b *testing.B) {
 	fmt.Println("Start bench adaptive rate limiter - Const Function ...")
 	_ = generateConstFunction()
-
 }
 
 func BenchmarkAdaptiveRLRectangularWave(b *testing.B) {
@@ -403,7 +402,7 @@ func randomisedBench(input [][]int64, isAdaptive bool) int64 {
 func BenchmarkRandomisedFunc(b *testing.B) {
 	fmt.Println("Start bench adaptive rate limiter - Randomised Function ...")
 	inputPerTests := getOrSetSharedInputforRandomisedTest()
-	//fmt.Printf("%+v", inputPerTests)
+	// fmt.Printf("%+v", inputPerTests)
 
 	adaptiveResult := make([]int64, 0, len(inputPerTests))
 	staticResult := make([]int64, 0, len(inputPerTests))
@@ -424,7 +423,7 @@ func BenchmarkRandomisedFunc(b *testing.B) {
 
 	// report result
 	fileName := filepath.Join(randomisedFuncDir, "adaptive_rl_output.dat")
-	file, err := os.OpenFile(fileName, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	file, err := os.OpenFile(fileName, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
 	if err != nil {
 		fmt.Printf("Error opening output file: %v\n", err)
 		return
@@ -440,7 +439,7 @@ func BenchmarkRandomisedFunc(b *testing.B) {
 	}
 
 	fileName = filepath.Join(randomisedFuncDir, "static_rl_output.dat")
-	file, err = os.OpenFile(fileName, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	file, err = os.OpenFile(fileName, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
 	if err != nil {
 		fmt.Printf("Error opening output file: %v\n", err)
 		return
@@ -473,6 +472,7 @@ func generateSineWave() [][]int64 {
 	}
 	return res
 }
+
 func generateCosineWave() [][]int64 {
 	input := cosineWaveGenerate(benchEntries, 7000, math.Pi/100, 2*math.Pi, 7010)
 	res := make([][]int64, 2)
@@ -488,6 +488,7 @@ func generateCosineWave() [][]int64 {
 	}
 	return res
 }
+
 func generateSquareWave() [][]int64 {
 	input := squareWaveGenerate(benchEntries, math.Pi/100, -7000, 7010)
 	res := make([][]int64, 2)
@@ -503,6 +504,7 @@ func generateSquareWave() [][]int64 {
 	}
 	return res
 }
+
 func generateConstFunction() [][]int64 {
 	input := constantFunctionGenerate(benchEntries, 300)
 	res := make([][]int64, 2)
@@ -518,6 +520,7 @@ func generateConstFunction() [][]int64 {
 	}
 	return res
 }
+
 func generateRandomisedFunction(randomisedTestEntries int) [][]int64 {
 	randomisedInput := randomFunctionGenerate(randomisedTestEntries, 100, 14100)
 	res := make([][]int64, 2)
@@ -533,6 +536,7 @@ func generateRandomisedFunction(randomisedTestEntries int) [][]int64 {
 	//}
 	return res
 }
+
 func generateRectangularFunction(benchEntries int) [][]int64 {
 	input := rectangularWaveGenerate(benchEntries, 0.1, 3000, 0.15)
 	res := make([][]int64, 2)

@@ -113,7 +113,7 @@ func PreorderTraverseAndValidate[V any](
 		assert.Nil(t, expectedPreorder[idx])
 		return 0
 	}
-	//fmt.Printf("prefix: %v, idx: %v \n", string(node.getPrefix(ctx)), idx)
+	// fmt.Printf("prefix: %v, idx: %v \n", string(node.getPrefix(ctx)), idx)
 	assert.Equal(t, node.GetKind(ctx), expectedPreorder[idx].GetKind(ctx), fmt.Sprintf("kind is not match at index - %v", idx))
 	assert.Equal(t, node.getPrefix(ctx), expectedPreorder[idx].getPrefix(ctx), fmt.Sprintf("prefix is not match at index -  %v", idx))
 

@@ -130,7 +130,6 @@ func Test_Atomicity(t *testing.T) {
 
 				return nil
 			}
-
 		})
 	}
 

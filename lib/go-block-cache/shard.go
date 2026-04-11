@@ -215,7 +215,7 @@ func (s *shard) close() {
 
 	var allKVs []*kv
 	state := (*state)(atomic.LoadPointer(&s.state))
-	for i, _ := range state.buckets {
+	for i := range state.buckets {
 		bucket := state.lazyLoadBucket(uint32(i))
 		bucket.mu.Lock()
 		allKVs = append(allKVs, bucket.nodes...)
@@ -245,7 +245,7 @@ func newShard(cacheSize int64, cacheType CacheType) *shard {
 		bucketMark:    uint32(initialBucketSize - 1),
 		growThreshold: int64(initialBucketSize * overflowThreshold),
 	}
-	for i, _ := range state.buckets {
+	for i := range state.buckets {
 		state.buckets[i].state = initialized
 	}
 

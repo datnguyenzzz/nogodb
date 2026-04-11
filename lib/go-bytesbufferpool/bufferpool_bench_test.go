@@ -7,18 +7,16 @@ import (
 	"github.com/datnguyenzzz/nogodb/lib/go-bytesbufferpool/predictable_size"
 )
 
-var (
-	bufs = [][]byte{ // Total: 26MB
-		makeDummyBuffer(1 * 1024 * 1024), // 1 MB
-		makeDummyBuffer(4 * 1024 * 1024), // 4 MB
-		makeDummyBuffer(2 * 1024 * 1024), // 2 MB
-		makeDummyBuffer(8 * 1024 * 1024), // 8 MB
-		makeDummyBuffer(8 * 1024 * 1024), // 8 MB
-		makeDummyBuffer(2 * 1024 * 1024), // 2 MB
-		makeDummyBuffer(4 * 1024 * 1024), // 4 MB
-		makeDummyBuffer(1 * 1024 * 1024), // 1 MB
-	}
-)
+var bufs = [][]byte{ // Total: 26MB
+	makeDummyBuffer(1 * 1024 * 1024), // 1 MB
+	makeDummyBuffer(4 * 1024 * 1024), // 4 MB
+	makeDummyBuffer(2 * 1024 * 1024), // 2 MB
+	makeDummyBuffer(8 * 1024 * 1024), // 8 MB
+	makeDummyBuffer(8 * 1024 * 1024), // 8 MB
+	makeDummyBuffer(2 * 1024 * 1024), // 2 MB
+	makeDummyBuffer(4 * 1024 * 1024), // 4 MB
+	makeDummyBuffer(1 * 1024 * 1024), // 1 MB
+}
 
 func makeDummyBuffer(size int) []byte {
 	buf := make([]byte, size)

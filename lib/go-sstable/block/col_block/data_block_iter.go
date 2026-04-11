@@ -16,7 +16,6 @@ import (
 
 // Note: All received keys are the full user key, eg internalKey.UserKey
 
-// TODO - Untested
 type DataBlockIter struct {
 	bpool    *predictable_size.PredictablePool
 	comparer common.IComparer
@@ -73,13 +72,21 @@ func (i *DataBlockIter) Last() *common.InternalKV {
 
 // Next moves the iterator to the next key/value pair
 func (i *DataBlockIter) Next() *common.InternalKV {
-	i.currRow = min(i.currRow+1, i.keyDecoder.prefix.Rows()-1)
+	if i.currRow == i.keyDecoder.prefix.Rows()-1 {
+		return nil
+	}
+
+	i.currRow = i.currRow + 1
 	return i.toKv()
 }
 
 // Prev moves the iterator to the previous key/value pair.
 func (i *DataBlockIter) Prev() *common.InternalKV {
-	i.currRow = max(0, i.currRow-1)
+	if i.currRow == 0 {
+		return nil
+	}
+
+	i.currRow = i.currRow - 1
 	return i.toKv()
 }
 
@@ -103,21 +110,20 @@ func (i *DataBlockIter) IsClosed() bool {
 func (i *DataBlockIter) seekGTEInternal(key []byte) (foundRow uint32, eq bool) {
 	prefixLen := i.comparer.Split(key)
 	foundRow, eq = i.keyDecoder.prefix.SeekGTE(
-		key[:prefixLen], 0, i.keyDecoder.prefix.Rows()-1,
+		key[:prefixLen], 0, int32(i.keyDecoder.prefix.Rows()-1),
 	)
-
 	if eq {
 		// seeking based on suffix. We can ensure that prefixChangedAt
 		// holds only keys that are sorted in an increasing order
 		nextPrefixChangedAt, _ := i.prefixChangedAt.SeekGTE(
-			foundRow+1, 0, i.prefixChangedAt.Rows()-1,
+			foundRow+1, 0, int32(i.prefixChangedAt.Rows()-1),
 		)
 
 		// because the keys come in an increasing order, so if their prefix are the same
 		// from [foundRow, nextPrefixChangedAt-1], thus we can ensure the suffixes
 		// are in an increasing order
 		foundRow, eq = i.keyDecoder.suffix.SeekGTE(
-			key[prefixLen:], foundRow, nextPrefixChangedAt-1,
+			key[prefixLen:], int32(foundRow), int32(nextPrefixChangedAt-1),
 		)
 	}
 

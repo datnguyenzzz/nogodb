@@ -10,6 +10,10 @@ import (
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
 )
 
+const (
+	defaultBundleSize = 16
+)
+
 var columnsOrder = []string{
 	"prefix",
 	"suffix",
@@ -51,9 +55,11 @@ type DataBlockWriter struct {
 
 	layoutEncoder layoutcodex.LayoutEncoder
 
-	currKey    *common.InternalKey
-	lastPrefix []byte
-	rows       uint32
+	currKey *common.InternalKey
+	rows    uint32
+
+	lastPrefix         []byte
+	prefixChangedTimes uint32
 }
 
 func (d *DataBlockWriter) Reset() {
@@ -62,11 +68,13 @@ func (d *DataBlockWriter) Reset() {
 
 	d.columnEncoder.trailer.Reset()
 	d.columnEncoder.values.Reset()
+	d.columnEncoder.prefixChangedAt.Reset()
 
 	d.layoutEncoder.Reset()
 	d.rows = 0
 	d.lastPrefix = nil
 	d.currKey = nil
+	d.prefixChangedTimes = 0
 }
 
 // Add adds a key-value pair to the sstable.
@@ -81,6 +89,7 @@ func (d *DataBlockWriter) Add(key common.InternalKey, value []byte) {
 	if d.comparer.Compare(key.UserKey[:prefixLen], d.lastPrefix) != 0 {
 		d.lastPrefix = key.UserKey[:prefixLen]
 		d.columnEncoder.prefixChangedAt.Append(d.rows - 1)
+		d.prefixChangedTimes += 1
 	}
 
 	d.columnEncoder.trailer.Append(uint64(key.Trailer))
@@ -99,11 +108,11 @@ func (d *DataBlockWriter) CurrKey() *common.InternalKey {
 func (d *DataBlockWriter) Size() uint32 {
 	// refer to the README to understand the layout
 	offset := uint32(layoutcodex.HeaderOffset + layoutcodex.ColumnHeadSize*len(columnsOrder))
-	offset = d.keyEncoder.prefix.Size(offset)
-	offset = d.keyEncoder.suffix.Size(offset)
-	offset = d.columnEncoder.trailer.Size(offset)
-	offset = d.columnEncoder.values.Size(offset)
-	offset = d.columnEncoder.prefixChangedAt.Size(offset)
+	offset += d.keyEncoder.prefix.Size(offset)
+	offset += d.keyEncoder.suffix.Size(offset)
+	offset += d.columnEncoder.trailer.Size(offset)
+	offset += d.columnEncoder.values.Size(offset)
+	offset += d.columnEncoder.prefixChangedAt.Size(offset)
 	offset += 1 // 1 un-used padding byte
 
 	return offset
@@ -118,8 +127,7 @@ func (d *DataBlockWriter) Finish(rows uint32, size int) (finished []byte) {
 		panic("DataBlockWriter only accepts to finish either all rows, or [all rows minus 1]")
 	}
 
-	h := layoutcodex.NewHeader(1, uint16(len(columnsOrder)), rows)
-
+	h := layoutcodex.NewHeader(common.TableV2, uint16(len(columnsOrder)), rows)
 	d.layoutEncoder.Init(size, h)
 	for _, columnName := range columnsOrder {
 		switch columnName {
@@ -132,6 +140,16 @@ func (d *DataBlockWriter) Finish(rows uint32, size int) (finished []byte) {
 		case "values":
 			d.layoutEncoder.Encode(rows, &d.columnEncoder.values)
 		case "prefixChangedAt":
+			// TODO
+			// Issue #1: prefixChangedAt doesn't have full [rows]
+			//. so after writing and read back
+			//  decoder won't know how many [rows] that prefixChangedAt has
+			//. leading to the prefixChangedAt.SeekGTE() can't work properly
+			// Issue #2:
+			//. Because we allow to encode [1: rows-1], the prefixChangedAt
+			// might need remove its last element
+			//
+			//. ==> We need bitmap for it
 			d.layoutEncoder.Encode(rows, &d.columnEncoder.prefixChangedAt)
 		default:
 			panic(fmt.Sprintf("Unhandled column: %s", columnName))
@@ -152,7 +170,10 @@ func NewDataBlockWriter(comparer common.IComparer) *DataBlockWriter {
 		prefix prefixbytescodex.PrefixBytesEncoder
 		suffix rawbytescodex.RawByteEncoder
 	}{
-		prefix: prefixbytescodex.PrefixBytesEncoder{},
+		prefix: prefixbytescodex.PrefixBytesEncoder{
+			// TODO(datnguyenzzz): Make this configurable
+			BundleSize: defaultBundleSize,
+		},
 		suffix: rawbytescodex.RawByteEncoder{},
 	}
 	d.keyEncoder.prefix.Init()

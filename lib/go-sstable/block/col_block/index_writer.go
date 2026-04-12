@@ -54,6 +54,10 @@ func NewIndexWriter(
 }
 
 func (iw *IndexWriter) Add(key *common.InternalKey, bh *commonBlock.BlockHandle) error {
+	if iw.comparer.Compare(iw.prevKey.UserKey, key.UserKey) >= 0 {
+		panic("IndexWriter key must be in a strictly increasing order")
+	}
+
 	sizeBefore := iw.firstLevelIndex.Size()
 
 	iw.firstLevelIndex.Add(key.UserKey, bh)

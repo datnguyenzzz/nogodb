@@ -113,15 +113,12 @@ func (i *DataBlockIter) seekGTEInternal(key []byte) (foundRow uint32, eq bool) {
 	foundRow, eq = i.keyDecoder.prefix.SeekGTE(
 		key[:prefixLen], 0, int32(i.keyDecoder.prefix.Rows()-1),
 	)
-	// fmt.Println("searching, prefix:", key[:prefixLen], "suffix:", key[prefixLen:])
-	// fmt.Println("found row:", foundRow, "prefix found:", i.keyDecoder.prefix.Get(foundRow))
 	if eq {
 		// seeking based on suffix. We can ensure that prefixChangedAt
 		// holds only keys that are sorted in an increasing order
 		nextPrefixChangedAt, _ := i.prefixChangedAt.SeekGTE(
 			foundRow+1, 0, int32(i.prefixChangedAt.Rows()-1),
 		)
-		// fmt.Println(foundRow, "-", nextPrefixChangedAt-1)
 
 		// because the keys come in an increasing order, so if their prefix are the same
 		// from [foundRow, nextPrefixChangedAt-1], thus we can ensure the suffixes

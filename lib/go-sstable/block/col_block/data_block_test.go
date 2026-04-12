@@ -1,4 +1,4 @@
-package colblock
+package colblock_test
 
 import (
 	"bytes"
@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/datnguyenzzz/nogodb/lib/go-bytesbufferpool/predictable_size"
+	colblock "github.com/datnguyenzzz/nogodb/lib/go-sstable/block/col_block"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
 	"github.com/go-faker/faker/v4"
 	"github.com/stretchr/testify/require"
@@ -75,7 +76,7 @@ func Test_iterating_over_a_block(t *testing.T) {
 
 	mvccComparer := newMvccComparer()
 	bp := predictable_size.NewPredictablePool()
-	writer := NewDataBlockWriter(mvccComparer)
+	writer := colblock.NewDataBlockWriter(mvccComparer)
 
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
@@ -83,7 +84,7 @@ func Test_iterating_over_a_block(t *testing.T) {
 			writer.Reset()
 
 			// Prep input data
-			userKeys := genInput(tc.size, tc.sharedPrefixLen)
+			userKeys := genInput(tc.size, tc.sharedPrefixLen, true)
 			keys := make([]common.InternalKey, 0, len(userKeys))
 			values := make([][]byte, 0, len(userKeys))
 			for i, userKey := range userKeys {
@@ -104,7 +105,7 @@ func Test_iterating_over_a_block(t *testing.T) {
 			lz.ReserveBuffer(bp, len(data))
 			lz.SetBufferValue(data)
 
-			iter := NewDataBlockIter(bp, mvccComparer, &lz)
+			iter := colblock.NewDataBlockIter(bp, mvccComparer, &lz)
 
 			// Verify iterating over a block
 			i := 0
@@ -122,7 +123,7 @@ func Test_iterating_over_a_block(t *testing.T) {
 	}
 }
 
-func Test_Seeking(t *testing.T) {
+func Test_seeking_on_data_block(t *testing.T) {
 	type param struct {
 		desc            string
 		sharedPrefixLen int
@@ -161,7 +162,7 @@ func Test_Seeking(t *testing.T) {
 
 	mvccComparer := newMvccComparer()
 	bp := predictable_size.NewPredictablePool()
-	writer := NewDataBlockWriter(mvccComparer)
+	writer := colblock.NewDataBlockWriter(mvccComparer)
 
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
@@ -169,7 +170,7 @@ func Test_Seeking(t *testing.T) {
 			writer.Reset()
 
 			// Prep input data
-			userKeys := genInput(tc.size, tc.sharedPrefixLen)
+			userKeys := genInput(tc.size, tc.sharedPrefixLen, true)
 			keys := make([]common.InternalKey, 0, len(userKeys))
 			values := make([][]byte, 0, len(userKeys))
 			for i, userKey := range userKeys {
@@ -190,7 +191,7 @@ func Test_Seeking(t *testing.T) {
 			lz.ReserveBuffer(bp, len(data))
 			lz.SetBufferValue(data)
 
-			iter := NewDataBlockIter(bp, mvccComparer, &lz)
+			iter := colblock.NewDataBlockIter(bp, mvccComparer, &lz)
 
 			// 5 byte for the suffix
 			kv := iter.SeekGTE([]byte{0x0, 0x0, 0x0, 0x0, 0x0, 0x0})
@@ -240,7 +241,7 @@ func assertKv(t *testing.T, i int, op string, foundKv *common.InternalKV, expect
 // genInput a key is made of [prefix_byte][[5]byte suffix]
 // a [prefix] is sorted in an increasing order.
 // If key shared the same [prefix], [suffix] is in an increasing order
-func genInput(size int, sharedPrefix int) [][]byte {
+func genInput(size int, sharedPrefix int, withSuffix bool) [][]byte {
 	res := make([][]byte, 0, size)
 	r := rand.New(rand.NewSource(time.Now().UnixNano()))
 
@@ -266,17 +267,19 @@ func genInput(size int, sharedPrefix int) [][]byte {
 	})
 
 	// append suffix to each key
-	for i := 0; i < len(res); {
-		j := i
-		for ; j < len(res) && bytes.Equal(res[i], res[j]); j++ {
-		}
-		for k := i; k < j; k++ {
-			suffix := make([]byte, suffixLen)
-			binary.LittleEndian.PutUint32(suffix, uint32(k-i))
-			res[k] = slices.Concat(res[k], suffix)
-		}
+	if withSuffix {
+		for i := 0; i < len(res); {
+			j := i
+			for ; j < len(res) && bytes.Equal(res[i], res[j]); j++ {
+			}
+			for k := i; k < j; k++ {
+				suffix := make([]byte, suffixLen)
+				binary.LittleEndian.PutUint32(suffix, uint32(k-i))
+				res[k] = slices.Concat(res[k], suffix)
+			}
 
-		i = j
+			i = j
+		}
 	}
 
 	return res

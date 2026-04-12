@@ -2,6 +2,7 @@ package uintcodex
 
 import (
 	"encoding/binary"
+	"fmt"
 	"unsafe"
 
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/block/col_block/codex"
@@ -20,7 +21,7 @@ type UintDecoder[T codex.UintType] struct {
 
 func (u *UintDecoder[T]) Get(row uint32) T {
 	if row >= u.rows {
-		panic("outside of column block RawBytesDecoder")
+		panic(fmt.Sprintf("outside of column block UintDecoder, %d >= %d", row, u.rows))
 	}
 
 	switch u.width {
@@ -60,7 +61,7 @@ func (e *UintDecoder[T]) DataType() codex.DataType {
 // RawBytesDecoder holds all keys in the sorted increasing order, from [from, to]
 func (e *UintDecoder[T]) SeekGTE(key T, from, to int32) (rowIndex uint32, isEqual bool) {
 	if from >= int32(e.rows) || to >= int32(e.rows) || from > to {
-		panic("RawBytesDecoder: searching range is out-bound")
+		panic("UintDecoder: searching range is out-bound")
 	}
 	if e.Get(uint32(from)) >= key {
 		return 0, e.Get(uint32(from)) == key

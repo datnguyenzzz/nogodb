@@ -48,7 +48,7 @@ Columns data order
 | -- | ------------------------------- | ----------------------- |
 | 0  | InternalKey.UserKey             | Prefix-compressed bytes |
 | 1  | InternalKey.UserKey suffix MVCC | Bytes                   |
-| 2  | Prefix changed position.        | Uint                    |
+| 2  | Prefix changed position.        | Bitmap                  |
 | 3  | InternalKey.Trailer             | Uint                    |
 | 4  | Value                           | Bytes                   |
 | .. | ...                             | ...                     |
@@ -155,7 +155,7 @@ Layout
 +-----------------------------------------------------+-------+-------+-----
 ```
 
-3. Uint column encoder (any unsigned integer with 8, 16, 32, 64 bit)
+3. Uint column encoder uses for storing any unsigned integer with 8, 16, 32, 64 bit
 
 - The low bits indicate how many bytes per integer are used, with allowed values 0, 1, 2, 4, or 8.
 
@@ -168,3 +168,27 @@ Layout:
 +----------+----------------+--------------+--------------+--------------+
 ```
 
+4. Bitmap uses for storing numbers that are within range [0,N-1]
+
+- Bitmap is a bitmap structure built on a []uint64. The bitmap is encoded into an 8-byte aligned array of 64-bit words which is (nRows+63)/64 words in length.
+
+- A summary bitmap is stored after the primary bitmap in which each bit in the summary bitmap corresponds to 1 word in the primary bitmap. A bit is set in the summary bitmap if the corresponding word in the primary bitmap is
+non-zero.
+
+Example of the bitmap that holds [0..N-1]
+
+```
+masks: masks[i][j] = 1 means number = [64*i + j] exists
+        <--64bit--> 
+     0: 10101...101
+     1: 10101...101
+        ...
+[N/64]: 10101...101
+
+index_masks: index_masks[i][j] = 1 means masks[i*64+j] <> 0
+           <--64bit-->
+        0: 10101...101
+        1: 10101...101
+           ...
+[N/64/64]: 10101...101
+```

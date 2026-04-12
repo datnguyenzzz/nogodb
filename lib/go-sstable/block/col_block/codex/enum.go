@@ -12,6 +12,7 @@ const (
 	Uint16DT
 	Uint32DT
 	Uint64DT
+	BitmapDT
 )
 
 type EncodableDataType interface {

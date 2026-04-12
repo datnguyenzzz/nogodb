@@ -1,7 +1,19 @@
 package colblock
 
 import (
+	"bytes"
+	"encoding/binary"
+	"fmt"
+	"math/rand"
+	"slices"
+	"sort"
+	"testing"
+	"time"
+
+	"github.com/datnguyenzzz/nogodb/lib/go-bytesbufferpool/predictable_size"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
+	"github.com/go-faker/faker/v4"
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -24,247 +36,262 @@ func (c *mvccComparer) Split(b []byte) int {
 
 var _ common.IComparer = (*mvccComparer)(nil)
 
-// Failed tests
+func Test_iterating_over_a_block(t *testing.T) {
+	type param struct {
+		desc            string
+		sharedPrefixLen int
+		size            int
+	}
 
-// func Test_iterating_over_a_block(t *testing.T) {
-// 	type param struct {
-// 		desc            string
-// 		sharedPrefixLen int
-// 		size            int
-// 	}
+	testCases := []param{
+		{
+			desc: "small, without shared prefixes",
+			size: 20,
+		},
+		{
+			desc:            "small, with shared prefixes",
+			size:            20,
+			sharedPrefixLen: 5,
+		},
+		{
+			desc: "medium, without shared prefixes",
+			size: 2000,
+		},
+		{
+			desc:            "medium, with shared prefixes",
+			size:            2000,
+			sharedPrefixLen: 10,
+		},
+		{
+			desc: "big, without shared prefixes",
+			size: 10_000,
+		},
+		{
+			desc:            "big, with shared prefixes",
+			size:            10_000,
+			sharedPrefixLen: 20,
+		},
+	}
 
-// 	testCases := []param{
-// 		{
-// 			desc: "small, without shared prefixes",
-// 			size: 20,
-// 		},
-// 		{
-// 			desc:            "small, with shared prefixes",
-// 			size:            20,
-// 			sharedPrefixLen: 5,
-// 		},
-// 		{
-// 			desc: "medium, without shared prefixes",
-// 			size: 2000,
-// 		},
-// 		{
-// 			desc:            "medium, with shared prefixes",
-// 			size:            2000,
-// 			sharedPrefixLen: 10,
-// 		},
-// 		{
-// 			desc: "big, without shared prefixes",
-// 			size: 10_000,
-// 		},
-// 		{
-// 			desc:            "big, with shared prefixes",
-// 			size:            10_000,
-// 			sharedPrefixLen: 20,
-// 		},
-// 	}
+	mvccComparer := newMvccComparer()
+	bp := predictable_size.NewPredictablePool()
+	writer := NewDataBlockWriter(mvccComparer)
 
-// 	mvccComparer := newMvccComparer()
-// 	bp := predictable_size.NewPredictablePool()
-// 	writer := NewDataBlockWriter(mvccComparer)
+	for _, tc := range testCases {
+		t.Run(tc.desc, func(t *testing.T) {
+			// reset writer
+			writer.Reset()
 
-// 	for _, tc := range testCases {
-// 		t.Run(tc.desc, func(t *testing.T) {
-// 			// reset writer
-// 			writer.Reset()
+			// Prep input data
+			userKeys := genInput(tc.size, tc.sharedPrefixLen)
+			keys := make([]common.InternalKey, 0, len(userKeys))
+			values := make([][]byte, 0, len(userKeys))
+			for i, userKey := range userKeys {
+				keys = append(keys, common.MakeKey(userKey, common.SeqNum(i), common.KeyKindSet))
+				values = append(values, randomByte())
+			}
 
-// 			// Prep input data
-// 			userKeys := genInput(tc.size, tc.sharedPrefixLen)
-// 			keys := make([]common.InternalKey, 0, len(userKeys))
-// 			values := make([][]byte, 0, len(userKeys))
-// 			for i, userKey := range userKeys {
-// 				keys = append(keys, common.MakeKey(userKey, common.SeqNum(i), common.KeyKindSet))
-// 				values = append(values, randomByte())
-// 			}
+			// Write data
+			for i := 0; i < len(keys); i++ {
+				writer.Add(keys[i], values[i])
+			}
 
-// 			// Write data
-// 			for i := 0; i < len(keys); i++ {
-// 				writer.Add(keys[i], values[i])
-// 			}
+			estSize := int(writer.Size())
+			data := writer.Finish(uint32(len(keys)), estSize)
 
-// 			estSize := int(writer.Size())
-// 			data := writer.Finish(uint32(len(keys)), estSize)
+			// Create iterator
+			lz := common.NewBlankInternalLazyValue(common.ValueFromBuffer)
+			lz.ReserveBuffer(bp, len(data))
+			lz.SetBufferValue(data)
 
-// 			// Create iterator
-// 			lz := common.NewBlankInternalLazyValue(common.ValueFromBuffer)
-// 			lz.ReserveBuffer(bp, len(data))
-// 			lz.SetBufferValue(data)
+			iter := NewDataBlockIter(bp, mvccComparer, &lz)
 
-// 			iter := NewDataBlockIter(bp, mvccComparer, &lz)
+			// Verify iterating over a block
+			i := 0
+			for kv := iter.First(); kv != nil; kv = iter.Next() {
+				assertKv(t, i, "Next", kv, keys[i].UserKey, values[i])
+				i += 1
+			}
 
-// 			// Verify iterating over a block
-// 			i := 0
-// 			for kv := iter.First(); kv != nil; kv = iter.Next() {
-// 				assertKv(t, i, "Next", kv, keys[i].UserKey, values[i])
-// 				i += 1
-// 			}
+			i = len(keys) - 1
+			for kv := iter.Last(); kv != nil; kv = iter.Prev() {
+				assertKv(t, i, "Last", kv, keys[i].UserKey, values[i])
+				i -= 1
+			}
+		})
+	}
+}
 
-// 			i = len(keys) - 1
-// 			for kv := iter.Last(); kv != nil; kv = iter.Prev() {
-// 				assertKv(t, i, "Last", kv, keys[i].UserKey, values[i])
-// 				i -= 1
-// 			}
-// 		})
-// 	}
-// }
+func Test_Seeking(t *testing.T) {
+	type param struct {
+		desc            string
+		sharedPrefixLen int
+		size            int
+	}
 
-// func Test_Seeking(t *testing.T) {
-// 	type param struct {
-// 		desc            string
-// 		sharedPrefixLen int
-// 		size            int
-// 	}
+	testCases := []param{
+		{
+			desc: "small, without shared prefixes",
+			size: 20,
+		},
+		{
+			desc:            "small, with shared prefixes",
+			size:            20,
+			sharedPrefixLen: 5,
+		},
+		{
+			desc: "medium, without shared prefixes",
+			size: 2000,
+		},
+		{
+			desc:            "medium, with shared prefixes",
+			size:            2000,
+			sharedPrefixLen: 10,
+		},
+		{
+			desc: "big, without shared prefixes",
+			size: 10_000,
+		},
+		{
+			desc:            "big, with shared prefixes",
+			size:            10_000,
+			sharedPrefixLen: 20,
+		},
+	}
 
-// 	testCases := []param{
-// 		{
-// 			desc: "small, without shared prefixes",
-// 			size: 20,
-// 		},
-// 		// {
-// 		// 	desc:            "small, with shared prefixes",
-// 		// 	size:            20,
-// 		// 	sharedPrefixLen: 5,
-// 		// },
-// 		// {
-// 		// 	desc: "medium, without shared prefixes",
-// 		// 	size: 2000,
-// 		// },
-// 		// {
-// 		// 	desc:            "medium, with shared prefixes",
-// 		// 	size:            2000,
-// 		// 	sharedPrefixLen: 10,
-// 		// },
-// 		// {
-// 		// 	desc: "big, without shared prefixes",
-// 		// 	size: 10_000,
-// 		// },
-// 		// {
-// 		// 	desc:            "big, with shared prefixes",
-// 		// 	size:            10_000,
-// 		// 	sharedPrefixLen: 20,
-// 		// },
-// 	}
+	mvccComparer := newMvccComparer()
+	bp := predictable_size.NewPredictablePool()
+	writer := NewDataBlockWriter(mvccComparer)
 
-// 	mvccComparer := newMvccComparer()
-// 	bp := predictable_size.NewPredictablePool()
-// 	writer := NewDataBlockWriter(mvccComparer)
+	for _, tc := range testCases {
+		t.Run(tc.desc, func(t *testing.T) {
+			// reset writer
+			writer.Reset()
 
-// 	for _, tc := range testCases {
-// 		t.Run(tc.desc, func(t *testing.T) {
-// 			// reset writer
-// 			writer.Reset()
+			// Prep input data
+			userKeys := genInput(tc.size, tc.sharedPrefixLen)
+			keys := make([]common.InternalKey, 0, len(userKeys))
+			values := make([][]byte, 0, len(userKeys))
+			for i, userKey := range userKeys {
+				keys = append(keys, common.MakeKey(userKey, common.SeqNum(i), common.KeyKindSet))
+				values = append(values, randomByte())
+			}
 
-// 			// Prep input data
-// 			userKeys := genInput(tc.size, tc.sharedPrefixLen)
-// 			keys := make([]common.InternalKey, 0, len(userKeys))
-// 			values := make([][]byte, 0, len(userKeys))
-// 			for i, userKey := range userKeys {
-// 				keys = append(keys, common.MakeKey(userKey, common.SeqNum(i), common.KeyKindSet))
-// 				values = append(values, randomByte())
-// 			}
+			// Write data
+			for i := 0; i < len(keys); i++ {
+				writer.Add(keys[i], values[i])
+			}
 
-// 			// Write data
-// 			for i := 0; i < len(keys); i++ {
-// 				writer.Add(keys[i], values[i])
-// 			}
+			estSize := int(writer.Size())
+			data := writer.Finish(uint32(len(keys)), estSize)
 
-// 			estSize := int(writer.Size())
-// 			data := writer.Finish(uint32(len(keys)), estSize)
+			// Create iterator
+			lz := common.NewBlankInternalLazyValue(common.ValueFromBuffer)
+			lz.ReserveBuffer(bp, len(data))
+			lz.SetBufferValue(data)
 
-// 			// Create iterator
-// 			lz := common.NewBlankInternalLazyValue(common.ValueFromBuffer)
-// 			lz.ReserveBuffer(bp, len(data))
-// 			lz.SetBufferValue(data)
+			iter := NewDataBlockIter(bp, mvccComparer, &lz)
 
-// 			iter := NewDataBlockIter(bp, mvccComparer, &lz)
+			// 5 byte for the suffix
+			kv := iter.SeekGTE([]byte{0x0, 0x0, 0x0, 0x0, 0x0, 0x0})
+			assertKv(t, 0, "SeekGTE", kv, keys[0].UserKey, values[0])
 
-// 			// 5 byte for the suffix
-// 			kv := iter.SeekGTE([]byte{0x0, 0x0, 0x0, 0x0, 0x0, 0x1})
-// 			assertKv(t, 0, "SeekGTE", kv, keys[0].UserKey, values[0])
+			for i := 1; i < len(keys); i++ {
+				// fmt.Println("testing", i, "-th")
+				// seeking GTE directly with a key
+				kv = iter.SeekGTE(keys[i].UserKey)
+				assertKv(t, i, "SeekGTE strict", kv, keys[i].UserKey, values[i])
 
-// 			for i := 1; i < len(keys); i++ {
-// 				fmt.Println("testing", i, "-th")
-// 				// seeking GTE directly with a key
-// 				kv = iter.SeekGTE(keys[i].UserKey)
-// 				assertKv(t, i, "SeekGTE strict", kv, keys[i].UserKey, values[i])
+				// seeking GTE with a smaller key
+				smallerKey := make([]byte, len(keys[i-1].UserKey))
+				copy(smallerKey, keys[i-1].UserKey)
+				smallerKey[len(smallerKey)-1] += 0x1
 
-// 				// seeking GTE with a smaller key
-// 				smallerKey := make([]byte, len(keys[i-1].UserKey))
-// 				copy(smallerKey, keys[i-1].UserKey)
-// 				smallerKey[len(smallerKey)-1] += 0x1
+				if bytes.Compare(smallerKey, keys[i].UserKey) <= 0 {
+					kv = iter.SeekGTE(smallerKey)
+					assertKv(t, i, "SeekGTE /w smaller", kv, keys[i].UserKey, values[i])
+				}
 
-// 				if bytes.Compare(smallerKey, keys[i].UserKey) <= 0 {
-// 					kv = iter.SeekGTE(smallerKey)
-// 					assertKv(t, i, "SeekGTE /w smaller", kv, keys[i].UserKey, values[i])
-// 				}
+				// seeking LTE directly with a key
+				kv = iter.SeekLTE(keys[i].UserKey)
+				assertKv(t, i, "SeekLTE strict", kv, keys[i].UserKey, values[i])
+				smallerKey = nil
 
-// 				// seeking LTE directly with a key
-// 				kv = iter.SeekLTE(keys[i].UserKey)
-// 				assertKv(t, i, "SeekLTE strict", kv, keys[i].UserKey, values[i])
-// 				smallerKey = nil
+				// seeking LTE with a bigger key
+				biggerKey := make([]byte, len(keys[i].UserKey))
+				copy(biggerKey, keys[i].UserKey)
+				biggerKey[len(biggerKey)-1] += 0x1
 
-// 				// seeking LTE with a bigger key
-// 				biggerKey := make([]byte, len(keys[i].UserKey))
-// 				copy(biggerKey, keys[i].UserKey)
-// 				biggerKey[len(biggerKey)-1] += 0x1
+				if i+1 < len(keys) && bytes.Compare(biggerKey, keys[i+1].UserKey) < 0 {
+					kv = iter.SeekLTE(biggerKey)
+					assertKv(t, i, "SeekLTE /w bigger", kv, keys[i].UserKey, values[i])
+				}
+			}
+		})
+	}
+}
 
-// 				if i+1 < len(keys) && bytes.Compare(biggerKey, keys[i+1].UserKey) < 0 {
-// 					kv = iter.SeekLTE(biggerKey)
-// 					assertKv(t, i, "SeekLTE /w bigger", kv, keys[i].UserKey, values[i])
-// 				}
-// 			}
-// 		})
-// 	}
-// }
+func assertKv(t *testing.T, i int, op string, foundKv *common.InternalKV, expectedKey []byte, expectedValue []byte) {
+	k, v := foundKv.K, foundKv.V.Value()
+	require.Equal(t, expectedKey, k.UserKey, fmt.Sprintf("[%s]: key is mismatch at %d-th row", op, i))
+	require.Zero(t, bytes.Compare(expectedValue, v), fmt.Sprintf("[%s]: value is mismatch at %d-th row", op, i))
+}
 
-// func assertKv(t *testing.T, i int, op string, foundKv *common.InternalKV, expectedKey []byte, expectedValue []byte) {
-// 	k, v := foundKv.K, foundKv.V.Value()
-// 	require.Equal(t, expectedKey, k.UserKey, fmt.Sprintf("[%s]: key is mismatch at %d-th row", op, i))
-// 	require.Zero(t, bytes.Compare(expectedValue, v), fmt.Sprintf("%s]: value is mismatch at %d-th row", op, i))
-// }
+// genInput a key is made of [prefix_byte][[5]byte suffix]
+// a [prefix] is sorted in an increasing order.
+// If key shared the same [prefix], [suffix] is in an increasing order
+func genInput(size int, sharedPrefix int) [][]byte {
+	res := make([][]byte, 0, size)
+	r := rand.New(rand.NewSource(time.Now().UnixNano()))
 
-// func genInput(size int, sharedPrefix int) [][]byte {
-// 	res := make([][]byte, 0, size)
-// 	r := rand.New(rand.NewSource(time.Now().UnixNano()))
+	prefix := randomByte()[:sharedPrefix]
 
-// 	prefix := randomByte()[:sharedPrefix]
+	for len(res) < size {
+		var c int
+		if len(res)%5 == 1 || size-len(res) == 1 {
+			c = 1
+		} else {
+			c = r.Intn(min(10, size-len(res)-1)) + 1
+		}
 
-// 	for len(res) < size {
-// 		var c int
-// 		if len(res)%5 == 1 || size-len(res) == 1 {
-// 			c = 1
-// 		} else {
-// 			c = r.Intn(min(10, size-len(res)-1)) + 1
-// 		}
+		commonPrefix := randomByte()[:r.Intn(19)+1]
+		for i := 0; i < c; i++ {
+			key := slices.Concat(prefix, commonPrefix)
+			res = append(res, key)
+		}
+	}
 
-// 		commonPrefix := randomByte()[:r.Intn(19)+1]
-// 		for i := 0; i < c; i++ {
-// 			key := slices.Concat(prefix, commonPrefix, randomByte()[:suffixLen])
-// 			res = append(res, key)
-// 		}
-// 	}
+	sort.Slice(res, func(i, j int) bool {
+		return bytes.Compare(res[i], res[j]) < 0
+	})
 
-// 	sort.Slice(res, func(i, j int) bool {
-// 		return bytes.Compare(res[i], res[j]) < 0
-// 	})
+	// append suffix to each key
+	for i := 0; i < len(res); {
+		j := i
+		for ; j < len(res) && bytes.Equal(res[i], res[j]); j++ {
+		}
+		for k := i; k < j; k++ {
+			suffix := make([]byte, suffixLen)
+			binary.LittleEndian.PutUint32(suffix, uint32(k-i))
+			res[k] = slices.Concat(res[k], suffix)
+		}
 
-// 	return res
-// }
+		i = j
+	}
 
-// func randomByte() []byte {
-// 	quote := struct {
-// 		FixedByteList []byte `faker:"slice_len=20"`
-// 	}{}
+	return res
+}
 
-// 	err := faker.FakeData(&quote)
-// 	if err != nil {
-// 		fmt.Println(err)
-// 		return nil
-// 	}
+func randomByte() []byte {
+	quote := struct {
+		FixedByteList []byte `faker:"slice_len=20"`
+	}{}
 
-// 	return quote.FixedByteList
-// }
+	err := faker.FakeData(&quote)
+	if err != nil {
+		fmt.Println(err)
+		return nil
+	}
+
+	return quote.FixedByteList
+}

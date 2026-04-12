@@ -48,19 +48,19 @@ func Test_Codex(t *testing.T) {
 			lim:  100,
 		},
 		{
-			desc: "small, lim=99_999_983",
+			desc: "small, lim=99_999_991",
 			size: 10,
-			lim:  99_999_983,
+			lim:  99_999_991,
 		},
 		{
-			desc: "medium, lim=99_999_983",
+			desc: "medium, lim=99_999_991",
 			size: 1_000,
-			lim:  99_999_983,
+			lim:  99_999_991,
 		},
 		{
-			desc: "big, lim=99_999_983",
+			desc: "big, lim=99_999_991",
 			size: 100_000,
-			lim:  99_999_983,
+			lim:  99_999_991,
 		},
 		{
 			desc: "small, lim=10_000_000",

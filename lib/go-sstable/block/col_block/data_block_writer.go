@@ -3,6 +3,7 @@ package colblock
 import (
 	"fmt"
 
+	bitmapcodex "github.com/datnguyenzzz/nogodb/lib/go-sstable/block/col_block/codex/bitmap_codex"
 	layoutcodex "github.com/datnguyenzzz/nogodb/lib/go-sstable/block/col_block/codex/layout_codex"
 	prefixbytescodex "github.com/datnguyenzzz/nogodb/lib/go-sstable/block/col_block/codex/prefix_bytes_codex"
 	rawbytescodex "github.com/datnguyenzzz/nogodb/lib/go-sstable/block/col_block/codex/raw_bytes_codex"
@@ -50,7 +51,7 @@ type DataBlockWriter struct {
 		//   We need it for seeking the key. After finding the i-th prefix that equals
 		//   the target key, we need to seek the suffix in [prefixChange[i-1], prefixChange[i]-1]
 		//   because the keys are in increasing order, which ensures that the suffix in that range is sorted.
-		prefixChangedAt uintcodex.UintEncoder[uint32]
+		prefixChangedAt bitmapcodex.BitmapEncoder
 	}
 
 	layoutEncoder layoutcodex.LayoutEncoder
@@ -58,8 +59,7 @@ type DataBlockWriter struct {
 	currKey *common.InternalKey
 	rows    uint32
 
-	lastPrefix         []byte
-	prefixChangedTimes uint32
+	lastPrefix []byte
 }
 
 func (d *DataBlockWriter) Reset() {
@@ -74,7 +74,6 @@ func (d *DataBlockWriter) Reset() {
 	d.rows = 0
 	d.lastPrefix = nil
 	d.currKey = nil
-	d.prefixChangedTimes = 0
 }
 
 // Add adds a key-value pair to the sstable.
@@ -89,7 +88,7 @@ func (d *DataBlockWriter) Add(key common.InternalKey, value []byte) {
 	if d.comparer.Compare(key.UserKey[:prefixLen], d.lastPrefix) != 0 {
 		d.lastPrefix = key.UserKey[:prefixLen]
 		d.columnEncoder.prefixChangedAt.Append(d.rows - 1)
-		d.prefixChangedTimes += 1
+		// fmt.Println(d.rows - 1)
 	}
 
 	d.columnEncoder.trailer.Append(uint64(key.Trailer))
@@ -140,16 +139,6 @@ func (d *DataBlockWriter) Finish(rows uint32, size int) (finished []byte) {
 		case "values":
 			d.layoutEncoder.Encode(rows, &d.columnEncoder.values)
 		case "prefixChangedAt":
-			// TODO
-			// Issue #1: prefixChangedAt doesn't have full [rows]
-			//. so after writing and read back
-			//  decoder won't know how many [rows] that prefixChangedAt has
-			//. leading to the prefixChangedAt.SeekGTE() can't work properly
-			// Issue #2:
-			//. Because we allow to encode [1: rows-1], the prefixChangedAt
-			// might need remove its last element
-			//
-			//. ==> We need bitmap for it
 			d.layoutEncoder.Encode(rows, &d.columnEncoder.prefixChangedAt)
 		default:
 			panic(fmt.Sprintf("Unhandled column: %s", columnName))
@@ -182,11 +171,11 @@ func NewDataBlockWriter(comparer common.IComparer) *DataBlockWriter {
 	d.columnEncoder = struct {
 		trailer         uintcodex.UintEncoder[uint64]
 		values          rawbytescodex.RawByteEncoder
-		prefixChangedAt uintcodex.UintEncoder[uint32]
+		prefixChangedAt bitmapcodex.BitmapEncoder
 	}{
 		trailer:         uintcodex.UintEncoder[uint64]{},
 		values:          rawbytescodex.RawByteEncoder{},
-		prefixChangedAt: uintcodex.UintEncoder[uint32]{},
+		prefixChangedAt: bitmapcodex.BitmapEncoder{},
 	}
 	d.columnEncoder.trailer.Init()
 	d.columnEncoder.values.Init()

@@ -33,7 +33,7 @@ func (b *BitmapEncoder) Append(v uint32) {
 	}
 
 	b.masks[i] |= 1 << (v % 64)
-	b.rows = max(b.rows, v)
+	b.rows = max(b.rows, v+1)
 }
 
 // Size returns the size of the column, if the its row were encoded starting from an [offset]
@@ -49,10 +49,6 @@ func (b *BitmapEncoder) DataType() codex.DataType {
 
 // Finish serialises the encoded column into a [buf] from [offset], return the offset after written
 func (b *BitmapEncoder) Finish(rows, offset uint32, buf []byte) uint32 {
-	if rows < b.rows-1 || rows > b.rows {
-		panic("DataBlockWriter only accepts to finish either all rows, or [all rows minus 1]")
-	}
-
 	maskCnt := (rows + 63) >> 6
 	if len(b.masks) > int(maskCnt) {
 		b.masks = b.masks[:maskCnt]

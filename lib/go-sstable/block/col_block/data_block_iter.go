@@ -6,6 +6,7 @@ import (
 	"slices"
 
 	"github.com/datnguyenzzz/nogodb/lib/go-bytesbufferpool/predictable_size"
+	bitmapcodex "github.com/datnguyenzzz/nogodb/lib/go-sstable/block/col_block/codex/bitmap_codex"
 	layoutcodex "github.com/datnguyenzzz/nogodb/lib/go-sstable/block/col_block/codex/layout_codex"
 	prefixbytescodex "github.com/datnguyenzzz/nogodb/lib/go-sstable/block/col_block/codex/prefix_bytes_codex"
 	rawbytescodex "github.com/datnguyenzzz/nogodb/lib/go-sstable/block/col_block/codex/raw_bytes_codex"
@@ -26,7 +27,7 @@ type DataBlockIter struct {
 		trailer *uintcodex.UintDecoder[uint64]
 	}
 
-	prefixChangedAt *uintcodex.UintDecoder[uint32]
+	prefixChangedAt *bitmapcodex.BitmapDecoder
 	values          *rawbytescodex.RawBytesDecoder
 
 	currRow uint32 // used for iterating over the block
@@ -112,12 +113,15 @@ func (i *DataBlockIter) seekGTEInternal(key []byte) (foundRow uint32, eq bool) {
 	foundRow, eq = i.keyDecoder.prefix.SeekGTE(
 		key[:prefixLen], 0, int32(i.keyDecoder.prefix.Rows()-1),
 	)
+	// fmt.Println("searching, prefix:", key[:prefixLen], "suffix:", key[prefixLen:])
+	// fmt.Println("found row:", foundRow, "prefix found:", i.keyDecoder.prefix.Get(foundRow))
 	if eq {
 		// seeking based on suffix. We can ensure that prefixChangedAt
 		// holds only keys that are sorted in an increasing order
 		nextPrefixChangedAt, _ := i.prefixChangedAt.SeekGTE(
 			foundRow+1, 0, int32(i.prefixChangedAt.Rows()-1),
 		)
+		// fmt.Println(foundRow, "-", nextPrefixChangedAt-1)
 
 		// because the keys come in an increasing order, so if their prefix are the same
 		// from [foundRow, nextPrefixChangedAt-1], thus we can ensure the suffixes
@@ -218,8 +222,8 @@ func NewDataBlockIter(
 				cp,
 				decoder,
 				uint16(i),
-				uintcodex.NewUintDecoder[uint32],
-			).(*uintcodex.UintDecoder[uint32])
+				bitmapcodex.NewBitmapDecoder,
+			).(*bitmapcodex.BitmapDecoder)
 			if !ok {
 				panic("NewDataBlockIter, failed to assert to UintDecoder")
 			}

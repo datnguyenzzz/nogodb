@@ -2,7 +2,7 @@
 
 >_**Disclaimer**: This project is under active development and deliberately crafted by human ingenuity rather than AI. I have no desire to let AI steal the enjoyment of building things by hand. Although AI can produce code faster and boost "__productivity__", that is beside the point. This project is meant to entertain me and deepen my understanding of the database world, not to be rushed into a commercial product :)_
 
-<img width="400" height="400" alt="nogodb_logo" src="https://github.com/user-attachments/assets/b28f2968-8e9e-4e4a-a98b-f1fc4ad6dfa0" />
+<img width="200" height="200" alt="nogodb_logo" src="https://github.com/user-attachments/assets/b28f2968-8e9e-4e4a-a98b-f1fc4ad6dfa0" />
 
 
 NogoDB is an analytics database management system.

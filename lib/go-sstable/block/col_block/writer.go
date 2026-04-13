@@ -57,7 +57,7 @@ func (c *ColBlockWriter) Add(key common.InternalKey, value []byte) error {
 	c.dataBlock.Add(key, value)
 	// we will check and flush the data block without the last key
 	if c.flushDecider.ShouldFlush(int(sizeBefore), int(c.dataBlock.Size())) {
-		if err := c.doFlushWithoutLastKey(int(sizeBefore), keyBefore); err != nil {
+		if err := c.doFlushWithoutLastKey(int(sizeBefore), keyBefore, &key); err != nil {
 			return err
 		}
 
@@ -174,8 +174,15 @@ func (c *ColBlockWriter) validate(key common.InternalKey) error {
 	return nil
 }
 
-// doFlushWithoutLastKey flush the data block except the last key
-func (c *ColBlockWriter) doFlushWithoutLastKey(size int, indexKey *common.InternalKey) error {
+// doFlushWithoutLastKey flush the data block except the [currKey]
+func (c *ColBlockWriter) doFlushWithoutLastKey(
+	size int,
+	prevKey *common.InternalKey,
+	currKey *common.InternalKey,
+) error {
+	indexKey := &common.InternalKey{
+		UserKey: c.comparer.Separator(prevKey.UserKey, currKey.UserKey),
+	}
 	currRows := c.dataBlock.Rows()
 
 	block.GrowSize(&c.uncompressed, size)
@@ -206,7 +213,9 @@ func (c *ColBlockWriter) doFlushWithoutLastKey(size int, indexKey *common.Intern
 func (c *ColBlockWriter) doFlushAll() error {
 	currRows := c.dataBlock.Rows()
 	size := int(c.dataBlock.Size())
-	indexKey := c.dataBlock.CurrKey()
+	indexKey := &common.InternalKey{
+		UserKey: c.comparer.Successor(c.dataBlock.CurrKey().UserKey),
+	}
 
 	block.GrowSize(&c.uncompressed, size)
 

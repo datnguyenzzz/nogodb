@@ -15,18 +15,26 @@ type IComparer interface {
 	// where 'less than' is consistent with Compare.
 	// Trivial implementation is just simply returns "a", however we try to return
 	// a shorter "x" to reduce the SSTable size
+	//
+	// Use case: Use for creating an index key that separate 2 blocks
 	Separator(a, b []byte) []byte
 
 	// Successor returns a sequence of bytes x such that x >= b, where
 	// 'less than' is consistent with Compare.
 	// Trivial implementation is just simply return "b", however we try to return
 	// a shorter "x" to reduce the SSTable size
+	//
+	// Use case: Use to create an index key of the last block in a SSTable
 	Successor(b []byte) []byte
 
-	// Split return the prefix of a given key, that uses to separate
-	// the actual user key and MVCC id
+	// Split return the prefix of a given key
+	//
+	// Use case: Uses to separate the actual user key and MVCC id
+	// in the internalKey.UserKey
 	Split(b []byte) int
 }
+
+// TODO(high): Implement separated comparer for the MVVC key
 
 type DefaultComparer struct{}
 

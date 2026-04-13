@@ -3,7 +3,7 @@
 >_**Disclaimer**: This project is under active development and deliberately crafted by human ingenuity rather than AI. I have no desire to let AI steal the enjoyment of building things by hand. Although AI can produce code faster and boost "__productivity__", that is beside the point. This project is meant to entertain me and deepen my understanding of the database world, not to be rushed into a commercial product :)_
 
 <p align="center">
-    <img width="992" height="661" alt="dg1m4qm1ksrmr0cxh1e9d67htr_result_0" src="https://github.com/user-attachments/assets/dd506593-7c32-41f9-8986-d0a11062dee9" />
+    <img width="300" height="200" alt="dg1m4qm1ksrmr0cxh1e9d67htr_result_0" src="https://github.com/user-attachments/assets/dd506593-7c32-41f9-8986-d0a11062dee9" />
 </p>
 
 

@@ -1,4 +1,4 @@
-package colblock
+package col_block
 
 import (
 	"fmt"

@@ -1,4 +1,4 @@
-package colblock_test
+package col_block_test
 
 import (
 	"bytes"

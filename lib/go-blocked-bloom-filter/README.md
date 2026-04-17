@@ -10,9 +10,6 @@ This package provides a memory and CPU-efficient implementation of Blocked Bloom
 - Reduced hash function calculations
 - Configurable false positive rates
 - High performance membership testing
-
-## Features
-
 - **Cache-Optimized**: Aligns blocks to 64-byte CPU cache lines for improved memory access
 - **Efficient Hashing**: Uses only 2 hash functions instead of k separate hash functions
 - **Bit Pattern Design**: Pre-computed bit patterns for fast setting/checking of bits
@@ -68,22 +65,8 @@ Bits form:  |    000...0000    |    000...0000    | ...
 - **False Positive Rate**: Approximately 0.01 (1%) with default settings
 - **Storage Format**: Data blocks followed by metadata (probe count and block count)
 
-## Performance Characteristics
-
-- **Memory Usage**: Approximately 10 bits per key (configurable)
-- **False Positive Rate**: ~1% with default settings (10 bits per key)
-- **Cache Efficiency**: High locality of reference due to blocked design
-- **CPU Efficiency**: Reduced hash calculations compared to standard Bloom filters
 
 ## References
 
 - [Blocked Bloom Filters and Cache Efficient Design](https://save-buffer.github.io/bloom_filter.html)
 - [Performance Improvement of Bloom Filters for Networking Applications](https://www.cs.princeton.edu/~chazelle/pubs/FilteringSearch.pdf)
-
-## License
-
-See the project LICENSE file.
-
-## Contributing
-
-Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change.

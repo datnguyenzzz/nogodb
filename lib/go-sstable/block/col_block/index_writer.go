@@ -1,4 +1,4 @@
-package colblock
+package col_block
 
 import (
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/block"

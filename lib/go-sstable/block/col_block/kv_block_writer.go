@@ -1,4 +1,4 @@
-package colblock
+package col_block
 
 import (
 	layoutcodex "github.com/datnguyenzzz/nogodb/lib/go-sstable/block/col_block/codex/layout_codex"

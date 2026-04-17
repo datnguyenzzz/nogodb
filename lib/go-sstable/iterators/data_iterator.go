@@ -8,6 +8,7 @@ import (
 	"github.com/datnguyenzzz/nogodb/lib/go-bytesbufferpool/predictable_size"
 	go_fs "github.com/datnguyenzzz/nogodb/lib/go-fs"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/block"
+	"github.com/datnguyenzzz/nogodb/lib/go-sstable/block/col_block"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/block/row_block"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
 	block_common "github.com/datnguyenzzz/nogodb/lib/go-sstable/common/block"
@@ -20,7 +21,9 @@ import (
 // indexedIterator iter is the iteration of the data, received from the given index
 type indexedIterator struct {
 	common.InternalIterator
-	cmp       common.IComparer
+	cmp common.IComparer
+	ver common.TableVersion
+
 	reader    row_block.IBlockReader
 	bpool     *predictable_size.PredictablePool
 	index     *common.InternalKV
@@ -29,12 +32,14 @@ type indexedIterator struct {
 
 func newIndexedIterator(
 	cmp common.IComparer,
+	ver common.TableVersion,
 	reader row_block.IBlockReader,
 	bpool *predictable_size.PredictablePool,
 	kind block_common.BlockKind,
 ) *indexedIterator {
 	return &indexedIterator{
 		cmp:              cmp,
+		ver:              ver,
 		reader:           reader,
 		bpool:            bpool,
 		index:            nil,
@@ -75,7 +80,7 @@ func (ii *indexedIterator) loadedIter() error {
 		zap.L().Error("failed to read the block", zap.Error(err))
 		return err
 	}
-	ii.InternalIterator = row_block.NewBlockIterator(ii.bpool, ii.cmp, block)
+	ii.InternalIterator = getBlockIter(ii.ver, ii.blockKind, ii.bpool, ii.cmp, block)
 	return nil
 }
 
@@ -108,6 +113,7 @@ func (ii *indexedIterator) Close() error {
 type DataIterator struct {
 	cmp         common.IComparer
 	blockReader row_block.IBlockReader
+	ver         common.TableVersion
 
 	bpool *predictable_size.PredictablePool
 	// filter
@@ -127,7 +133,7 @@ type DataIterator struct {
 }
 
 var dataBlockIteratorPool = sync.Pool{
-	New: func() interface{} {
+	New: func() any {
 		return &DataIterator{}
 	},
 }
@@ -290,7 +296,7 @@ func (i *DataIterator) readMetaIndexBlock(footer *block.Footer) error {
 		zap.L().Error("failed to read metaIndexBlock", zap.Error(err))
 		return err
 	}
-	blkIter := row_block.NewBlockIterator(i.bpool, common.NewComparer(), metaIndexBuf)
+	blkIter := getBlockIter(i.ver, block_common.BlockKindMetaIntex, i.bpool, common.NewComparer(), metaIndexBuf)
 	for iter := blkIter.First(); iter != nil; iter = blkIter.Next() {
 		val := iter.V.Value()
 		bh := &block_common.BlockHandle{}
@@ -322,7 +328,7 @@ func (i *DataIterator) init2ndLevelIndexBlockIterator() error {
 		zap.L().Error("failed to read secondLevelIndexBlock", zap.Error(err))
 		return err
 	}
-	i.secondLevelIndexIter = row_block.NewBlockIterator(i.bpool, i.cmp, secondLevelIndexBuf)
+	i.secondLevelIndexIter = getBlockIter(i.ver, block_common.BlockKindIndex, i.bpool, i.cmp, secondLevelIndexBuf)
 	return nil
 }
 
@@ -335,6 +341,29 @@ func (i *DataIterator) readFilter() error {
 
 	i.filter = filter.NewFilterReader(filter.BloomFilter, filterBlock.Value())
 	return nil
+}
+
+func getBlockIter(
+	ver common.TableVersion,
+	blockKind block_common.BlockKind,
+	bp *predictable_size.PredictablePool,
+	cp common.IComparer,
+	data *common.InternalLazyValue,
+) common.InternalIterator {
+	if ver == common.TableV1 {
+		return row_block.NewBlockIterator(bp, cp, data)
+	}
+
+	switch blockKind {
+	case block_common.BlockKindData:
+		return col_block.NewDataBlockIter(bp, cp, data)
+	case block_common.BlockKindIndex:
+		return col_block.NewIndexBlockIter(bp, cp, data)
+	case block_common.BlockKindMetaIntex:
+		return col_block.NewKVBlockIter(bp, cp, data)
+	default:
+		panic(fmt.Sprintf("can not create iterator for block kind: %v", blockKind))
+	}
 }
 
 func NewIterator(
@@ -361,9 +390,10 @@ func NewIterator(
 		iter.blockReader = &row_block.RowBlockReader{}
 	}
 
+	iter.ver = footer.Version
 	iter.blockReader.Init(iter.bpool, layoutReader, opts.CacheOpts)
-	iter.firstLevelIndexedIter = newIndexedIterator(cmp, iter.blockReader, iter.bpool, block_common.BlockKindIndex)
-	iter.dataIndexedIter = newIndexedIterator(cmp, iter.blockReader, iter.bpool, block_common.BlockKindData)
+	iter.firstLevelIndexedIter = newIndexedIterator(cmp, iter.ver, iter.blockReader, iter.bpool, block_common.BlockKindIndex)
+	iter.dataIndexedIter = newIndexedIterator(cmp, iter.ver, iter.blockReader, iter.bpool, block_common.BlockKindData)
 
 	if err = iter.readMetaIndexBlock(footer); err != nil {
 		return nil, err

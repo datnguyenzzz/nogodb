@@ -2,6 +2,7 @@ package go_sstable
 
 import (
 	go_fs "github.com/datnguyenzzz/nogodb/lib/go-fs"
+	"github.com/datnguyenzzz/nogodb/lib/go-sstable/block/col_block"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/block/row_block"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/options"
@@ -35,12 +36,11 @@ func NewWriter(writable go_fs.Writable, tableVersion common.TableVersion, opts .
 		o(w)
 	}
 
-	// Only support row-based format for now
-	if w.datablockOpts.TableFormat != common.RowBlockedBaseTableFormat {
-		panic("invalid table format")
+	if tableVersion == common.TableV1 {
+		w.rw = row_block.NewRowBlockWriter(writable, *w.datablockOpts, tableVersion)
+	} else {
+		w.rw = col_block.NewColBlockWriter(writable, *w.datablockOpts, tableVersion)
 	}
-
-	w.rw = row_block.NewRowBlockWriter(writable, *w.datablockOpts, tableVersion)
 
 	return w
 }

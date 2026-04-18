@@ -247,7 +247,7 @@ func NewColBlockWriter(
 	opts options.BlockWriteOpt,
 	ver common.TableVersion,
 ) *ColBlockWriter {
-	comparer := common.NewComparer()
+	comparer := opts.Comparer
 	storageWriter := storage.NewLayoutWriter(w)
 	flushDecider := common.NewFlushDecider(opts.BlockSize, opts.BlockSizeThreshold)
 	compressor := compression.NewCompressor(opts.DefaultCompression)

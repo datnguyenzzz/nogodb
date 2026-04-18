@@ -14,6 +14,7 @@ var DefaultWriteOpt = &options.BlockWriteOpt{
 	BlockSizeThreshold:   0.9,
 	DefaultCompression:   compression.SnappyCompression,
 	TableFormat:          common.RowBlockedBaseTableFormat,
+	Comparer:             common.NewComparer(),
 }
 
 func WithBlockRestartInterval(interval int) WriteOptFn {

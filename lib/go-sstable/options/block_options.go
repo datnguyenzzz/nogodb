@@ -26,6 +26,8 @@ type BlockWriteOpt struct {
 	// The default value is 0.9.
 	BlockSizeThreshold float32
 
+	Comparer common.IComparer
+
 	// Compression defines the per-block compression to use.
 	Compression CompressionOpts
 	// DefaultCompression In case the block doesn't have a specified compression to use,

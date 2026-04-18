@@ -42,6 +42,7 @@ I’m not sure what else to add to the description at the moment, as it’s stil
 
 
 
+
 ## Test Coverage
 
 | Package | Coverage |
@@ -53,5 +54,5 @@ I’m not sure what else to add to the description at the moment, as it’s stil
 | go-bytesbufferpool | ![Coverage](https://img.shields.io/badge/coverage-90-green) |
 | go-context-aware-lock | ![Coverage](https://img.shields.io/badge/coverage-57-yellow) |
 | go-fs | ![Coverage](https://img.shields.io/badge/coverage-41-red) |
-| go-sstable | ![Coverage](https://img.shields.io/badge/coverage-43-red) |
+| go-sstable | ![Coverage](https://img.shields.io/badge/coverage-42-red) |
 | go-wal | ![Coverage](https://img.shields.io/badge/coverage-16-red) |

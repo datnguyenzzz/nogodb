@@ -85,7 +85,7 @@ func (d *DataBlockWriter) Add(key common.InternalKey, value []byte) {
 	d.keyEncoder.prefix.Append(key.UserKey[:prefixLen])
 	d.keyEncoder.suffix.Append(key.UserKey[prefixLen:])
 
-	if d.comparer.Compare(key.UserKey[:prefixLen], d.lastPrefix) != 0 {
+	if len(d.lastPrefix) == 0 || d.comparer.Compare(key.UserKey[:prefixLen], d.lastPrefix) != 0 {
 		d.lastPrefix = key.UserKey[:prefixLen]
 		d.columnEncoder.prefixChangedAt.Append(d.rows - 1)
 		// fmt.Println(d.rows - 1)

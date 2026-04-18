@@ -26,7 +26,7 @@ func (u *UintDecoder[T]) Get(row uint32) T {
 
 	switch u.width {
 	case 0:
-		return 0
+		return T(u.baseValue)
 	case 1:
 		return T(u.baseValue) + T(*(*uint8)(unsafe.Add(u.ptr, uintptr(row))))
 	case 2:

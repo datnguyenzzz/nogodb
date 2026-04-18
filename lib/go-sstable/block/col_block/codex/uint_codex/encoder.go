@@ -85,6 +85,9 @@ func (e *UintEncoder[T]) Finish(rows, offset uint32, buf []byte) uint32 {
 // serialise puts the v into buf[offset:]
 func serialise[T codex.UintType](buf []byte, offset uint32, width byte, v T) (nextOffset uint32) {
 	switch width {
+	case 0:
+		// do not write any bytes
+		nextOffset = offset
 	case 1:
 		buf[offset] = byte(v)
 		nextOffset = offset + 1

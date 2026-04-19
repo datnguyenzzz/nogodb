@@ -44,6 +44,7 @@ func (p *LayoutEncoder) Encode(row uint32, enc codex.IEncoderFinisher) {
 	p.headerOffset += ColumnHeadSize
 
 	p.pageOffset = enc.Finish(row, p.pageOffset, p.buf)
+	// fmt.Println("LayoutEncoder", "size=", p.pageOffset-before, "pageOffset=", p.pageOffset, "buf=", len(p.buf))
 }
 
 func (p *LayoutEncoder) Data() []byte {

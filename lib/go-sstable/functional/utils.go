@@ -2,13 +2,53 @@ package functional
 
 import (
 	"bytes"
+	"encoding/binary"
 	"fmt"
 	"math/rand"
+	"slices"
 	"sort"
 	"time"
 
+	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
 	"github.com/go-faker/faker/v4"
 )
+
+const (
+	suffixLen = 5
+)
+
+type mvccComparer struct {
+	common.DefaultComparer
+}
+
+func NewMvccComparer() *mvccComparer {
+	return &mvccComparer{
+		DefaultComparer: *common.NewComparer(),
+	}
+}
+
+func (c *mvccComparer) Compare(a, b []byte) int {
+	prefixA, prefixB := c.Split(a), c.Split(b)
+	if cp := c.DefaultComparer.Compare(a[:prefixA], b[:prefixB]); cp != 0 {
+		return cp
+	}
+
+	return c.DefaultComparer.Compare(a[prefixA:], b[prefixB:])
+}
+
+func (c *mvccComparer) Separator(a, b []byte) []byte {
+	return a
+}
+
+func (c *mvccComparer) Successor(b []byte) []byte {
+	return b
+}
+
+func (c *mvccComparer) Split(b []byte) int {
+	return len(b) - suffixLen
+}
+
+var _ common.IComparer = (*mvccComparer)(nil)
 
 type kvType struct {
 	key   []byte
@@ -35,11 +75,32 @@ func generateBytes(lo, hi []byte) []byte {
 }
 
 // generateKV Generate list of kvType in an increasing order of key
+// with suffix in an increasing order
+func generateKVWithSuffix(size int, isUnique bool) []kvType {
+	res := generateKV(size, isUnique)
+
+	for i := 0; i < len(res); {
+		j := i
+		for ; j < len(res) && bytes.Equal(res[i].key, res[j].key); j++ {
+		}
+		for k := i; k < j; k++ {
+			suffix := make([]byte, suffixLen)
+			binary.BigEndian.PutUint32(suffix, uint32(k-i))
+			res[k].key = slices.Concat(res[k].key, suffix)
+		}
+
+		i = j
+	}
+
+	return res
+}
+
+// generateKV Generate list of kvType in an increasing order of key
 func generateKV(size int, isUnique bool) []kvType {
 	res := make([]kvType, 0, size)
 
 	// generate a list of key–value pairs such that adjacent keys share some common bytes.
-	for i := 0; i < size; i++ {
+	for i := range size {
 		res = append(res, kvType{[]byte(randomQuote()), []byte(randomQuote())})
 		if i == 0 {
 			continue

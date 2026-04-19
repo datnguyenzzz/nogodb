@@ -39,6 +39,8 @@ type IColumnEncoder[T EncodableDataType] interface {
 	Reset()
 	Append(v T)
 	// Size returns the size of the column, if the its row were encoded starting from an [offset]
+	// TODO(high): Since we allow encoding [rows-1] rows, thus
+	// it's better if we can estimate Size(rows, offset)
 	Size(offset uint32) uint32
 
 	IEncoderFinisher

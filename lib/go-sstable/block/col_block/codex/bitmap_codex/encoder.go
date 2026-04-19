@@ -99,6 +99,7 @@ func (b *BitmapEncoder) Finish(rows, offset uint32, buf []byte) uint32 {
 	if !checked {
 		panic("miss indexing b.masks")
 	}
+	// fmt.Println("Bitmap size()=", b.Size(offset), "enc.size=", b.enc.Size(offset))
 
 	return b.enc.Finish(uint32(len(b.masks))+maskIndexCnt, offset, buf)
 }

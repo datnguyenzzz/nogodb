@@ -131,6 +131,102 @@ func (w *WalSuite) Test_Integration_Writer_No_Errors() {
 	}
 }
 
+func (w *WalSuite) Test_Integration_Writer_No_Errors_MVCC_col_block() {
+	type param struct {
+		name      string
+		restart   int
+		blockSize int
+		isUnique  bool
+		operation string
+	}
+
+	tests := []param{
+		{
+			name:      "small block, all keys are unique",
+			isUnique:  true,
+			restart:   5,
+			blockSize: 2 * kB,
+			operation: "SET",
+		},
+		{
+			name:      "small block, no unique are unique",
+			restart:   5,
+			blockSize: 2 * kB,
+			operation: "SET",
+		},
+		{
+			name:      "big block, all keys are unique",
+			isUnique:  true,
+			restart:   10,
+			blockSize: 4 * mB,
+			operation: "SET",
+		},
+		{
+			name:      "big block, no unique are unique",
+			restart:   10,
+			blockSize: 4 * mB,
+			operation: "SET",
+		},
+		{
+			name:      "small block, all keys are unique",
+			isUnique:  true,
+			restart:   5,
+			blockSize: 2 * kB,
+			operation: "DEL",
+		},
+		{
+			name:      "small block, no unique are unique",
+			restart:   5,
+			blockSize: 2 * kB,
+			operation: "DEL",
+		},
+		{
+			name:      "big block, all keys are unique",
+			isUnique:  true,
+			restart:   10,
+			blockSize: 4 * mB,
+			operation: "DEL",
+		},
+		{
+			name:      "big block, no unique are unique",
+			restart:   10,
+			blockSize: 4 * mB,
+			operation: "DEL",
+		},
+	}
+
+	t := w.T()
+	for i, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			inMemStorage := go_fs.NewInmemStorage()
+			fileWritable, _, err := inMemStorage.Create(go_fs.TypeTable, int64(i))
+			assert.NoError(t, err)
+			writer := go_sstable.NewWriter(
+				fileWritable,
+				common.TableV2,
+				go_sstable.WithComparer(NewMvccComparer()),
+				go_sstable.WithBlockRestartInterval(tc.restart),
+				go_sstable.WithBlockSize(tc.blockSize),
+			)
+
+			sample := generateKVWithSuffix(testSize, tc.isUnique)
+			for _, kv := range sample {
+				switch tc.operation {
+				case "SET":
+					err := writer.Set(kv.key, kv.value)
+					assert.NoError(t, err, "failed to set")
+				case "DEL":
+					err := writer.Delete(kv.key)
+					assert.NoError(t, err, "failed to delete")
+				}
+			}
+
+			err = writer.Close()
+			assert.NoError(t, err)
+		})
+	}
+}
+
 func (w *WalSuite) Test_Iterator_Seeking_Ops_single_table() {
 	type param struct {
 		name                string

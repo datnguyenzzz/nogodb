@@ -62,6 +62,8 @@ func (r *RawByteEncoder) Finish(rows, offset uint32, buf []byte) uint32 {
 	r.values = r.values[:end]
 
 	copy(buf[offset:], r.values)
+
+	// fmt.Println("RawByteEncoder, size()=", r.Size(offset), "enc.size()=", offset-before+uint32(len(r.values)))
 	return offset + uint32(len(r.values))
 }
 

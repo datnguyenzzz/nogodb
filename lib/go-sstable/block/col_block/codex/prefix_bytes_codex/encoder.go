@@ -12,6 +12,8 @@ type PrefixBytesEncoder struct {
 	rows uint32
 
 	bundlePrefix []byte
+	// bundlePrefixBefore is the bundle prefix before adding the current key
+	bundlePrefixBefore []byte
 
 	// values is the concatenated of values, without prefix compression
 	values        [][]byte
@@ -47,9 +49,11 @@ func (e *PrefixBytesEncoder) Reset() {
 func (e *PrefixBytesEncoder) Append(v []byte) {
 	if e.rows%uint32(e.BundleSize) == 0 {
 		e.bundlePrefix = v
+		e.bundlePrefixBefore = nil
 		e.values = append(e.values, nil) // reserve 1 slot for the bundle prefix
 	} else {
 		lcp := block.CommonPrefix(e.bundlePrefix, v)
+		e.bundlePrefixBefore = e.bundlePrefix
 		e.bundlePrefix = e.bundlePrefix[:lcp]
 	}
 
@@ -95,6 +99,9 @@ func (e *PrefixBytesEncoder) Size(offset uint32) uint32 {
 		blockPrefix = blockPrefix[:lcp]
 	}
 
+	// adjust the bundle prefix
+	totalLen -= uint32((len(e.values)+int(e.BundleSize))/int(e.BundleSize+1)) * uint32(len(blockPrefix))
+
 	return (1 +
 		/* block prefix len*/ uint32(len(blockPrefix)) +
 		totalLen +
@@ -118,15 +125,28 @@ func (e *PrefixBytesEncoder) Finish(rows, offset uint32, buf []byte) uint32 {
 	}
 
 	end := len(e.values)
+	var needRecompute bool
 	if rows == e.rows-1 {
+		needRecompute = true
 		end -= 1
 		if e.rows%uint32(e.BundleSize) == 1 {
 			// remove the bundle prefix
 			end -= 1
+			needRecompute = false
 		}
 	}
 
+	e.rows = rows
 	e.values = e.values[:end]
+	if needRecompute {
+		extraPrefix := len(e.bundlePrefixBefore) - len(e.bundlePrefix)
+		bundlePrefixPos := GetBundlePrefixPos(e.rows-1, e.BundleSize)
+		e.values[bundlePrefixPos] = e.bundlePrefixBefore
+
+		for i := int(bundlePrefixPos) + 1; i < len(e.values); i++ {
+			e.values[i] = e.values[i][extraPrefix:]
+		}
+	}
 
 	// find the block prefix
 	var blockPrefix []byte = nil
@@ -154,6 +174,7 @@ func (e *PrefixBytesEncoder) Finish(rows, offset uint32, buf []byte) uint32 {
 		e.valuesEncoder.Append(v)
 	}
 
+	// fmt.Println("PrefixBytes", "enc.size=", e.valuesEncoder.Size(offset))
 	offset = e.valuesEncoder.Finish(uint32(len(e.values)), offset, buf)
 
 	return offset

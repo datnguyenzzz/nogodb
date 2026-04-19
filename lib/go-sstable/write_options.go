@@ -13,8 +13,13 @@ var DefaultWriteOpt = &options.BlockWriteOpt{
 	BlockSize:            4 * 1024,
 	BlockSizeThreshold:   0.9,
 	DefaultCompression:   compression.SnappyCompression,
-	TableFormat:          common.RowBlockedBaseTableFormat,
 	Comparer:             common.NewComparer(),
+}
+
+func WithComparer(cp common.IComparer) WriteOptFn {
+	return func(w *Writer) {
+		w.datablockOpts.Comparer = cp
+	}
 }
 
 func WithBlockRestartInterval(interval int) WriteOptFn {
@@ -32,17 +37,5 @@ func WithBlockSize(blockSize int) WriteOptFn {
 func WithBlockSizeThreshold(blockSizeThreshold float32) WriteOptFn {
 	return func(w *Writer) {
 		w.datablockOpts.BlockSizeThreshold = blockSizeThreshold
-	}
-}
-
-//func WithCompression(compression compression.CompressionType) WriteOptFn {
-//	return func(w *Writer) {
-//		w.datablockOpts.Compression = compression
-//	}
-//}
-
-func WithTableFormat(tableFormat common.TableFormat) WriteOptFn {
-	return func(w *Writer) {
-		w.datablockOpts.TableFormat = tableFormat
 	}
 }

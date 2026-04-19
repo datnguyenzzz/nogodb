@@ -8,6 +8,7 @@ import (
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
 	"github.com/go-faker/faker/v4"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func Test_codex(t *testing.T) {
@@ -70,6 +71,7 @@ func Test_codex(t *testing.T) {
 			offset := uint32(0)
 			buf := make([]byte, enc.Size(offset)+1) // need to reserve 1 unused byte
 			totalSize := enc.Finish(tc.finishedSize, offset, buf)
+			require.GreaterOrEqual(t, uint32(len(buf)), totalSize)
 
 			// decode
 			dec, nextOffset := NewRawBytesDecoder(common.NewComparer(), tc.finishedSize, offset, buf)

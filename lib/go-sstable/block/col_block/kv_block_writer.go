@@ -42,8 +42,8 @@ func (k *KVBlockWriter) Add(key, value []byte) {
 
 func (k *KVBlockWriter) Size() uint32 {
 	offset := uint32(layoutcodex.HeaderOffset + layoutcodex.ColumnHeadSize*kvTotalColumns)
-	offset = k.keys.Size(offset)
-	offset = k.values.Size(offset)
+	offset += k.keys.Size(offset)
+	offset += k.values.Size(offset)
 	offset += 1
 
 	return offset

@@ -33,7 +33,4 @@ type BlockWriteOpt struct {
 	// DefaultCompression In case the block doesn't have a specified compression to use,
 	// the algorithm defined by DefaultCompression will be chosen
 	DefaultCompression compression.CompressionType
-
-	// TableFormat specifies the format version for writing sstables.
-	TableFormat common.TableFormat
 }

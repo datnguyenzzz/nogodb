@@ -178,6 +178,7 @@ func Test_Codex(t *testing.T) {
 			buf := make([]byte, enc.Size(uint32(offset)))
 
 			offset = enc.Finish(uint32(tc.finishedRows), uint32(offset), buf)
+			require.GreaterOrEqual(t, uint32(len(buf)), offset)
 			buf = buf[:offset]
 
 			// decode

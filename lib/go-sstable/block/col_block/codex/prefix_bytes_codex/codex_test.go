@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/block"
-	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
 	"github.com/go-faker/faker/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -226,7 +225,7 @@ func Test_Codex(t *testing.T) {
 
 			// decode
 			offset = 0
-			d, offset := NewPrefixBytesDecoder(common.NewComparer(), uint32(tc.finishedRows), offset, buf)
+			d, offset := NewPrefixBytesDecoder(uint32(tc.finishedRows), offset, buf)
 			dec, ok := d.(*PrefixBytesDecoder)
 			require.True(t, ok, "can not assert to PrefixBytesDecoder")
 

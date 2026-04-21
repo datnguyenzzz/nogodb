@@ -6,7 +6,6 @@ import (
 	"unsafe"
 
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/block/col_block/codex"
-	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
 )
 
 type UintDecoder[T codex.UintType] struct {
@@ -95,7 +94,7 @@ func (e *UintDecoder[T]) Rows() uint32 {
 
 // NewUintDecoder returns a UintDecoder with the offset of the next block
 func NewUintDecoder[T codex.UintType](
-	comparer common.IComparer, rows, offset uint32, buf []byte,
+	rows, offset uint32, buf []byte,
 ) (codex.IColumnDecoder[T], uint32) {
 	// Refer to the col_block/README.md for more detail about the layout
 	width := buf[offset]

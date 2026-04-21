@@ -1,15 +1,14 @@
 package prefixbytescodex
 
 import (
+	"bytes"
 	"slices"
 
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/block/col_block/codex"
 	rawbytescodex "github.com/datnguyenzzz/nogodb/lib/go-sstable/block/col_block/codex/raw_bytes_codex"
-	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
 )
 
 type PrefixBytesDecoder struct {
-	comparer   common.IComparer
 	rows       uint32
 	bundleSize byte
 
@@ -40,7 +39,7 @@ func (u *PrefixBytesDecoder) SeekGTE(key []byte, from, to int32) (rowIndex uint3
 	}
 
 	if len(blockPrefix) > 0 {
-		switch u.comparer.Compare(key[:len(blockPrefix)], blockPrefix) {
+		switch bytes.Compare(key[:len(blockPrefix)], blockPrefix) {
 		case 1:
 			return u.rows, false
 		case -1:
@@ -58,7 +57,7 @@ func (u *PrefixBytesDecoder) SeekGTE(key []byte, from, to int32) (rowIndex uint3
 		mid := (lo + hi) >> 1
 		offset := GetBundleStartOffset(uint32(mid), u.bundleSize)
 		firstKey := u.rawBytesDec.Slice(offset, offset+1)
-		cp := u.comparer.Compare(firstKey, key)
+		cp := bytes.Compare(firstKey, key)
 		if cp < 0 {
 			bundle = int(mid)
 			lo = mid + 1
@@ -70,12 +69,12 @@ func (u *PrefixBytesDecoder) SeekGTE(key []byte, from, to int32) (rowIndex uint3
 	if bundle == -1 {
 		// all keys are ≥ given [key]
 		key0 := u.rawBytesDec.Slice(1, 2)
-		return 0, u.comparer.Compare(key, key0) == 0
+		return 0, bytes.Equal(key, key0)
 	}
 
 	bundlePrefix := u.rawBytesDec.Get(GetBundleStartOffset(uint32(bundle), u.bundleSize))
 
-	if len(key) < len(bundlePrefix) || u.comparer.Compare(key[:len(bundlePrefix)], bundlePrefix) != 0 {
+	if len(key) < len(bundlePrefix) || bytes.Compare(key[:len(bundlePrefix)], bundlePrefix) != 0 {
 		// the founded is the first key of next bundle
 		if uint32(bundle) == GetBundleFromRow(u.rows-1, u.bundleSize) {
 			// key is greater than all keys in the block
@@ -85,7 +84,7 @@ func (u *PrefixBytesDecoder) SeekGTE(key []byte, from, to int32) (rowIndex uint3
 		offset := GetBundleStartOffset(uint32(bundle+1), u.bundleSize)
 		firstKey := u.rawBytesDec.Slice(offset, offset+1)
 
-		return GetRowFromOffset(offset+1, u.bundleSize), u.comparer.Compare(key, firstKey) == 0
+		return GetRowFromOffset(offset+1, u.bundleSize), bytes.Compare(key, firstKey) == 0
 	}
 
 	// Binary search to find the index on the bundle
@@ -97,7 +96,7 @@ func (u *PrefixBytesDecoder) SeekGTE(key []byte, from, to int32) (rowIndex uint3
 	cpResult := 2
 	for lo <= hi {
 		mid := (lo + hi) >> 1
-		cp := u.comparer.Compare(u.rawBytesDec.Get(uint32(mid)), key)
+		cp := bytes.Compare(u.rawBytesDec.Get(uint32(mid)), key)
 		if cp >= 0 {
 			rowIndex = GetRowFromOffset(uint32(mid), u.bundleSize)
 			cpResult = cp
@@ -119,7 +118,7 @@ func (u *PrefixBytesDecoder) SeekGTE(key []byte, from, to int32) (rowIndex uint3
 		firstKey := u.rawBytesDec.Slice(offset, offset+1)
 		key = slices.Concat(keyPrefix, key)
 
-		return GetRowFromOffset(offset+1, u.bundleSize), u.comparer.Compare(key, firstKey) == 0
+		return GetRowFromOffset(offset+1, u.bundleSize), bytes.Compare(key, firstKey) == 0
 	}
 
 	return rowIndex, cpResult == 0
@@ -134,18 +133,17 @@ func (u *PrefixBytesDecoder) Rows() uint32 {
 }
 
 func NewPrefixBytesDecoder(
-	comparer common.IComparer,
 	rows, offset uint32,
 	data []byte,
 ) (codex.IColumnDecoder[[]byte], uint32) {
-	dec := &PrefixBytesDecoder{rows: rows, comparer: comparer}
+	dec := &PrefixBytesDecoder{rows: rows}
 
 	dec.bundleSize = data[offset]
 
 	rawSize := GetOffsetFromRow(rows-1, dec.bundleSize) + 1
 
 	d, newOffset := rawbytescodex.NewRawBytesDecoder(
-		comparer, rawSize, offset+1, data, // skip 1 byte for bundle size
+		rawSize, offset+1, data, // skip 1 byte for bundle size
 	)
 
 	var ok bool

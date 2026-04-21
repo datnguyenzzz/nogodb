@@ -5,7 +5,6 @@ import (
 
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/block/col_block/codex"
 	uintcodex "github.com/datnguyenzzz/nogodb/lib/go-sstable/block/col_block/codex/uint_codex"
-	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
 )
 
 type BitmapDecoder struct {
@@ -87,7 +86,6 @@ func (b *BitmapDecoder) nextSetBitAt(mask uint64, index int) int {
 }
 
 func NewBitmapDecoder(
-	comparer common.IComparer,
 	rows, offset uint32,
 	data []byte,
 ) (codex.IColumnDecoder[uint32], uint32) {
@@ -99,7 +97,7 @@ func NewBitmapDecoder(
 	}
 
 	maskRows := indexOffset + (indexOffset+63)>>6
-	masks, offset := uintcodex.NewUintDecoder[uint64](nil, maskRows, offset, data)
+	masks, offset := uintcodex.NewUintDecoder[uint64](maskRows, offset, data)
 
 	if mDec, ok := masks.(*uintcodex.UintDecoder[uint64]); ok {
 		dec.masks = mDec

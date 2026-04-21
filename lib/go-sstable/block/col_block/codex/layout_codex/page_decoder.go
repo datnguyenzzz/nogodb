@@ -53,7 +53,7 @@ func Decode[T codex.EncodableDataType](
 	dt := d.DataType(col)
 
 	offset := d.PageOffset(col)
-	dec, offset := instructor(cp, d.header.rows, offset, d.data)
+	dec, offset := instructor(d.header.rows, offset, d.data)
 
 	if dt != dec.DataType() {
 		panic("data type is mismatched when decoding")

@@ -9,7 +9,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/block/col_block/codex"
-	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
 )
 
 type param struct {
@@ -328,7 +327,7 @@ func uint_codex_test[T codex.UintType](t *testing.T, testCases []param) {
 			assert.Equal(t, tc.expectedSize, nextOffset, "next offset after encoding doesn't match")
 
 			// Decode
-			dec, nextOffset := NewUintDecoder[T](common.NewComparer(), tc.rows, offset, buf)
+			dec, nextOffset := NewUintDecoder[T](tc.rows, offset, buf)
 			assert.Equal(t, tc.expectedSize, nextOffset, "next offset after decoding doesn't match")
 			for i := 0; i < int(tc.rows); i++ {
 				val := dec.Get(uint32(i))

@@ -1,15 +1,14 @@
 package rawbytescodex
 
 import (
+	"bytes"
 	"fmt"
 
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/block/col_block/codex"
 	uintcodex "github.com/datnguyenzzz/nogodb/lib/go-sstable/block/col_block/codex/uint_codex"
-	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
 )
 
 type RawBytesDecoder struct {
-	cp         common.IComparer
 	rows       uint32
 	offsetsDec *uintcodex.UintDecoder[uint32]
 	data       []byte
@@ -56,17 +55,17 @@ func (e *RawBytesDecoder) SeekGTE(key []byte, from, to int32) (rowIndex uint32, 
 	if uint32(from) >= e.rows || uint32(to) >= e.rows || from > to {
 		panic("RawBytesDecoder: searching range is out-bound")
 	}
-	if e.cp.Compare(e.Get(uint32(from)), key) > 0 {
+	if bytes.Compare(e.Get(uint32(from)), key) > 0 {
 		return 0, false
 	}
 
-	if e.cp.Compare(e.Get(uint32(to)), key) < 0 {
+	if bytes.Compare(e.Get(uint32(to)), key) < 0 {
 		return uint32(to) + 1, false
 	}
 
 	for from <= to {
 		mid := (from + to) >> 1
-		cp := e.cp.Compare(e.Get(uint32(mid)), key)
+		cp := bytes.Compare(e.Get(uint32(mid)), key)
 		if cp >= 0 {
 			isEqual = cp == 0
 			rowIndex = uint32(mid)
@@ -85,9 +84,9 @@ func (e *RawBytesDecoder) Rows() uint32 {
 
 // NewRawBytesDecoder returns a RawBytesDecoder with the offset of the next block
 func NewRawBytesDecoder(
-	comparer common.IComparer, rows, offset uint32, data []byte,
+	rows, offset uint32, data []byte,
 ) (codex.IColumnDecoder[[]byte], uint32) {
-	iDec, offset := uintcodex.NewUintDecoder[uint32](comparer, rows, offset, data)
+	iDec, offset := uintcodex.NewUintDecoder[uint32](rows, offset, data)
 	dec, ok := iDec.(*uintcodex.UintDecoder[uint32])
 	if !ok {
 		panic("NewRawBytesDecoder failed to assert to uintcodex.UintDecoder[uint32]")
@@ -95,7 +94,6 @@ func NewRawBytesDecoder(
 
 	valuesLen := dec.Get(rows - 1)
 	return &RawBytesDecoder{
-		cp:         comparer,
 		rows:       rows,
 		offsetsDec: dec,
 		data:       data[offset:],

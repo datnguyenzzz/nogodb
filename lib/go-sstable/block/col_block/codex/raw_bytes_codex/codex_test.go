@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
 	"github.com/go-faker/faker/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -74,7 +73,7 @@ func Test_codex(t *testing.T) {
 			require.GreaterOrEqual(t, uint32(len(buf)), totalSize)
 
 			// decode
-			dec, nextOffset := NewRawBytesDecoder(common.NewComparer(), tc.finishedSize, offset, buf)
+			dec, nextOffset := NewRawBytesDecoder(tc.finishedSize, offset, buf)
 
 			assert.Equal(t, nextOffset, totalSize)
 			for i := 0; i < int(tc.finishedSize); i++ {

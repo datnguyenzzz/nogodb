@@ -98,7 +98,7 @@ func Test_Codex(t *testing.T) {
 
 			// decode and verify
 			offset = 0
-			d, _ := NewBitmapDecoder(nil, tc.lim, offset, buf)
+			d, _ := NewBitmapDecoder(tc.lim, offset, buf)
 			dec, ok := d.(*BitmapDecoder)
 			require.True(t, ok, "failed to assert to BitmapDecoder")
 

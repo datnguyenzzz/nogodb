@@ -54,7 +54,8 @@ func (k *InternalKey) Size() int {
 	return len(k.UserKey) + InternalKeyTrailerLen
 }
 
-// SerializeTo serialise an internal key into give buffer. Caller must ensure buf has enough size to hold
+// SerializeTo serialise an internal key into give buffer.
+// Caller must ensure buf has enough size to hold
 func (k *InternalKey) SerializeTo(buf []byte) {
 	i := copy(buf, k.UserKey)
 	binary.LittleEndian.PutUint64(buf[i:], uint64(k.Trailer))

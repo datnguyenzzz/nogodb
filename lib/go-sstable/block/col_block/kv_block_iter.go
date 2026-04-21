@@ -78,7 +78,8 @@ func (i *KVBlockIter) toKv() *common.InternalKV {
 	iKv := &common.InternalKV{
 		K: common.InternalKey{},
 	}
-	iKv.K.UserKey = i.keys.Get(i.currRow)
+	// Meta block always write full common.internalKey
+	iKv.K = *common.DeserializeKey(i.keys.Get(i.currRow))
 	buf := i.values.Get(i.currRow)
 	v := common.NewBlankInternalLazyValue(common.ValueFromBuffer)
 	v.ReserveBuffer(i.bp, len(buf))
@@ -110,7 +111,7 @@ func NewKVBlockIter(
 		panic("NewKVBlockIter, failed to assert to RawBytesDecoder")
 	}
 
-	kv.keys, ok = layoutcodex.Decode(
+	kv.values, ok = layoutcodex.Decode(
 		cp,
 		decoder,
 		1,

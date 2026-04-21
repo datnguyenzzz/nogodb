@@ -91,6 +91,8 @@ func (c *ColBlockWriter) Close() error {
 		return err
 	}
 
+	var sharedBuf []byte
+
 	// Build and Flush filter block
 	{
 		if c.filterWriter != nil {
@@ -104,10 +106,14 @@ func (c *ColBlockWriter) Close() error {
 
 			encodedBH := make([]byte, blockCommon.MaxBlockHandleBytes)
 			n := bh.EncodeInto(encodedBH)
-			c.metaIndexBlock.Add(
-				common.MakeMetaIndexKey(blockCommon.BlockKindFilter).UserKey,
-				encodedBH[:n],
-			)
+			filterMetaKey := common.MakeMetaIndexKey(blockCommon.BlockKindFilter)
+			sz := filterMetaKey.Size()
+			if cap(sharedBuf) < sz {
+				block.GrowSize(&sharedBuf, sz)
+			}
+
+			filterMetaKey.SerializeTo(sharedBuf)
+			c.metaIndexBlock.Add(sharedBuf, encodedBH[:n])
 		}
 	}
 	// Build and Flush index block to the stable storage
@@ -119,10 +125,13 @@ func (c *ColBlockWriter) Close() error {
 
 		encodedBH := make([]byte, blockCommon.MaxBlockHandleBytes)
 		n := indexBh.EncodeInto(encodedBH)
-		c.metaIndexBlock.Add(
-			common.MakeMetaIndexKey(blockCommon.BlockKindIndex).UserKey,
-			encodedBH[:n],
-		)
+		indexMetaKey := common.MakeMetaIndexKey(blockCommon.BlockKindIndex)
+		sz := indexMetaKey.Size()
+		if cap(sharedBuf) < sz {
+			block.GrowSize(&sharedBuf, sz)
+		}
+		indexMetaKey.SerializeTo(sharedBuf)
+		c.metaIndexBlock.Add(sharedBuf, encodedBH[:n])
 	}
 	// Build and Flush meta index block to the stable storage
 	var metaBh blockCommon.BlockHandle

@@ -74,7 +74,7 @@ func (u *PrefixBytesDecoder) SeekGTE(key []byte, from, to int32) (rowIndex uint3
 
 	bundlePrefix := u.rawBytesDec.Get(GetBundleStartOffset(uint32(bundle), u.bundleSize))
 
-	if len(key) < len(bundlePrefix) || bytes.Compare(key[:len(bundlePrefix)], bundlePrefix) != 0 {
+	if len(key) < len(bundlePrefix) || !bytes.Equal(key[:len(bundlePrefix)], bundlePrefix) {
 		// the founded is the first key of next bundle
 		if uint32(bundle) == GetBundleFromRow(u.rows-1, u.bundleSize) {
 			// key is greater than all keys in the block
@@ -84,7 +84,7 @@ func (u *PrefixBytesDecoder) SeekGTE(key []byte, from, to int32) (rowIndex uint3
 		offset := GetBundleStartOffset(uint32(bundle+1), u.bundleSize)
 		firstKey := u.rawBytesDec.Slice(offset, offset+1)
 
-		return GetRowFromOffset(offset+1, u.bundleSize), bytes.Compare(key, firstKey) == 0
+		return GetRowFromOffset(offset+1, u.bundleSize), bytes.Equal(key, firstKey)
 	}
 
 	// Binary search to find the index on the bundle

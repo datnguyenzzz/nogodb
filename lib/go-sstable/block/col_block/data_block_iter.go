@@ -36,6 +36,9 @@ type DataBlockIter struct {
 
 func (i *DataBlockIter) SeekGTE(key []byte) *common.InternalKV {
 	foundRow, _ := i.seekGTEInternal(key)
+	if foundRow >= i.keyDecoder.prefix.Rows() {
+		return nil
+	}
 	// move the cursor to the found index
 	i.currRow = foundRow
 	return i.toKv()

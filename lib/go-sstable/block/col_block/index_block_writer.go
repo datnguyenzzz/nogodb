@@ -53,6 +53,8 @@ func (i *IndexBlockWriter) Rows() uint32 {
 	return i.rows
 }
 
+// Add, caller ensure that the key is full UserKey
+// that include MVCC suffix
 func (i *IndexBlockWriter) Add(key []byte, bh *block.BlockHandle) {
 	i.rows += 1
 

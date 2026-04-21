@@ -28,6 +28,9 @@ type IndexBlockIter struct {
 
 func (i *IndexBlockIter) SeekGTE(key []byte) *common.InternalKV {
 	foundRow, _ := i.seekGTEInternal(key)
+	if foundRow >= i.keyDecoder.Rows() {
+		return nil
+	}
 	// move the cursor to the found index
 	i.currRow = foundRow
 	return i.toKv()

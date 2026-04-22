@@ -16,9 +16,12 @@ func NewSingularIterator(
 	r go_fs.Readable,
 	optFuncs ...options.IteratorOptsFunc,
 ) (IIterator, error) {
-	o := &options.IteratorOpts{} // default is no cache
+	o := &options.IteratorOpts{
+		Comparer: common.NewComparer(),
+	} // default is no cache
+
 	for _, f := range optFuncs {
 		f(o)
 	}
-	return iterators.NewIterator(bpool, r, common.NewComparer(), o)
+	return iterators.NewIterator(bpool, r, o.Comparer, o)
 }

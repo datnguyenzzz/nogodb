@@ -144,6 +144,9 @@ var dataBlockIteratorPool = sync.Pool{
 //
 // key []byte is a full user key, aka internalKey.UserKey
 func (i *DataIterator) SeekPrefixGTE(prefix, key []byte) *common.InternalKV {
+	// Refer to the col_block.writer, we only write UserKey[:prefix]
+	// to the filter, without the MVCC suffix
+	prefix = prefix[:i.cmp.Split(prefix)]
 	if !i.filter.MayContain(prefix) {
 		// don't invalidate the indexes and data block, the other iterator might still read it
 		return nil
@@ -296,7 +299,7 @@ func (i *DataIterator) readMetaIndexBlock(footer *block.Footer) error {
 		zap.L().Error("failed to read metaIndexBlock", zap.Error(err))
 		return err
 	}
-	blkIter := getBlockIter(i.ver, block_common.BlockKindMetaIntex, i.bpool, common.NewComparer(), metaIndexBuf)
+	blkIter := getBlockIter(i.ver, block_common.BlockKindMetaIntex, i.bpool, i.cmp, metaIndexBuf)
 	for iter := blkIter.First(); iter != nil; iter = blkIter.Next() {
 		val := iter.V.Value()
 		bh := &block_common.BlockHandle{}

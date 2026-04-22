@@ -10,6 +10,13 @@ type IteratorOptsFunc func(opts *IteratorOpts)
 
 type IteratorOpts struct {
 	CacheOpts *CacheOptions
+	Comparer  common.IComparer
+}
+
+func WithComparer(comparer common.IComparer) IteratorOptsFunc {
+	return func(opts *IteratorOpts) {
+		opts.Comparer = comparer
+	}
 }
 
 func WithBlockCache(method go_block_cache.CacheType, fd go_fs.FileDesc) IteratorOptsFunc {

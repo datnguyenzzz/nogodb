@@ -82,7 +82,7 @@ func (b *BitmapEncoder) Finish(rows, offset uint32, buf []byte) uint32 {
 	// compute masks_index
 	var checked bool
 	maskIndexCnt := (maskCnt + 63) >> 6
-	for i := 0; i < int(maskIndexCnt); i++ {
+	for i := range int(maskIndexCnt) {
 		var index uint64
 		for offset := i << 6; offset < min((i+1)<<6, len(b.masks)); offset++ {
 			checked = checked || (offset == len(b.masks)-1)

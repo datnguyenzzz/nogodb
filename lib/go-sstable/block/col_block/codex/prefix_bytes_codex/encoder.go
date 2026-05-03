@@ -168,7 +168,7 @@ func (e *PrefixBytesEncoder) Finish(rows, offset uint32, buf []byte) uint32 {
 
 	// start encoding into the [buf]
 	// refer to the colblock/README.md for more detail about the layout
-	buf[offset] = byte(e.BundleSize)
+	buf[offset] = e.BundleSize
 	offset++
 	for _, v := range e.values {
 		e.valuesEncoder.Append(v)

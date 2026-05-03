@@ -94,7 +94,6 @@ func (w *indexWriter) flushFirstLevelIndexToMem(key *common.InternalKey) {
 	w.firstLevelIndices = append(w.firstLevelIndices, idx)
 	w.bytesBufferPool.Put(uncompressed)
 	// reset the current first level index block for the next subsequent writes
-	uncompressed = nil
 	w.firstLevelBlock.CleanUpForReuse()
 	w.firstLevelBlock.Release()
 	w.firstLevelBlock = newBlock(1, w.bytesBufferPool, w.opts.BlockSize)
@@ -131,7 +130,6 @@ func (w *indexWriter) BuildIndex() (*commonBlock.BlockHandle, error) {
 	}
 
 	w.bytesBufferPool.Put(uncompressed)
-	uncompressed = nil
 	return nil, err
 }
 

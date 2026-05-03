@@ -138,7 +138,7 @@ func (c *ColBlockWriter) Close() error {
 	{
 		metaSize := int(c.metaIndexBlock.Size())
 		block.GrowSize(&c.uncompressed, metaSize)
-		c.uncompressed = c.metaIndexBlock.Finish(uint32(c.metaIndexBlock.Rows()), metaSize)
+		c.uncompressed = c.metaIndexBlock.Finish(c.metaIndexBlock.Rows(), metaSize)
 		pb := block.CompressToPb(c.compressors, c.checksumer, c.uncompressed)
 		metaBh, err = c.storageWriter.WritePhysicalBlock(*pb)
 		if err != nil {

@@ -42,13 +42,13 @@ func Test_Encoder_Handcrafted_Size(t *testing.T) {
 
 	// encode
 	offset := uint32(0)
-	buf := make([]byte, enc.Size(uint32(offset)))
+	buf := make([]byte, enc.Size(offset))
 
 	for i := 12; i < len(input); i++ {
 		enc.Append(input[i])
 	}
 
-	offset = enc.Finish(12, uint32(offset), buf)
+	offset = enc.Finish(12, offset, buf)
 	require.GreaterOrEqual(t, uint32(len(buf)), offset)
 	// fmt.Println(uint32(len(buf)), offset)
 }
@@ -112,9 +112,9 @@ func Test_Encoder_Handcrafted(t *testing.T) {
 		enc.Append(v)
 	}
 	offset := uint32(0)
-	buf := make([]byte, enc.Size(uint32(offset)))
+	buf := make([]byte, enc.Size(offset))
 
-	offset = enc.Finish(uint32(len(input)), uint32(offset), buf)
+	offset = enc.Finish(uint32(len(input)), offset, buf)
 	buf = buf[:offset]
 
 	assert.True(t, bytes.Equal(expectedOut, buf))
@@ -213,24 +213,24 @@ func Test_Codex(t *testing.T) {
 
 			// encode
 			offset := uint32(0)
-			buf := make([]byte, enc.Size(uint32(offset)))
+			buf := make([]byte, enc.Size(offset))
 
 			for i := tc.finishedRows; i < tc.size; i++ {
 				enc.Append(input[i])
 			}
 
-			offset = enc.Finish(uint32(tc.finishedRows), uint32(offset), buf)
+			offset = enc.Finish(uint32(tc.finishedRows), offset, buf)
 			require.GreaterOrEqual(t, uint32(len(buf)), offset)
 			buf = buf[:offset]
 
 			// decode
 			offset = 0
-			d, offset := NewPrefixBytesDecoder(uint32(tc.finishedRows), offset, buf)
+			d, _ := NewPrefixBytesDecoder(uint32(tc.finishedRows), offset, buf)
 			dec, ok := d.(*PrefixBytesDecoder)
 			require.True(t, ok, "can not assert to PrefixBytesDecoder")
 
 			// Verify decoder.Get()
-			for i := 0; i < tc.finishedRows; i++ {
+			for i := range tc.finishedRows {
 				out := dec.Get(uint32(i))
 				require.True(t, bytes.Equal(out, input[i]), fmt.Sprintf("input at %d-th isn't match", i))
 			}

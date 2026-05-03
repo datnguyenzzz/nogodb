@@ -889,7 +889,7 @@ func TestDataBlockIterator_Prev(t *testing.T) {
 
 			// Position iterator based on test case
 			iter.First()
-			for i := 0; i < tc.initialPosition; i++ {
+			for range tc.initialPosition {
 				iter.Next()
 			}
 
@@ -1176,7 +1176,7 @@ func TestDataBlockIterator_SeekGTE(t *testing.T) {
 				assert.NotEqual(t, -1, foundIndex, "found key should exist in input keys")
 
 				// Verify this is truly the first key >= seek key by checking no earlier key qualifies
-				for i := 0; i < foundIndex; i++ {
+				for i := range foundIndex {
 					prevKeyCmp := cmp.Compare([]byte(tc.inputUserKeys[i]), []byte(tc.seekKey))
 					assert.Less(t, prevKeyCmp, 0, "all keys before found key should be < seek key, but key %s at index %d is not < %s", tc.inputUserKeys[i], i, tc.seekKey)
 				}

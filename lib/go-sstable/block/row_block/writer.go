@@ -7,7 +7,6 @@ import (
 	go_fs "github.com/datnguyenzzz/nogodb/lib/go-fs"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/block"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
-	blockCommon "github.com/datnguyenzzz/nogodb/lib/go-sstable/common/block"
 	commonBlock "github.com/datnguyenzzz/nogodb/lib/go-sstable/common/block"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/compression"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/filter"
@@ -17,7 +16,7 @@ import (
 	"go.uber.org/zap"
 )
 
-type compressorPerBlock map[blockCommon.BlockKind]compression.ICompression
+type compressorPerBlock map[commonBlock.BlockKind]compression.ICompression
 
 // RowBlockWriter is an implementation of common.InternalWriter, which writes SSTables with row-oriented blocks
 type RowBlockWriter struct {
@@ -80,7 +79,7 @@ func (rw *RowBlockWriter) Close() error {
 		var rawData []byte
 		rw.filterWriter.Build(&rawData)
 		// compress and checksum
-		compressor := rw.compressors[blockCommon.BlockKindFilter]
+		compressor := rw.compressors[commonBlock.BlockKindFilter]
 		pb := block.CompressToPb(compressor, rw.checksumer, rawData)
 		// write to the stable storage
 		bh, err := rw.storageWriter.WritePhysicalBlock(*pb)
@@ -89,10 +88,10 @@ func (rw *RowBlockWriter) Close() error {
 			return err
 		}
 		// save the filter block location to the meta index block
-		encodedBH := make([]byte, blockCommon.MaxBlockHandleBytes)
+		encodedBH := make([]byte, commonBlock.MaxBlockHandleBytes)
 		n := bh.EncodeInto(encodedBH)
 		err = rw.metaIndexBlock.WriteEntry(
-			common.MakeMetaIndexKey(blockCommon.BlockKindFilter),
+			common.MakeMetaIndexKey(commonBlock.BlockKindFilter),
 			encodedBH[:n],
 		)
 		if err != nil {
@@ -124,7 +123,7 @@ func (rw *RowBlockWriter) Close() error {
 	metaIndexRaw := rw.bytesBufferPool.Get(rw.metaIndexBlock.EstimateSize())
 	metaIndexRaw = metaIndexRaw[:rw.metaIndexBlock.EstimateSize()]
 	rw.metaIndexBlock.Finish(metaIndexRaw)
-	compressor := rw.compressors[blockCommon.BlockKindIndex]
+	compressor := rw.compressors[commonBlock.BlockKindIndex]
 	pb := block.CompressToPb(compressor, rw.checksumer, metaIndexRaw)
 	bh, err := rw.storageWriter.WritePhysicalBlock(*pb)
 	if err != nil {
@@ -132,7 +131,6 @@ func (rw *RowBlockWriter) Close() error {
 		return err
 	}
 	rw.bytesBufferPool.Put(metaIndexRaw)
-	metaIndexRaw = nil
 
 	// write Footer
 	footer := &block.Footer{
@@ -198,7 +196,7 @@ func (rw *RowBlockWriter) doFlush(key common.InternalKey) error {
 	// of the data block to prepare the needed input for the task
 	task := block.SpawnNewTask()
 	task.StorageWriter = rw.storageWriter
-	task.Physical = block.CompressToPb(rw.compressors[blockCommon.BlockKindData], rw.checksumer, uncompressed)
+	task.Physical = block.CompressToPb(rw.compressors[commonBlock.BlockKindData], rw.checksumer, uncompressed)
 	// inputs for index writer
 	task.IndexKey = prevKey
 	task.IndexWriter = rw.indexWriter
@@ -209,7 +207,6 @@ func (rw *RowBlockWriter) doFlush(key common.InternalKey) error {
 
 	// 4. Put the uncompressed buffer back to the bytes buffer pool
 	rw.bytesBufferPool.Put(uncompressed)
-	uncompressed = nil
 	// 5. Reset the current data block for the next subsequent writes
 	rw.dataBlock.CleanUpForReuse()
 	rw.dataBlock.Release()
@@ -220,7 +217,7 @@ func (rw *RowBlockWriter) doFlush(key common.InternalKey) error {
 
 func NewRowBlockWriter(w go_fs.Writable, opts options.BlockWriteOpt, version common.TableVersion) *RowBlockWriter {
 	c := compressorPerBlock{}
-	for blockKind := range blockCommon.BlockKindStrings {
+	for blockKind := range commonBlock.BlockKindStrings {
 		if _, ok := opts.Compression[blockKind]; !ok {
 			c[blockKind] = compression.NewCompressor(opts.DefaultCompression)
 			continue
@@ -241,7 +238,7 @@ func NewRowBlockWriter(w go_fs.Writable, opts options.BlockWriteOpt, version com
 		metaIndexBlock: metaIndexBlock,
 		indexWriter: newIndexWriter(
 			comparer,
-			c[blockCommon.BlockKindIndex],
+			c[commonBlock.BlockKindIndex],
 			crc32Checksum,
 			flushDecider,
 			storageWriter,

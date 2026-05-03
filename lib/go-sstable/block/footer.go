@@ -17,8 +17,7 @@ type Footer struct {
 func (f *Footer) Serialise() []byte {
 	footerSize := common.TableFooterSize[f.Version]
 	buf := make([]byte, footerSize)
-	n := 0
-	n += f.MetaIndexBH.EncodeInto(buf[:])
+	f.MetaIndexBH.EncodeInto(buf[:])
 	binary.LittleEndian.PutUint32(buf[cap(buf)-common.MagicNumberLen-common.TableVersionLen:], uint32(f.Version))
 	copy(buf[cap(buf)-common.MagicNumberLen:], common.MagicNumber)
 	return buf

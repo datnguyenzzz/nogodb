@@ -248,7 +248,7 @@ func NewBlockIterator(
 	numRestarts := int32(binary.LittleEndian.Uint32(block[len(block)-4:]))
 	trailerOffset := uint64(len(block)) - uint64(4*numRestarts) - 4
 	restartPoints := make([]int32, numRestarts)
-	for i := 0; i < int(numRestarts); i++ {
+	for i := range numRestarts {
 		restartPoints[i] = int32(binary.LittleEndian.Uint32(block[trailerOffset+uint64(4*i):]))
 	}
 

@@ -137,7 +137,7 @@ func Test_WriteEntry_Then_Finish(t *testing.T) {
 			bp := predictable_size.NewPredictablePool()
 			blk := newBlock(tc.restartInterval, bp, 1024*1024)
 			n := len(tc.inputUserKeys)
-			for i := 0; i < n; i++ {
+			for i := range n {
 				key := makeDummyKey(tc.inputUserKeys[i])
 				value := []byte(tc.inputValue[i])
 				// 1. Write a new entry, expect there is no error

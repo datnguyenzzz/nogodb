@@ -196,7 +196,7 @@ func TestCoordinator_Multiple_Tasks(t *testing.T) {
 
 	// Create and put multiple tasks
 	tasksCount := 5
-	for i := 0; i < tasksCount; i++ {
+	for range tasksCount {
 		task := newMockTask(func() error {
 			mu.Lock()
 			executed++

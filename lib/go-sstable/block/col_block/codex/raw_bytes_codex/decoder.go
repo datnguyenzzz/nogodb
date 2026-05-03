@@ -97,7 +97,7 @@ func NewRawBytesDecoder(
 		rows:       rows,
 		offsetsDec: dec,
 		data:       data[offset:],
-	}, offset + uint32(valuesLen)
+	}, offset + valuesLen
 }
 
 var _ codex.IColumnDecoder[[]byte] = (*RawBytesDecoder)(nil)

@@ -76,7 +76,7 @@ func (e *UintEncoder[T]) Finish(rows, offset uint32, buf []byte) uint32 {
 	offset += 1
 	offset = serialise(buf, offset, 8, uint64(minV)) // 8B
 	for _, v := range e.values {
-		offset = serialise(buf, offset, reqB, T(v-minV))
+		offset = serialise(buf, offset, reqB, v-minV)
 	}
 
 	// fmt.Println("Uint size", e.Size(offset), "enc.size()=", offset-before)

@@ -1,3 +1,5 @@
+//go:build functional_tests
+
 package functional
 
 import (

@@ -93,7 +93,7 @@ func Test_iterating_over_a_block(t *testing.T) {
 			}
 
 			// Write data
-			for i := 0; i < len(keys); i++ {
+			for i := range keys {
 				writer.Add(keys[i], values[i])
 			}
 
@@ -179,7 +179,7 @@ func Test_seeking_on_data_block(t *testing.T) {
 			}
 
 			// Write data
-			for i := 0; i < len(keys); i++ {
+			for i := range keys {
 				writer.Add(keys[i], values[i])
 			}
 
@@ -216,7 +216,6 @@ func Test_seeking_on_data_block(t *testing.T) {
 				// seeking LTE directly with a key
 				kv = iter.SeekLTE(keys[i].UserKey)
 				assertKv(t, i, "SeekLTE strict", kv, keys[i].UserKey, values[i])
-				smallerKey = nil
 
 				// seeking LTE with a bigger key
 				biggerKey := make([]byte, len(keys[i].UserKey))
@@ -256,7 +255,7 @@ func genInput(size int, sharedPrefix int, withSuffix bool) [][]byte {
 		}
 
 		commonPrefix := randomByte()[:r.Intn(19)+1]
-		for i := 0; i < c; i++ {
+		for range c {
 			key := slices.Concat(prefix, commonPrefix)
 			res = append(res, key)
 		}

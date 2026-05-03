@@ -297,7 +297,7 @@ var _ go_block_cache.LazyValue = (*lazyValueMock)(nil)
 
 func randomBytes(n int) []byte {
 	res := make([]byte, n)
-	for i := 0; i < n; i++ {
+	for i := range n {
 		res[i] = byte(rand.Intn(255))
 	}
 	return res

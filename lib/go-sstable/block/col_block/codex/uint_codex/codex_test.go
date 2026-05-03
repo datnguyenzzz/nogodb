@@ -329,9 +329,9 @@ func uint_codex_test[T codex.UintType](t *testing.T, testCases []param) {
 			// Decode
 			dec, nextOffset := NewUintDecoder[T](tc.rows, offset, buf)
 			assert.Equal(t, tc.expectedSize, nextOffset, "next offset after decoding doesn't match")
-			for i := 0; i < int(tc.rows); i++ {
-				val := dec.Get(uint32(i))
-				require.Equal(t, T(values[i]), val, fmt.Sprintf("failed on row %d-th", i))
+			for i := range tc.rows {
+				val := dec.Get(i)
+				require.Equal(t, values[i], val, fmt.Sprintf("failed on row %d-th", i))
 			}
 		})
 	}
@@ -340,7 +340,7 @@ func uint_codex_test[T codex.UintType](t *testing.T, testCases []param) {
 func generateValues[T codex.UintType](width byte, rows uint32, allEqual bool) []T {
 	res := make([]T, rows)
 	if allEqual {
-		for i := range len(res) {
+		for i := range res {
 			res[i] = ^T(0)
 		}
 

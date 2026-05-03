@@ -90,7 +90,7 @@ func (iw *IndexWriter) BuildIndex() (*commonBlock.BlockHandle, error) {
 	}
 
 	// build the 2nd level index and write to the storage
-	rows := uint32(iw.secondLevelIndex.Rows())
+	rows := iw.secondLevelIndex.Rows()
 	size := int(iw.secondLevelIndex.Size())
 	block.GrowSize(&iw.uncompressed, size)
 	iw.uncompressed = iw.secondLevelIndex.Finish(rows, size)

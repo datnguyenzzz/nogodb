@@ -197,7 +197,6 @@ func Test_Seeking_on_an_index_block(t *testing.T) {
 				// seeking LTE directly with a key
 				kv = iter.SeekLTE(keys[i])
 				assertIndexKv(t, "SeekLTE strict", kv, keys[i], blockHandles[i])
-				smallerKey = nil
 
 				// seeking LTE with a bigger key
 				biggerKey := make([]byte, len(keys[i]))

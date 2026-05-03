@@ -58,7 +58,7 @@ func Test_codex(t *testing.T) {
 			enc.Reset()
 
 			values := make([][]byte, tc.size)
-			for i := 0; i < int(tc.size); i++ {
+			for i := range tc.size {
 				values[i] = randomByte()
 			}
 
@@ -76,9 +76,9 @@ func Test_codex(t *testing.T) {
 			dec, nextOffset := NewRawBytesDecoder(tc.finishedSize, offset, buf)
 
 			assert.Equal(t, nextOffset, totalSize)
-			for i := 0; i < int(tc.finishedSize); i++ {
+			for i := range tc.finishedSize {
 				v := values[i]
-				val := dec.Get(uint32(i))
+				val := dec.Get(i)
 				assert.True(t, bytes.Equal(val, v))
 			}
 		})

@@ -40,7 +40,7 @@ func TestBloomFilter_VaryingLengths(t *testing.T) {
 	for n := 1; n < 100_000; n = nextN(n) {
 		bf := NewBloomFilter()
 		writer := bf.NewWriter()
-		for i := 0; i < n; i++ {
+		for i := range n {
 			var b [4]byte
 			binary.LittleEndian.PutUint32(b[:], uint32(i))
 			writer.Add(b[:])
@@ -50,7 +50,7 @@ func TestBloomFilter_VaryingLengths(t *testing.T) {
 		writer.Build(&filter)
 
 		// assert must not false negative
-		for i := 0; i < n; i++ {
+		for i := range n {
 			var b [4]byte
 			binary.LittleEndian.PutUint32(b[:], uint32(i))
 			isIn := bf.MayContain(filter, b[:])
@@ -59,7 +59,7 @@ func TestBloomFilter_VaryingLengths(t *testing.T) {
 
 		// assert the false positive rate
 		var fpr float32
-		for i := 0; i < 10_000; i++ {
+		for i := range 10_000 {
 			var b [4]byte
 			binary.LittleEndian.PutUint32(b[:], uint32(i+1e9))
 			if bf.MayContain(filter, b[:]) {

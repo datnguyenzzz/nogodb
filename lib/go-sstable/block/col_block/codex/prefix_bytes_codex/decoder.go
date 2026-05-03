@@ -59,7 +59,7 @@ func (u *PrefixBytesDecoder) SeekGTE(key []byte, from, to int32) (rowIndex uint3
 		firstKey := u.rawBytesDec.Slice(offset, offset+1)
 		cp := bytes.Compare(firstKey, key)
 		if cp < 0 {
-			bundle = int(mid)
+			bundle = mid
 			lo = mid + 1
 		} else {
 			hi = mid - 1
@@ -118,7 +118,7 @@ func (u *PrefixBytesDecoder) SeekGTE(key []byte, from, to int32) (rowIndex uint3
 		firstKey := u.rawBytesDec.Slice(offset, offset+1)
 		key = slices.Concat(keyPrefix, key)
 
-		return GetRowFromOffset(offset+1, u.bundleSize), bytes.Compare(key, firstKey) == 0
+		return GetRowFromOffset(offset+1, u.bundleSize), bytes.Equal(key, firstKey)
 	}
 
 	return rowIndex, cpResult == 0

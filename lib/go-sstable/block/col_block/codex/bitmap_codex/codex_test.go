@@ -137,7 +137,7 @@ func Test_Codex(t *testing.T) {
 func genInput(size int, lim int32) []int32 {
 	res := make([]int32, 0, size)
 	r := rand.New(rand.NewSource(time.Now().UnixNano()))
-	for i := 0; i < size-1; i++ {
+	for range size - 1 {
 		res = append(res, r.Int31n(lim))
 	}
 

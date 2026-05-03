@@ -47,7 +47,6 @@ func (i *IndexBlockIter) SeekLTE(key []byte) *common.InternalKV {
 	foundRow, eq := i.seekGTEInternal(key)
 	if !eq {
 		foundRow -= 1
-		eq = false
 	}
 
 	i.currRow = foundRow

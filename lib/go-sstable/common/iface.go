@@ -13,6 +13,11 @@ type InternalWriter interface {
 	// TODO(med): support range query (delete, ...)
 }
 
+// Inspired by :
+//
+//	https://github.com/facebook/rocksdb/wiki/Iterator
+//	https://github.com/facebook/rocksdb/wiki/Iterator-Implementation
+//
 // InternalSeeker defines an interface for seeking within an sstable. Implementations may vary
 // depending on the TableFormat being read.
 type InternalSeeker interface {

@@ -23,7 +23,7 @@ type Node4[V any] struct {
 	// At position i-th, keys[i] = Key value, pointers[i] = pointer to Child for the keys[i]
 	// keys is an array of length 4 for a 1-byte Key.
 	// The keys array is sorted in ascending order.
-	keys [Node4KeysMax]byte
+	keys [Node4KeysMax]*nodeKey
 	// pointers to children node. pointers[i] is a pointer to a Child node for a Key = keys[i]
 	children [Node4PointersLen]*INode[V]
 }
@@ -40,7 +40,7 @@ func (n *Node4[V]) GetKind(ctx context.Context) Kind {
 	return KindNode4
 }
 
-func (n *Node4[V]) addChild(ctx context.Context, key byte, child *INode[V]) error {
+func (n *Node4[V]) addChild(ctx context.Context, key *nodeKey, child *INode[V]) error {
 	currChildrenLen := n.getChildrenLen(ctx)
 	if currChildrenLen >= Node4KeysMax {
 		return fmt.Errorf("node_4 is maxed out and don't have enough room for a new Key")
@@ -52,8 +52,8 @@ func (n *Node4[V]) addChild(ctx context.Context, key byte, child *INode[V]) erro
 	}
 
 	pos := Node4KeysMax
-	for i := 0; i < int(Node4KeysMax); i++ {
-		if n.keys[i] > key {
+	for i := range int(Node4KeysMax) {
+		if n.keys[i] != nil && n.keys[i].Compare(key) == 1 {
 			pos = byte(i)
 			break
 		}
@@ -71,14 +71,14 @@ func (n *Node4[V]) addChild(ctx context.Context, key byte, child *INode[V]) erro
 	return nil
 }
 
-func (n *Node4[V]) removeChild(ctx context.Context, key byte) error {
+func (n *Node4[V]) removeChild(ctx context.Context, key *nodeKey) error {
 	currChildrenLen := n.getChildrenLen(ctx)
 	if currChildrenLen == 0 {
 		return fmt.Errorf("node is empty")
 	}
 	pos := -1
-	for i := 0; i < int(Node4KeysMax); i++ {
-		if n.keys[i] == key {
+	for i := range int(Node4KeysMax) {
+		if n.keys[i] != nil && n.keys[i].Compare(key) == 0 {
 			pos = i
 			break
 		}
@@ -93,16 +93,16 @@ func (n *Node4[V]) removeChild(ctx context.Context, key byte) error {
 		n.children[i] = n.children[i-1]
 	}
 	// remove the keys[0]
-	n.keys[0] = 0
+	n.keys[0] = nil
 	n.children[0] = nil
 	n.setChildrenLen(ctx, currChildrenLen-1)
 	return nil
 }
 
-func (n *Node4[V]) getChild(ctx context.Context, key byte) (*INode[V], error) {
+func (n *Node4[V]) getChild(ctx context.Context, key *nodeKey) (*INode[V], error) {
 	pos := -1
-	for i := 0; i < int(Node4KeysMax); i++ {
-		if n.keys[i] == key {
+	for i := range int(Node4KeysMax) {
+		if n.keys[i] != nil && n.keys[i].Compare(key) == 0 {
 			pos = i
 			break
 		}
@@ -132,10 +132,10 @@ func (n *Node4[V]) getAllChildren(ctx context.Context, order Order) []*INode[V] 
 	}
 }
 
-func (n *Node4[V]) getChildByIndex(ctx context.Context, idx uint8) (byte, *INode[V], error) {
+func (n *Node4[V]) getChildByIndex(ctx context.Context, idx uint8) (*nodeKey, *INode[V], error) {
 	currLen := n.getChildrenLen(ctx)
 	if idx == currLen {
-		return byte(0), nil, childNodeNotFound
+		return nil, nil, childNodeNotFound
 	}
 
 	pos := Node4KeysMax - currLen + idx
@@ -150,7 +150,7 @@ func (n *Node4[V]) grow(ctx context.Context) (*INode[V], error) {
 	n16 := NewNode[V](KindNode16)
 	n16.setPrefix(ctx, n.getPrefix(ctx))
 
-	for i := 0; i < int(Node4KeysMax); i++ {
+	for i := range int(Node4KeysMax) {
 		if err := n16.addChild(ctx, n.keys[i], n.children[i]); err != nil {
 			return nil, err
 		}

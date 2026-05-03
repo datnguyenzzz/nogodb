@@ -9,7 +9,7 @@ import (
 
 const (
 	Node256PointersMin uint8  = Node48PointersMax + 1
-	Node256PointersMax uint16 = 256
+	Node256PointersMax uint16 = 257
 )
 
 // Node256 The largest node type is simply an array of 256
@@ -38,26 +38,42 @@ func (n *Node256[V]) GetKind(ctx context.Context) Kind {
 	return KindNode256
 }
 
-func (n *Node256[V]) addChild(ctx context.Context, key byte, child *INode[V]) error {
+func (n *Node256[V]) getIdx(key *nodeKey) int {
+	if key.IsNull() {
+		return 0
+	}
+
+	return int(key.b + 1)
+}
+
+func (n *Node256[V]) getKeyFromIdx(idx int) *nodeKey {
+	if idx == 0 {
+		return NullNodeKey()
+	}
+
+	return ToNodeKey(byte(idx - 1))
+}
+
+func (n *Node256[V]) addChild(ctx context.Context, key *nodeKey, child *INode[V]) error {
 	currChildrenLen := n.getChildrenLen(ctx)
 	if uint16(currChildrenLen) >= Node256PointersMax {
 		return fmt.Errorf("node256 is maxed out and don't have enough room for a new Key")
 	}
 
-	n.children[key] = child
+	n.children[n.getIdx(key)] = child
 	n.setChildrenLen(ctx, currChildrenLen+1)
 	return nil
 }
 
-func (n *Node256[V]) removeChild(ctx context.Context, key byte) error {
+func (n *Node256[V]) removeChild(ctx context.Context, key *nodeKey) error {
 	currChildrenLen := n.getChildrenLen(ctx)
-	n.children[key] = nil
+	n.children[n.getIdx(key)] = nil
 	n.setChildrenLen(ctx, currChildrenLen-1)
 	return nil
 }
 
-func (n *Node256[V]) getChild(ctx context.Context, key byte) (*INode[V], error) {
-	child := n.children[key]
+func (n *Node256[V]) getChild(ctx context.Context, key *nodeKey) (*INode[V], error) {
+	child := n.children[n.getIdx(key)]
 	if child == nil {
 		return nil, childNodeNotFound
 	}
@@ -69,7 +85,7 @@ func (n *Node256[V]) getAllChildren(ctx context.Context, order Order) []*INode[V
 	case AscOrder:
 		res := make([]*INode[V], n.getChildrenLen(ctx))
 		cnt := 0
-		for k := 0; k < int(Node256PointersMax); k++ {
+		for k := range int(Node256PointersMax) {
 			child := n.children[k]
 			if child == nil {
 				continue
@@ -96,24 +112,24 @@ func (n *Node256[V]) getAllChildren(ctx context.Context, order Order) []*INode[V
 	}
 }
 
-func (n *Node256[V]) getChildByIndex(ctx context.Context, idx uint8) (byte, *INode[V], error) {
+func (n *Node256[V]) getChildByIndex(ctx context.Context, idx uint8) (*nodeKey, *INode[V], error) {
 	currLen := n.getChildrenLen(ctx)
 	if idx == currLen {
-		return byte(0), nil, childNodeNotFound
+		return nil, nil, childNodeNotFound
 	}
 
 	cnt := 0
-	for k := 0; k < int(Node256PointersMax); k++ {
+	for k := range int(Node256PointersMax) {
 		child := n.children[k]
 		if child == nil {
 			continue
 		}
 		if cnt == int(idx) {
-			return byte(k), child, nil
+			return n.getKeyFromIdx(k), child, nil
 		}
 		cnt += 1
 	}
-	return byte(0), nil, childNodeNotFound
+	return nil, nil, childNodeNotFound
 }
 
 func (n *Node256[V]) grow(ctx context.Context) (*INode[V], error) {
@@ -134,12 +150,12 @@ func (n *Node256[V]) shrink(ctx context.Context) (*INode[V], error) {
 	n48 := NewNode[V](KindNode48)
 	n48.setPrefix(ctx, n.getPrefix(ctx))
 
-	for k := 0; k < int(Node256PointersMax); k++ {
+	for k := range int(Node256PointersMax) {
 		child := n.children[k]
 		if child == nil {
 			continue
 		}
-		if err := n48.addChild(ctx, byte(k), child); err != nil {
+		if err := n48.addChild(ctx, n.getKeyFromIdx(k), child); err != nil {
 			return nil, err
 		}
 	}

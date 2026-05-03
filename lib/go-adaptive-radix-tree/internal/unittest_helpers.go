@@ -18,9 +18,10 @@ const (
 )
 
 type NodeAction[V any] struct {
-	Kind  ActionType
-	Key   byte
-	Child *INode[V]
+	Kind   ActionType
+	Key    byte
+	Child  *INode[V]
+	IsNull bool
 }
 
 type KV[V any] struct {

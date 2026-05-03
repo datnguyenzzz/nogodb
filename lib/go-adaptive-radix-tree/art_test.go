@@ -853,3 +853,129 @@ func testWalkCallback[V any](t *testing.T, art ITree[V], inputKVs []internal.KV[
 		assert.Equal(t, expectedKV.Value, actualKV.Value)
 	}
 }
+
+func Test_ART_EdgeCases(t *testing.T) {
+	ctx := context.Background()
+	art := NewTree[string](ctx)
+
+	t.Run("Get/Delete on empty tree", func(t *testing.T) {
+		_, err := art.Get(ctx, []byte("non-existent"))
+		assert.ErrorIs(t, err, NonExist)
+
+		_, err = art.Delete(ctx, []byte("non-existent"))
+		assert.ErrorIs(t, err, NonExist)
+	})
+
+	t.Run("Insert duplicate keys updates value", func(t *testing.T) {
+		_, err := art.Insert(ctx, []byte("key1"), "val1")
+		assert.NoError(t, err)
+
+		oldVal, err := art.Insert(ctx, []byte("key1"), "val2")
+		assert.NoError(t, err)
+		assert.Equal(t, "val1", oldVal)
+
+		val, err := art.Get(ctx, []byte("key1"))
+		assert.NoError(t, err)
+		assert.Equal(t, "val2", val)
+	})
+
+	t.Run("Delete non-existent key from non-empty tree", func(t *testing.T) {
+		_, err := art.Delete(ctx, []byte("key2"))
+		assert.ErrorIs(t, err, NonExist)
+	})
+}
+
+func Test_ART_Visualize(t *testing.T) {
+	ctx := context.Background()
+	art := NewTree[string](ctx)
+
+	t.Run("Visualize empty tree", func(t *testing.T) {
+		assert.NotPanics(t, func() { art.Visualize(ctx) })
+	})
+
+	t.Run("Visualize tree with one leaf", func(t *testing.T) {
+		art.Insert(ctx, []byte("key1"), "val1")
+		assert.NotPanics(t, func() { art.Visualize(ctx) })
+	})
+
+	t.Run("Visualize small tree", func(t *testing.T) {
+		art.Insert(ctx, []byte("key2"), "val2")
+		art.Insert(ctx, []byte("key3"), "val3")
+		assert.NotPanics(t, func() { art.Visualize(ctx) })
+	})
+}
+
+func Test_ART_NodeTransitions(t *testing.T) {
+	ctx := context.Background()
+	art := NewTree[int](ctx)
+
+	// Growth: 4 -> 16 -> 48 -> 256
+	t.Run("Node growth and shrinkage", func(t *testing.T) {
+		// Insert 256 keys with different first bytes to force node growth
+		keys := make([][]byte, 256)
+		for i := 0; i < 256; i++ {
+			keys[i] = []byte{byte(i)}
+			_, err := art.Insert(ctx, keys[i], i)
+			assert.NoError(t, err)
+		}
+
+		// Verify all keys
+		for i := 0; i < 256; i++ {
+			val, err := art.Get(ctx, keys[i])
+			assert.NoError(t, err)
+			assert.Equal(t, i, val)
+		}
+
+		// Shrinkage: 256 -> 48 -> 16 -> 4
+		for i := 255; i >= 0; i-- {
+			_, err := art.Delete(ctx, keys[i])
+			assert.NoError(t, err)
+
+			// Occasionally verify remaining keys
+			if i > 0 && i%64 == 0 {
+				for j := 0; j < i; j++ {
+					val, err := art.Get(ctx, keys[j])
+					assert.NoError(t, err)
+					assert.Equal(t, j, val)
+				}
+			}
+		}
+
+		// Tree should be empty
+		_, err := art.Get(ctx, keys[0])
+		assert.ErrorIs(t, err, NonExist)
+	})
+}
+
+func Test_ART_PrefixHandling(t *testing.T) {
+	ctx := context.Background()
+	art := NewTree[string](ctx)
+
+	type testCase struct {
+		key   string
+		value string
+	}
+
+	tests := []testCase{
+		{"apple", "1"},
+		{"banana", "2"},
+		{"application", "4"},
+		{"apply", "2"},
+		{"app", "3"},
+		{"bandana", "6"},
+		{"band", "7"},
+		{"cherry", "3"},
+		{"date", "4"},
+	}
+
+	for _, tc := range tests {
+		_, err := art.Insert(ctx, []byte(tc.key), tc.value)
+		assert.NoError(t, err)
+	}
+
+	for _, tc := range tests {
+		val, err := art.Get(ctx, []byte(tc.key))
+		assert.NoError(t, err, "Failed to get key: %s", tc.key)
+		assert.Equal(t, tc.value, val)
+	}
+}

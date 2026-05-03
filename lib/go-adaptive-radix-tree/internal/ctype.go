@@ -61,11 +61,11 @@ type iNodeSizeManager[V any] interface {
 
 // iNodeChildrenManager control the node's children
 type iNodeChildrenManager[V any] interface {
-	addChild(ctx context.Context, key byte, child *INode[V]) error
-	removeChild(ctx context.Context, key byte) error
-	getChild(ctx context.Context, key byte) (*INode[V], error)
+	addChild(ctx context.Context, key *nodeKey, child *INode[V]) error
+	removeChild(ctx context.Context, key *nodeKey) error
+	getChild(ctx context.Context, key *nodeKey) (*INode[V], error)
 	getAllChildren(ctx context.Context, order Order) []*INode[V]
-	getChildByIndex(ctx context.Context, idx uint8) (byte, *INode[V], error)
+	getChildByIndex(ctx context.Context, idx uint8) (*nodeKey, *INode[V], error)
 }
 
 type INode[V any] interface {

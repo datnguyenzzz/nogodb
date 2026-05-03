@@ -70,15 +70,16 @@ func InsertNode[V any](
 
 		// add current leaf node to the new inner node
 		// but it needs a new locker
-		if err := nn.addChild(ctx, currLeafKey[offset], &nodeCopy); err != nil {
+		if err := nn.addChild(ctx, GetNodeKey(currLeafKey, int(offset)), &nodeCopy); err != nil {
 			(*nodePtr).GetLocker().Unlock()
 			(*parentPtr).GetLocker().Unlock()
 			return *new(V), false, fmt.Errorf("%w: %v", failedToAddChild, err)
 		}
 
 		// create new leaf node for the targeting Key, and add it to the inner node
+		// TODO(high): Only need to store fraction of the [key]
 		newLeaf := NewLeafWithKV(ctx, key, v)
-		if err := nn.addChild(ctx, key[offset], &newLeaf); err != nil {
+		if err := nn.addChild(ctx, GetNodeKey(key, int(offset)), &newLeaf); err != nil {
 			(*nodePtr).GetLocker().Unlock()
 			(*parentPtr).GetLocker().Unlock()
 			return *new(V), false, fmt.Errorf("%w: %v", failedToAddChild, err)
@@ -109,7 +110,7 @@ func InsertNode[V any](
 		nn.setLocker((*nodePtr).GetLocker())
 
 		newLeaf := NewLeafWithKV(ctx, key, v)
-		if err := nn.addChild(ctx, key[offset+matchedPrefixLen], &newLeaf); err != nil {
+		if err := nn.addChild(ctx, GetNodeKey(key, int(offset+matchedPrefixLen)), &newLeaf); err != nil {
 			(*nodePtr).GetLocker().Unlock()
 			(*parentPtr).GetLocker().Unlock()
 			return *new(V), false, fmt.Errorf("%w: %v", failedToAddChild, err)
@@ -123,7 +124,7 @@ func InsertNode[V any](
 		nodeCopy := (*nodePtr).clone()
 		nodeCopy.setLocker(go_context_aware_lock.NewOptimisticLock())
 
-		if err := nn.addChild(ctx, currNodePrefix[matchedPrefixLen], &nodeCopy); err != nil {
+		if err := nn.addChild(ctx, GetNodeKey(currNodePrefix, int(matchedPrefixLen)), &nodeCopy); err != nil {
 			(*nodePtr).GetLocker().Unlock()
 			(*parentPtr).GetLocker().Unlock()
 			return *new(V), false, fmt.Errorf("%w: %v", failedToAddChild, err)
@@ -138,7 +139,7 @@ func InsertNode[V any](
 	}
 
 	offset += (*nodePtr).getPrefixLen(ctx)
-	nextNodePtr, err := (*nodePtr).getChild(ctx, key[offset])
+	nextNodePtr, err := (*nodePtr).getChild(ctx, GetNodeKey(key, int(offset)))
 	if errors.Is(err, childNodeNotFound) {
 		if !(*parentPtr).GetLocker().Upgrade(parentVersion) {
 			_ = (*nodePtr).GetLocker().RUnlock(version)
@@ -165,7 +166,7 @@ func InsertNode[V any](
 			(*nodePtr).setLocker(currLocker)
 		}
 
-		if err := (*nodePtr).addChild(ctx, key[offset], &newLeaf); err != nil {
+		if err := (*nodePtr).addChild(ctx, GetNodeKey(key, int(offset)), &newLeaf); err != nil {
 			(*parentPtr).GetLocker().Unlock()
 			(*nodePtr).GetLocker().Unlock()
 			return *new(V), false, fmt.Errorf("%w: %v", failedToAddChild, err)
@@ -267,7 +268,7 @@ func RemoveNode[V any](
 		return *new(V), false, fmt.Errorf("%w: offset overflow", internalError)
 	}
 
-	nextNodePtr, err := (*nodePtr).getChild(ctx, key[offset])
+	nextNodePtr, err := (*nodePtr).getChild(ctx, GetNodeKey(key, int(offset)))
 	if err != nil || nextNodePtr == nil || (*nextNodePtr).isDeleted(ctx) {
 		if (*nodePtr).GetLocker().RUnlock(version) {
 			return *new(V), true, nil
@@ -297,7 +298,7 @@ func RemoveNode[V any](
 			return v, false, err
 		}
 		// attempt to remove the leaf node and unify the inner node if needed
-		if err := (*nodePtr).removeChild(ctx, key[offset]); err != nil {
+		if err := (*nodePtr).removeChild(ctx, GetNodeKey(key, int(offset))); err != nil {
 			(*nodePtr).GetLocker().Unlock()
 			(*parentPtr).GetLocker().Unlock()
 			return *new(V), false, fmt.Errorf("fail to remove child, current node type - %v, %w: %v", (*nodePtr).GetKind(ctx), failedToRemoveChild, err)
@@ -307,7 +308,7 @@ func RemoveNode[V any](
 		switch (*nodePtr).getChildrenLen(ctx) {
 		case 0:
 			prevOffset := offset - (*nodePtr).getPrefixLen(ctx) - 1
-			if err = (*parentPtr).removeChild(ctx, prevOffset); err != nil {
+			if err = (*parentPtr).removeChild(ctx, ToNodeKey(prevOffset)); err != nil {
 				(*nodePtr).GetLocker().Unlock()
 				(*parentPtr).GetLocker().Unlock()
 				return *new(V), false, fmt.Errorf("fail to remove child, current node type - %v, %w: %v", (*parentPtr).GetKind(ctx), failedToRemoveChild, err)
@@ -326,7 +327,11 @@ func RemoveNode[V any](
 			if (*onlyChildPtr).GetKind(ctx) == KindNodeLeaf {
 				newPrefix = (*onlyChildPtr).getPrefix(ctx)
 			} else {
-				newPrefix = slices.Concat((*nodePtr).getPrefix(ctx), []byte{onlyChildK}, (*onlyChildPtr).getPrefix(ctx))
+				if !onlyChildK.IsNull() {
+					newPrefix = slices.Concat((*nodePtr).getPrefix(ctx), []byte{onlyChildK.b}, (*onlyChildPtr).getPrefix(ctx))
+				} else {
+					newPrefix = slices.Concat((*nodePtr).getPrefix(ctx), (*onlyChildPtr).getPrefix(ctx))
+				}
 			}
 
 			nodeCopy := (*onlyChildPtr).clone()
@@ -426,7 +431,7 @@ func Get[V any](
 	}
 
 	offset += node.getPrefixLen(ctx)
-	childPtr, err := node.getChild(ctx, key[offset])
+	childPtr, err := node.getChild(ctx, GetNodeKey(key, int(offset)))
 	if err != nil {
 		if node.GetLocker().RUnlock(version) {
 			return *new(V), true, nil
@@ -491,4 +496,12 @@ func NewLeafWithKV[V any](ctx context.Context, key []byte, v V) INode[V] {
 	newLeaf.setPrefix(ctx, key)
 	newLeaf.setValue(ctx, v)
 	return newLeaf
+}
+
+func GetNodeKey(buf []byte, offset int) *nodeKey {
+	if offset >= len(buf) {
+		return NullNodeKey()
+	}
+
+	return ToNodeKey(buf[offset])
 }

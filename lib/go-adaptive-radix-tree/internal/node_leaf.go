@@ -27,15 +27,15 @@ func (n *NodeLeaf[V]) GetKind(ctx context.Context) Kind {
 	return KindNodeLeaf
 }
 
-func (n *NodeLeaf[V]) addChild(ctx context.Context, key byte, child *INode[V]) error {
+func (n *NodeLeaf[V]) addChild(ctx context.Context, key *nodeKey, child *INode[V]) error {
 	return nil // node leaf doesn't support this function
 }
 
-func (n *NodeLeaf[V]) removeChild(ctx context.Context, key byte) error {
+func (n *NodeLeaf[V]) removeChild(ctx context.Context, key *nodeKey) error {
 	return nil // node leaf doesn't support this function
 }
 
-func (n *NodeLeaf[V]) getChild(ctx context.Context, key byte) (*INode[V], error) {
+func (n *NodeLeaf[V]) getChild(ctx context.Context, key *nodeKey) (*INode[V], error) {
 	return nil, nil // node leaf doesn't support this function
 }
 
@@ -43,8 +43,8 @@ func (n *NodeLeaf[V]) getAllChildren(ctx context.Context, order Order) []*INode[
 	return []*INode[V]{}
 }
 
-func (n *NodeLeaf[V]) getChildByIndex(ctx context.Context, idx uint8) (byte, *INode[V], error) {
-	return 0, nil, nil // node leaf doesn't support this function
+func (n *NodeLeaf[V]) getChildByIndex(ctx context.Context, idx uint8) (*nodeKey, *INode[V], error) {
+	return nil, nil, nil // node leaf doesn't support this function
 }
 
 func (n *NodeLeaf[V]) grow(ctx context.Context) (*INode[V], error) {

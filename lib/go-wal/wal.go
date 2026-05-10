@@ -236,13 +236,13 @@ func (w *WAL) openPage(id PageID, mode PageAccessMode) (*Page, error) {
 	var writer go_fs.Writable
 	if mode == PageAccessModeReadWrite {
 		var err error
-		writer, _, err = w.storage.Create(go_fs.TypeWAL, int64(id))
+		writer, _, err = w.storage.Create(go_fs.TypeWAL, go_fs.DiskfileNum(id))
 		if err != nil {
 			zap.L().Error("Failed to create page", zap.Error(err))
 			return nil, err
 		}
 	}
-	reader, _, err := w.storage.Open(go_fs.TypeWAL, int64(id))
+	reader, _, err := w.storage.Open(go_fs.TypeWAL, go_fs.DiskfileNum(id))
 	if err != nil {
 		zap.L().Error("Failed to open page", zap.Error(err))
 		return nil, err

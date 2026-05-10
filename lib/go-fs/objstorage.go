@@ -5,6 +5,8 @@ import (
 	"io"
 )
 
+type DiskfileNum int64
+
 type ObjectType byte
 
 const (
@@ -13,18 +15,35 @@ const (
 	TypeWAL
 )
 
+var (
+	ObjectTypeFromString = map[string]ObjectType{
+		"manifest": TypeManifest,
+		"sst":      TypeTable,
+		"wal":      TypeWAL,
+	}
+	ObjectTypeToString = map[ObjectType]string{
+		TypeManifest: "manifest",
+		TypeTable:    "sst",
+		TypeWAL:      "wal",
+	}
+)
+
 type Location byte
 
 const (
-	InMemory Location = iota
-	LocalFile
-	Remote
+	InMemory    Location = iota
+	FileSystem           // (Local OS's File system, or remote ones like SeaweedFs, ...)
+	BlobStorage          // (eg. S3, GCS, ...)
 )
 
 type FileDesc struct {
 	Type ObjectType
-	Num  int64
+	Num  DiskfileNum
 	Loc  Location
+}
+
+func FromFileDescToFileNum(fd FileDesc) DiskfileNum {
+	return DiskfileNum(int64(fd.Num)<<8 | int64(fd.Type))
 }
 
 var (
@@ -45,7 +64,7 @@ type Writable interface {
 	//
 	// io.Write make sure that the error will be not nil, if n < len(p)
 
-	io.WriteCloser
+	io.Writer
 	Syncer
 
 	// Finish completes the object and makes the data durable.
@@ -74,19 +93,19 @@ type Readable interface {
 // storage.
 type Storage interface {
 	// Open opens an existing object with the given 'file descriptor' read-only.
-	Open(objType ObjectType, num int64) (Readable, FileDesc, error)
+	Open(objType ObjectType, num DiskfileNum) (Readable, FileDesc, error)
 
 	// Create creates a new object and opens it for writing.
 	//
 	// The object is not guaranteed to be durable (accessible in case of crashes)
 	// until Sync is called.
-	Create(objType ObjectType, num int64) (Writable, FileDesc, error)
+	Create(objType ObjectType, num DiskfileNum) (Writable, FileDesc, error)
 
 	// LookUp returns the metadata of an object that is already exists
 	// it doesn't perform any I/O operations
-	LookUp(objType ObjectType, num int64) (FileDesc, error)
+	LookUp(objType ObjectType, num DiskfileNum) (FileDesc, error)
 
-	Remove(objType ObjectType, num int64) error
+	Remove(objType ObjectType, num DiskfileNum) error
 
 	List(objType ObjectType) []FileDesc
 

@@ -40,7 +40,9 @@ type Stats struct {
 	statDel    int64
 }
 
-// hashMap represent a hash map
+// hashMap represent a hash map. It and its eviction policies is not a
+// fully lock-free data structure, so to reduce lock contention, a
+// common practice is to shard it by key into multiple shards
 type hashMap struct {
 	shards    []*shard
 	maxSize   int64

@@ -57,7 +57,7 @@ func Test_Create_And_Open(t *testing.T) {
 			// create files
 			for fileType, num := range tc.fileCountPerType {
 				for i := 0; i < num; i++ {
-					writer, fd, err := storage.Create(fileType, int64(i))
+					writer, fd, err := storage.Create(fileType, DiskfileNum(i))
 					assert.NoError(t, err, "can not create file")
 					writers[fd] = writer
 				}
@@ -73,7 +73,7 @@ func Test_Create_And_Open(t *testing.T) {
 
 			for fileType, num := range tc.fileCountPerType {
 				for i := 0; i < num; i++ {
-					fd, err := storage.LookUp(fileType, int64(i))
+					fd, err := storage.LookUp(fileType, DiskfileNum(i))
 					assert.NoError(t, err, "can not look up file")
 					eg.Go(func() error {
 						writer, ok := writers[fd]
@@ -84,7 +84,7 @@ func Test_Create_And_Open(t *testing.T) {
 							return err
 						}
 
-						err = writer.Close()
+						err = writer.Finish()
 						assert.NoError(t, err, "can not close writer")
 						if err != nil {
 							return err
@@ -101,7 +101,7 @@ func Test_Create_And_Open(t *testing.T) {
 			// assert file content
 			for fileType, num := range tc.fileCountPerType {
 				for i := 0; i < num; i++ {
-					reader, fd, err := storage.Open(fileType, int64(i))
+					reader, fd, err := storage.Open(fileType, DiskfileNum(i))
 					assert.NoError(t, err, "can not open file")
 					_, ok := writers[fd]
 					assert.True(t, ok, fmt.Sprintf("can not find writer for %#v", fd))
@@ -121,9 +121,9 @@ func Test_Create_And_Open(t *testing.T) {
 func Test_Read_During_Write(t *testing.T) {
 	storage := NewInmemStorage()
 	fid := 1
-	writer, _, err := storage.Create(TypeWAL, int64(fid))
+	writer, _, err := storage.Create(TypeWAL, DiskfileNum(fid))
 	require.NoError(t, err)
-	reader, _, err := storage.Open(TypeWAL, int64(fid))
+	reader, _, err := storage.Open(TypeWAL, DiskfileNum(fid))
 	require.NoError(t, err)
 	// first write
 	n, err := writer.Write([]byte{1, 2, 3, 4, 5})
@@ -147,7 +147,7 @@ func Test_Read_During_Write(t *testing.T) {
 	assert.Equal(t, 5, n)
 	assert.Zero(t, bytes.Compare(res, []byte{6, 7, 8, 9, 10}))
 
-	err = writer.Close()
+	err = writer.Finish()
 	assert.NoError(t, err)
 	err = reader.Close()
 	assert.NoError(t, err)

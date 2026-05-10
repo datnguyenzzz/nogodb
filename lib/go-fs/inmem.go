@@ -88,7 +88,7 @@ func NewInmemStorage() Storage {
 	}
 }
 
-func (i inmemStorage) Open(objType ObjectType, num int64) (Readable, FileDesc, error) {
+func (i *inmemStorage) Open(objType ObjectType, num DiskfileNum) (Readable, FileDesc, error) {
 	i.mu.Lock()
 	defer i.mu.Unlock()
 
@@ -100,7 +100,7 @@ func (i inmemStorage) Open(objType ObjectType, num int64) (Readable, FileDesc, e
 	return nil, FileDesc{}, errFileNotFound
 }
 
-func (i inmemStorage) Create(objType ObjectType, num int64) (Writable, FileDesc, error) {
+func (i *inmemStorage) Create(objType ObjectType, num DiskfileNum) (Writable, FileDesc, error) {
 	i.mu.Lock()
 	defer i.mu.Unlock()
 
@@ -109,16 +109,16 @@ func (i inmemStorage) Create(objType ObjectType, num int64) (Writable, FileDesc,
 		return nil, FileDesc{}, errFileExists
 	}
 
-	i.files[fid] = &memFile{open: true, storage: &i}
+	i.files[fid] = &memFile{open: true, storage: i}
 
 	return memWriter{memFile: i.files[fid]}, i.toFileDesc(objType, num), nil
 }
 
-func (i inmemStorage) LookUp(objType ObjectType, num int64) (FileDesc, error) {
+func (i *inmemStorage) LookUp(objType ObjectType, num DiskfileNum) (FileDesc, error) {
 	return i.toFileDesc(objType, num), nil
 }
 
-func (i inmemStorage) Remove(objType ObjectType, num int64) error {
+func (i *inmemStorage) Remove(objType ObjectType, num DiskfileNum) error {
 	i.mu.Lock()
 	defer i.mu.Unlock()
 
@@ -132,7 +132,7 @@ func (i inmemStorage) Remove(objType ObjectType, num int64) error {
 	return nil
 }
 
-func (i inmemStorage) List(objType ObjectType) []FileDesc {
+func (i *inmemStorage) List(objType ObjectType) []FileDesc {
 	res := make([]FileDesc, 0, len(i.files))
 	for fid := range i.files {
 		fd := i.fromFileId(fid)
@@ -144,21 +144,21 @@ func (i inmemStorage) List(objType ObjectType) []FileDesc {
 	return res
 }
 
-func (i inmemStorage) Close() error {
+func (i *inmemStorage) Close() error {
 	return nil
 }
 
-func (i inmemStorage) toFileId(objType ObjectType, num int64) fileId {
-	return fileId(num<<4 | int64(objType))
+func (i *inmemStorage) toFileId(objType ObjectType, num DiskfileNum) fileId {
+	return fileId(int64(num)<<4 | int64(objType))
 }
 
-func (i inmemStorage) fromFileId(fileId fileId) FileDesc {
+func (i *inmemStorage) fromFileId(fileId fileId) FileDesc {
 	objType := ObjectType(fileId & (1 << 4))
 	num := int64(fileId >> 4)
-	return i.toFileDesc(objType, num)
+	return i.toFileDesc(objType, DiskfileNum(num))
 }
 
-func (i inmemStorage) toFileDesc(objType ObjectType, num int64) FileDesc {
+func (i *inmemStorage) toFileDesc(objType ObjectType, num DiskfileNum) FileDesc {
 	return FileDesc{Num: num, Type: objType, Loc: InMemory}
 }
 

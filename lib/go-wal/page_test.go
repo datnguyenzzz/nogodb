@@ -199,7 +199,7 @@ func Test_writeToMemBuffer(t *testing.T) {
 	for i, tc := range testCases {
 		t.Run(tc.testName, func(t *testing.T) {
 			storage := go_fs.NewInmemStorage()
-			writer, _, err := storage.Create(go_fs.TypeWAL, int64(i))
+			writer, _, err := storage.Create(go_fs.TypeWAL, go_fs.DiskfileNum(i))
 			require.NoError(t, err)
 			ctx := context.Background()
 			p := tc.pageInfo

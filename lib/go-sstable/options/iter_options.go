@@ -26,7 +26,7 @@ func WithBlockCache(method go_block_cache.CacheType, fd go_fs.FileDesc) Iterator
 		opts.CacheOpts.MaxSize = defaultCacheSize
 		// notes: the block cache use file_num as a part of the cache key
 		// a block cache with key = [file_num + offset], value = data[offset:offset + length]
-		opts.CacheOpts.FileNum = common.FromFileDescToFileNum(fd)
+		opts.CacheOpts.FileNum = go_fs.FromFileDescToFileNum(fd)
 	}
 }
 

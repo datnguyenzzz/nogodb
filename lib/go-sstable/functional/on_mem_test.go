@@ -1,5 +1,4 @@
-//go:build functional_tests
-
+// go:build functional_tests
 package functional
 
 import (
@@ -102,7 +101,7 @@ func (w *WalSuite) Test_Integration_Writer_No_Errors() {
 	for i, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			inMemStorage := go_fs.NewInmemStorage()
-			fileWritable, _, err := inMemStorage.Create(go_fs.TypeTable, int64(i))
+			fileWritable, _, err := inMemStorage.Create(go_fs.TypeTable, go_fs.DiskfileNum(i))
 			assert.NoError(t, err)
 			writer := go_sstable.NewWriter(
 				fileWritable,
@@ -199,7 +198,7 @@ func (w *WalSuite) Test_Integration_Writer_No_Errors_MVCC_col_block() {
 	for i, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			inMemStorage := go_fs.NewInmemStorage()
-			fileWritable, _, err := inMemStorage.Create(go_fs.TypeTable, int64(i))
+			fileWritable, _, err := inMemStorage.Create(go_fs.TypeTable, go_fs.DiskfileNum(i))
 			assert.NoError(t, err)
 			writer := go_sstable.NewWriter(
 				fileWritable,
@@ -369,7 +368,7 @@ func (w *WalSuite) Test_Iterator_Seeking_Ops_single_table() {
 		t.Run(tc.name, func(t *testing.T) {
 			// Init a table
 			inMemStorage := go_fs.NewInmemStorage()
-			fileWritable, _, err := inMemStorage.Create(go_fs.TypeTable, int64(i))
+			fileWritable, _, err := inMemStorage.Create(go_fs.TypeTable, go_fs.DiskfileNum(i))
 			assert.NoError(t, err)
 			writer := go_sstable.NewWriter(
 				fileWritable,
@@ -388,7 +387,7 @@ func (w *WalSuite) Test_Iterator_Seeking_Ops_single_table() {
 			assert.NoError(t, err)
 
 			// Evaluate the result of the seek operations
-			fileReadable, fd, err := inMemStorage.Open(go_fs.TypeTable, int64(i))
+			fileReadable, fd, err := inMemStorage.Open(go_fs.TypeTable, go_fs.DiskfileNum(i))
 			assert.NoError(t, err)
 			var iterOpts []options.IteratorOptsFunc
 			if tc.cacheSize > 0 {
@@ -561,7 +560,7 @@ func (w *WalSuite) Test_Iterator_Seeking_Ops_single_table_MVCC_col_block() {
 		t.Run(tc.name, func(t *testing.T) {
 			// Init a table
 			inMemStorage := go_fs.NewInmemStorage()
-			fileWritable, _, err := inMemStorage.Create(go_fs.TypeTable, int64(i))
+			fileWritable, _, err := inMemStorage.Create(go_fs.TypeTable, go_fs.DiskfileNum(i))
 			require.NoError(t, err)
 			mvccComparer := NewMvccComparer()
 			writer := go_sstable.NewWriter(
@@ -581,7 +580,7 @@ func (w *WalSuite) Test_Iterator_Seeking_Ops_single_table_MVCC_col_block() {
 			require.NoError(t, err)
 
 			// Evaluate the result of the seek operations
-			fileReadable, fd, err := inMemStorage.Open(go_fs.TypeTable, int64(i))
+			fileReadable, fd, err := inMemStorage.Open(go_fs.TypeTable, go_fs.DiskfileNum(i))
 			require.NoError(t, err)
 			iterOpts := []options.IteratorOptsFunc{
 				options.WithComparer(mvccComparer),
@@ -751,7 +750,7 @@ func (w *WalSuite) Test_Iterator_Concurrently_Seeking_Ops_multiple_tables() {
 			inMemStorage := go_fs.NewInmemStorage()
 			sample := make([][]kvType, 0, numberOfSSTs)
 			for sst := 1; sst <= numberOfSSTs; sst++ {
-				fileWritable, _, err := inMemStorage.Create(go_fs.TypeTable, int64(sst))
+				fileWritable, _, err := inMemStorage.Create(go_fs.TypeTable, go_fs.DiskfileNum(sst))
 				assert.NoError(t, err)
 				writer := go_sstable.NewWriter(
 					fileWritable,
@@ -776,7 +775,7 @@ func (w *WalSuite) Test_Iterator_Concurrently_Seeking_Ops_multiple_tables() {
 			for sst := 1; sst <= numberOfSSTs; sst++ {
 				eg.Go(func() error {
 					kvs := sample[sst-1]
-					fileReadable, fd, err := inMemStorage.Open(go_fs.TypeTable, int64(sst))
+					fileReadable, fd, err := inMemStorage.Open(go_fs.TypeTable, go_fs.DiskfileNum(sst))
 					assert.NoError(t, err)
 					var iterOpts []options.IteratorOptsFunc
 					if tc.cacheSize > 0 {
@@ -954,7 +953,7 @@ func (w *WalSuite) Test_Iterator_Concurrently_Seeking_Ops_multiple_tables_MVCC_c
 			mvccComparer := NewMvccComparer()
 
 			for sst := 1; sst <= numberOfSSTs; sst++ {
-				fileWritable, _, err := inMemStorage.Create(go_fs.TypeTable, int64(sst))
+				fileWritable, _, err := inMemStorage.Create(go_fs.TypeTable, go_fs.DiskfileNum(sst))
 				assert.NoError(t, err)
 				writer := go_sstable.NewWriter(
 					fileWritable,
@@ -979,7 +978,7 @@ func (w *WalSuite) Test_Iterator_Concurrently_Seeking_Ops_multiple_tables_MVCC_c
 			for sst := 1; sst <= numberOfSSTs; sst++ {
 				eg.Go(func() error {
 					kvs := sample[sst-1]
-					fileReadable, fd, err := inMemStorage.Open(go_fs.TypeTable, int64(sst))
+					fileReadable, fd, err := inMemStorage.Open(go_fs.TypeTable, go_fs.DiskfileNum(sst))
 					assert.NoError(t, err)
 					iterOpts := []options.IteratorOptsFunc{
 						options.WithComparer(mvccComparer),
@@ -1198,7 +1197,7 @@ func (w *WalSuite) Test_Iterator_First_Then_Next_Ops() {
 			inMemStorage := go_fs.NewInmemStorage()
 			sample := make([][]kvType, 0, tc.sstNum)
 			for sst := 1; sst <= tc.sstNum; sst++ {
-				fileWritable, _, err := inMemStorage.Create(go_fs.TypeTable, int64(sst))
+				fileWritable, _, err := inMemStorage.Create(go_fs.TypeTable, go_fs.DiskfileNum(sst))
 				assert.NoError(t, err)
 				writer := go_sstable.NewWriter(
 					fileWritable,
@@ -1223,7 +1222,7 @@ func (w *WalSuite) Test_Iterator_First_Then_Next_Ops() {
 			for sst := 1; sst <= tc.sstNum; sst++ {
 				eg.Go(func() error {
 					kvs := sample[sst-1]
-					fileReadable, fd, err := inMemStorage.Open(go_fs.TypeTable, int64(sst))
+					fileReadable, fd, err := inMemStorage.Open(go_fs.TypeTable, go_fs.DiskfileNum(sst))
 					assert.NoError(t, err)
 					var iterOpts []options.IteratorOptsFunc
 					if tc.cacheSize > 0 {
@@ -1382,7 +1381,7 @@ func (w *WalSuite) Test_Iterator_First_Then_Next_Ops_MVCC_colblock() {
 			sample := make([][]kvType, 0, tc.sstNum)
 			mvccComparer := NewMvccComparer()
 			for sst := 1; sst <= tc.sstNum; sst++ {
-				fileWritable, _, err := inMemStorage.Create(go_fs.TypeTable, int64(sst))
+				fileWritable, _, err := inMemStorage.Create(go_fs.TypeTable, go_fs.DiskfileNum(sst))
 				assert.NoError(t, err)
 				writer := go_sstable.NewWriter(
 					fileWritable,
@@ -1408,7 +1407,7 @@ func (w *WalSuite) Test_Iterator_First_Then_Next_Ops_MVCC_colblock() {
 			for sst := 1; sst <= tc.sstNum; sst++ {
 				eg.Go(func() error {
 					kvs := sample[sst-1]
-					fileReadable, fd, err := inMemStorage.Open(go_fs.TypeTable, int64(sst))
+					fileReadable, fd, err := inMemStorage.Open(go_fs.TypeTable, go_fs.DiskfileNum(sst))
 					assert.NoError(t, err)
 					iterOpts := []options.IteratorOptsFunc{
 						options.WithComparer(mvccComparer),

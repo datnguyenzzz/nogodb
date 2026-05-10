@@ -1,5 +1,4 @@
-//go:build functional_tests
-
+// go:build functional_tests
 package functional
 
 import (
@@ -14,11 +13,11 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
-type WalSuite struct {
+type WalInMemSuite struct {
 	suite.Suite
 }
 
-func (w *WalSuite) Test_ReadAfterWrite_Small_tests() {
+func (w *WalInMemSuite) Test_ReadAfterWrite_Small_tests() {
 	wal := go_wal.New(
 		go_wal.WithLocation(go_fs.InMemory),
 		go_wal.WithPageSize(2*32*1024), // = 2 blocks
@@ -35,7 +34,7 @@ func (w *WalSuite) Test_ReadAfterWrite_Small_tests() {
 
 	ctx := context.Background()
 	// Do Write
-	for i := 0; i < totalTestCases; i++ {
+	for i := range totalTestCases {
 		d := generateBytes(minCap + rand.Intn(dataCap))
 		// w.T().Logf("Test_ReadAfterWrite_Small_tests: Write data %v-th, len = %v", i, len(d))
 		data[i] = d
@@ -44,14 +43,14 @@ func (w *WalSuite) Test_ReadAfterWrite_Small_tests() {
 		pos[i] = p
 	}
 	// Test Read
-	for i := 0; i < totalTestCases; i++ {
+	for i := range totalTestCases {
 		d, err := wal.Get(ctx, pos[i])
 		assert.NoError(w.T(), err, "should be able to read data")
 		assert.Equal(w.T(), data[i], d, "data must match")
 	}
 	// Test Iterator
 	reader := wal.NewIterator(ctx)
-	for ix := 0; ix < totalTestCases; ix++ {
+	for ix := range totalTestCases {
 		d, p, err := reader.Next(ctx)
 		assert.NoError(w.T(), err, "should be able to iterate next block")
 		assert.Equal(w.T(), pos[ix], p, "position must match")
@@ -62,7 +61,7 @@ func (w *WalSuite) Test_ReadAfterWrite_Small_tests() {
 	require.NoError(w.T(), err, "should be able to close wal")
 }
 
-func (w *WalSuite) Test_ReadAfterWrite_Medium_tests() {
+func (w *WalInMemSuite) Test_ReadAfterWrite_Medium_tests() {
 	wal := go_wal.New(
 		go_wal.WithLocation(go_fs.InMemory),
 		go_wal.WithPageSize(2*32*1024), // = 2 blocks
@@ -104,7 +103,7 @@ func (w *WalSuite) Test_ReadAfterWrite_Medium_tests() {
 	require.NoError(w.T(), err, "should be able to close wal")
 }
 
-func (w *WalSuite) Test_ReadAfterWrite_Big_tests() {
+func (w *WalInMemSuite) Test_ReadAfterWrite_Big_tests() {
 	wal := go_wal.New(
 		go_wal.WithLocation(go_fs.InMemory),
 		go_wal.WithPageSize(2*1024*1024), // = 2 blocks
@@ -120,7 +119,7 @@ func (w *WalSuite) Test_ReadAfterWrite_Big_tests() {
 	pos := make([]*go_wal.Position, totalTestCases)
 
 	ctx := context.Background()
-	for i := 0; i < totalTestCases; i++ {
+	for i := range totalTestCases {
 		d := generateBytes(minCap + rand.Intn(dataCap))
 		// w.T().Logf("Test_ReadAfterWrite_Big_tests: Write data %v-th, len = %v", i, len(d))
 		data[i] = d
@@ -128,14 +127,14 @@ func (w *WalSuite) Test_ReadAfterWrite_Big_tests() {
 		assert.NoError(w.T(), err, "should be able to write data")
 		pos[i] = p
 	}
-	for i := 0; i < totalTestCases; i++ {
+	for i := range totalTestCases {
 		d, err := wal.Get(ctx, pos[i])
 		assert.NoError(w.T(), err, "should be able to read data")
 		assert.Equal(w.T(), data[i], d, "data must match")
 	}
 	// Test Iterator
 	reader := wal.NewIterator(ctx)
-	for ix := 0; ix < totalTestCases; ix++ {
+	for ix := range totalTestCases {
 		d, p, err := reader.Next(ctx)
 		assert.NoError(w.T(), err, "should be able to iterate next block")
 		assert.Equal(w.T(), pos[ix], p, "position must match")
@@ -147,5 +146,5 @@ func (w *WalSuite) Test_ReadAfterWrite_Big_tests() {
 }
 
 func TestWalSuite(t *testing.T) {
-	suite.Run(t, new(WalSuite))
+	suite.Run(t, new(WalInMemSuite))
 }

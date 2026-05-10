@@ -59,10 +59,10 @@ type FS interface {
 	// // encounters.
 	// RemoveAll(name string) error
 
-	// // MkdirAll creates a directory and all necessary parents. The permission
-	// // bits perm have the same semantics as in os.MkdirAll. If the directory
-	// // already exists, MkdirAll does nothing and returns nil.
-	// MkdirAll(dir string, perm os.FileMode) error
+	// MkdirAll creates a directory and all necessary parents. The permission
+	// bits perm have the same semantics as in os.MkdirAll. If the directory
+	// already exists, MkdirAll does nothing and returns nil.
+	MkdirAll(dir string, perm os.FileMode) error
 
 	// List returns a listing of the given directory. The names returned are
 	// relative to dir.

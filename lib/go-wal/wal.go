@@ -27,9 +27,19 @@ func New(opts ...OptionFn) *WAL {
 	for _, o := range opts {
 		o(wal)
 	}
-
-	if wal.storage == nil {
-		WithLocation(wal.opts.location)(wal)
+	var err error
+	switch wal.opts.location {
+	case go_fs.InMemory:
+		wal.storage = go_fs.NewInmemStorage()
+	case go_fs.FileSystem:
+		wal.storage, err = go_fs.OpenVfsProvider(
+			go_fs.WithDirName(wal.opts.dirPath),
+			go_fs.WithBytesPerSync(int64(wal.opts.bytesPerSync)),
+			go_fs.WithFS(go_fs.NewDefaultUnix()),
+		)
+		if err != nil {
+			panic(fmt.Sprintf("failed initiating FS, err: %v", err))
+		}
 	}
 
 	return wal
@@ -116,6 +126,9 @@ func (w *WAL) Close(ctx context.Context) error {
 
 	// close all pages file that are in-open
 	for id, page := range w.olderPages {
+		if page == nil {
+			continue
+		}
 		if err := page.Close(ctx); err != nil {
 			zap.L().Error("Failed to close page", zap.String("pageId", strconv.Itoa(int(id))), zap.Error(err))
 			return err
@@ -123,13 +136,14 @@ func (w *WAL) Close(ctx context.Context) error {
 	}
 
 	w.olderPages = nil
-	err := w.activePage.Close(ctx)
-	if err != nil {
-		zap.L().Error("Failed to close page", zap.String("pageId", strconv.Itoa(int(w.activePage.Id))), zap.Error(err))
-		return err
+	if w.activePage != nil {
+		err := w.activePage.Close(ctx)
+		if err != nil {
+			zap.L().Error("Failed to close page", zap.String("pageId", strconv.Itoa(int(w.activePage.Id))), zap.Error(err))
+			return err
+		}
+		w.activePage = nil
 	}
-	w.activePage = nil
-
 	return nil
 }
 
@@ -170,19 +184,10 @@ func (w *WAL) Write(ctx context.Context, data []byte) (*Position, error) {
 		w.activePage = newPage
 	}
 
-	pos, size, err := w.activePage.Write(ctx, data)
+	pos, _, err := w.activePage.Write(ctx, data)
 	if err != nil {
 		zap.L().Error("Failed to write data to page", zap.Error(err))
 		return nil, err
-	}
-
-	w.notSyncBytes += size
-	needSync := w.opts.sync && w.notSyncBytes > int64(w.opts.bytesPerSync)
-	if needSync {
-		if err := w.Sync(ctx); err != nil {
-			zap.L().Error("Failed to sync file to the stable storage", zap.Error(err))
-			return nil, err
-		}
 	}
 
 	return pos, nil
@@ -228,7 +233,6 @@ func (w *WAL) Sync(ctx context.Context) error {
 	if err := w.activePage.Sync(ctx); err != nil {
 		return err
 	}
-	w.notSyncBytes = 0
 	return nil
 }
 

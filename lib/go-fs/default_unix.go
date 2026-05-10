@@ -2,7 +2,6 @@
 package go_fs
 
 import (
-	"errors"
 	"os"
 	"path/filepath"
 	"syscall"
@@ -39,7 +38,7 @@ func (f *defaultUnix) Create(name string, objType ObjectType) (File, error) {
 	const openFlags = os.O_RDWR | os.O_CREATE | os.O_EXCL | syscall.O_CLOEXEC
 	osFile, err := os.OpenFile(name, openFlags, 0o666)
 	// If the file already exists, remove it and try again.
-	if errors.Is(err, os.ErrExist) {
+	if os.IsNotExist(err) {
 		if err = f.Remove(name); err != nil {
 			return nil, err
 		}
@@ -87,6 +86,10 @@ func (f *defaultUnix) Stat(name string) (FileInfo, error) {
 
 func (f *defaultUnix) PathJoin(elem ...string) string {
 	return filepath.Join(elem...)
+}
+
+func (f *defaultUnix) MkdirAll(dir string, perm os.FileMode) error {
+	return os.MkdirAll(dir, perm)
 }
 
 var _ FS = (*defaultUnix)(nil)

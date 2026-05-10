@@ -23,6 +23,18 @@ func (f *bufferFileWritable) Write(p []byte) (n int, err error) {
 	return f.bw.Write(p)
 }
 
+func (f *bufferFileWritable) Sync() error {
+	if err := f.bw.Flush(); err != nil {
+		return err
+	}
+
+	if err := f.File.Sync(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (f *bufferFileWritable) Finish() error {
 	err := f.bw.Flush()
 	err = f.File.Close()

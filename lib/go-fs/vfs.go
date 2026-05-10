@@ -2,6 +2,7 @@ package go_fs
 
 import (
 	"fmt"
+	"os"
 	"slices"
 	"strconv"
 	"strings"
@@ -26,8 +27,9 @@ type vfsProvider struct {
 func OpenVfsProvider(opts ...VfsOption) (*vfsProvider, error) {
 	p := &vfsProvider{
 		fs:           NewDefaultUnix(),
-		dirName:      "nogodb",
+		dirName:      ".nogodb",
 		bytesPerSync: 1024 * 1024,
+		knownObjects: make(map[FileDesc]any),
 	}
 
 	for _, o := range opts {
@@ -42,6 +44,12 @@ func OpenVfsProvider(opts ...VfsOption) (*vfsProvider, error) {
 }
 
 func (v *vfsProvider) init() error {
+	if _, err := v.fs.Stat(v.dirName); os.IsNotExist(err) {
+		if err := v.fs.MkdirAll(v.dirName, os.ModePerm); err != nil {
+			return err
+		}
+	}
+
 	dir, err := v.fs.OpenDir(v.dirName)
 	if err != nil {
 		return err
@@ -135,11 +143,27 @@ func (v *vfsProvider) Create(objType ObjectType, num DiskfileNum) (Writable, Fil
 		NewSyncableFile(file, v.bytesPerSync),
 	)
 
+	v.addMeta(objType, num)
+
 	return writable, FileDesc{
 		Type: objType,
 		Num:  num,
 		Loc:  FileSystem,
 	}, nil
+}
+
+func (v *vfsProvider) addMeta(objType ObjectType, num DiskfileNum) {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+
+	v.knownObjects[FileDesc{Type: objType, Num: num, Loc: FileSystem}] = true
+}
+
+func (v *vfsProvider) removeMeta(objType ObjectType, num DiskfileNum) {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+
+	delete(v.knownObjects, FileDesc{Type: objType, Num: num, Loc: FileSystem})
 }
 
 // LookUp returns the metadata of an object that is already exists
@@ -164,7 +188,14 @@ func (v *vfsProvider) Remove(objType ObjectType, num DiskfileNum) error {
 	}
 	fileName := fmt.Sprintf("%s-%d", ObjectTypeToString[objType], num)
 	filePath := v.fs.PathJoin(v.dirName, fileName)
-	return v.fs.Remove(filePath)
+	err = v.fs.Remove(filePath)
+	if err != nil {
+		return err
+	}
+
+	v.removeMeta(objType, num)
+
+	return nil
 }
 
 func (v *vfsProvider) List(objType ObjectType) []FileDesc {
@@ -173,15 +204,17 @@ func (v *vfsProvider) List(objType ObjectType) []FileDesc {
 
 	res := make([]FileDesc, 0, len(v.knownObjects))
 	for fd := range v.knownObjects {
-		res = append(res, fd)
+		if fd.Type == objType {
+			res = append(res, fd)
+		}
 	}
 
 	slices.SortFunc(res, func(x, y FileDesc) int {
-		if x.Type == y.Type && x.Num == y.Num {
+		if x.Num == y.Num {
 			return 0
 		}
 
-		if (x.Type < y.Type) || ((x.Type == y.Type) && (x.Num < y.Num)) {
+		if x.Num < y.Num {
 			return -1
 		}
 

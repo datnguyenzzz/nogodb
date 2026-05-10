@@ -19,9 +19,6 @@ type IWal interface {
 	// Delete deletes all segment files of the WAL
 	Delete(context.Context) error
 
-	// Sync syncs the current active file to the stable storage
-	Sync(context.Context) error
-
 	// Write writes the data to the WAL. It writes the data to the active Page file.
 	Write(ctx context.Context, data []byte) (*Position, error)
 

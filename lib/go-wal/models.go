@@ -37,12 +37,11 @@ const (
 // and olderPages, which is a map of segment files used for read operations.
 type WAL struct {
 	syncCfg
-	opts         options
-	activePage   *Page            // active page, used for writing
-	olderPages   map[PageID]*Page // older pages, only used for read.
-	mu           sync.RWMutex
-	notSyncBytes int64
-	storage      go_fs.Storage
+	opts       options
+	activePage *Page            // active page, used for writing
+	olderPages map[PageID]*Page // older pages, only used for read.
+	mu         sync.RWMutex
+	storage    go_fs.Storage
 }
 
 // Page represents a single log file in WAL. A Page file consists of a sequence of variable length Position.

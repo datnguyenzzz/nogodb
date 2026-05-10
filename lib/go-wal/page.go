@@ -27,7 +27,7 @@ const (
 // to clean up the buffers after used. Since records are guaranteed to never exceed a data size of 32KB,
 // the maximum buffer size is predictable.
 var readBufferPool = sync.Pool{
-	New: func() interface{} {
+	New: func() any {
 		return make([]byte, defaultBlockSize)
 	},
 }
@@ -188,7 +188,7 @@ func (p *Page) Write(ctx context.Context, data []byte) (*Position, int64, error)
 }
 
 // writeToMemBuffer append an arbitrary slice of bytes to the memory buffer
-func (p *Page) writeToMemBuffer(ctx context.Context, data []byte, buf *[]byte) (*Position, int64, error) {
+func (p *Page) writeToMemBuffer(_ context.Context, data []byte, buf *[]byte) (*Position, int64, error) {
 	// If a data is not fit into the current block
 	if p.LastBlockSize+headerSize >= defaultBlockSize {
 		padding := defaultBlockSize - p.LastBlockSize

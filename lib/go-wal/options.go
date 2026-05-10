@@ -1,6 +1,7 @@
 package go_wal
 
 import (
+	"os"
 	"time"
 
 	go_fs "github.com/datnguyenzzz/nogodb/lib/go-fs"
@@ -9,6 +10,7 @@ import (
 type OptionFn func(*WAL)
 
 type options struct {
+	dirPath string
 	// pageSize specifies the maximum size of each page file in bytes.
 	pageSize int64
 
@@ -29,6 +31,7 @@ type options struct {
 }
 
 var defaultOptions = options{
+	dirPath:      os.TempDir(),
 	pageSize:     1 * 1024 * 1024 * 2024, // 1GB
 	sync:         false,
 	bytesPerSync: 0,
@@ -38,12 +41,7 @@ var defaultOptions = options{
 
 func WithLocation(location go_fs.Location) OptionFn {
 	return func(w *WAL) {
-		switch location {
-		case go_fs.InMemory:
-			w.storage = go_fs.NewInmemStorage()
-		default:
-			panic("not supported location")
-		}
+		w.opts.location = location
 	}
 }
 
@@ -68,5 +66,11 @@ func WithBytesPerSync(bytesPerSync uint32) OptionFn {
 func WithSyncInterval(interval time.Duration) OptionFn {
 	return func(wal *WAL) {
 		wal.opts.syncInterval = interval
+	}
+}
+
+func WithDirPath(dirPath string) OptionFn {
+	return func(w *WAL) {
+		w.opts.dirPath = dirPath
 	}
 }

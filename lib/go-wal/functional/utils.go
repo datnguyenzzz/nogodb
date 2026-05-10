@@ -3,7 +3,7 @@ package functional
 import "crypto/rand"
 
 const (
-	CommonDirPath = "./wal"
+	CommonDirPath = ".wal"
 )
 
 func generateBytes(n int) []byte {

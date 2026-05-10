@@ -70,7 +70,7 @@ func (p *Page) Close(ctx context.Context) error {
 	}
 
 	if p.writer != nil {
-		err = errors.Join(p.writer.Close())
+		err = errors.Join(p.writer.Finish())
 		p.writer = nil
 	}
 

@@ -24,15 +24,15 @@ func BenchmarkWrite(b *testing.B) {
 	fileSizes := []int{1 * 1024, 4 * 1024, 512 * 1024, 1024 * 1024}
 	batchSizes := []int{1_000_000, 500_000, 10_000, 5_000}
 
-	for i := 0; i < len(fileSizes); i++ {
+	for i := range fileSizes {
 		batchSize := batchSizes[i]
 		fileSize := fileSizes[i]
 
 		b.Run(fmt.Sprintf("counts=%v,size=%vkB", batchSize, fileSize/1024), func(b *testing.B) {
 			b.ResetTimer()
 
-			for i := 0; i < b.N; i++ {
-				for t := 0; t < batchSize; t++ {
+			for b.Loop() {
+				for range batchSize {
 					_, _ = wal.Write(ctx, generateBytes(fileSize))
 				}
 			}

@@ -1,6 +1,7 @@
 package go_wal
 
 import (
+	"bytes"
 	"context"
 	"encoding/binary"
 	"errors"
@@ -28,7 +29,9 @@ const (
 // the maximum buffer size is predictable.
 var readBufferPool = sync.Pool{
 	New: func() any {
-		return make([]byte, defaultBlockSize)
+		b := new(bytes.Buffer)
+		b.Grow(defaultBlockSize)
+		return b
 	},
 }
 
@@ -84,12 +87,16 @@ func (p *Page) Read(ctx context.Context, pos *Position) ([]byte, *Position, erro
 		return nil, nil, fmt.Errorf("page: %v doesnt have a reader", p.Id)
 	}
 
-	rBuf := readBufferPool.Get().([]byte)
+	// The issue is that sync.Pool.Put takes an interface value. An interface value is a pair of pointers,
+	// one to a type and one to the data. If the concrete value is already a pointer, it can be stored in
+	// an interface value directly. Otherwise, we need to allocate memory on the heap, store the value there,
+	// and store the pointer to the value in the interface value.
+	rBuf := readBufferPool.Get().(*bytes.Buffer)
 	defer func() {
-		rBuf = rBuf[:0]
+		rBuf.Reset()
 		// ensure the memory buffer always be 32KB
-		if cap(rBuf) != defaultBlockSize {
-			rBuf = make([]byte, defaultBlockSize)
+		if rBuf.Cap() > defaultBlockSize {
+			rBuf.Truncate(defaultBlockSize)
 		}
 		readBufferPool.Put(rBuf)
 	}()
@@ -114,20 +121,20 @@ func (p *Page) Read(ctx context.Context, pos *Position) ([]byte, *Position, erro
 		}
 
 		// read whole record into the allocated buffer
-		if _, err := p.reader.ReadAt(rBuf[:size], int64(pageOffset)); err != nil {
+		if _, err := p.reader.ReadAt(rBuf.Bytes()[:size], int64(pageOffset)); err != nil {
 			return nil, nil, err
 		}
 
 		header := make([]byte, headerSize)
-		copy(header, rBuf[recordOffset:recordOffset+headerSize])
+		copy(header, rBuf.Bytes()[recordOffset:recordOffset+headerSize])
 		dataLen := binary.LittleEndian.Uint16(header[4:6])
 		start := recordOffset + headerSize
 		end := start + uint32(dataLen)
-		res = append(res, rBuf[start:end]...)
+		res = append(res, rBuf.Bytes()[start:end]...)
 
 		// Checksum to ensure data integrity
 		savedCRC := binary.LittleEndian.Uint32(header[:4])
-		crc := crc32.ChecksumIEEE(rBuf[recordOffset+4 : end])
+		crc := crc32.ChecksumIEEE(rBuf.Bytes()[recordOffset+4 : end])
 		if crc != savedCRC {
 			return nil, nil, ErrInvalidChecksum
 		}
@@ -210,7 +217,7 @@ func (p *Page) writeToMemBuffer(_ context.Context, data []byte, buf *[]byte) (*P
 		Offset:      p.LastBlockSize,
 	}
 
-	size := int64(0)
+	var size int64
 
 	willBeOverflow := p.LastBlockSize+headerSize+uint32(len(data)) > defaultBlockSize
 	if willBeOverflow {

@@ -120,7 +120,7 @@ func (h *hashMap) getShard(fileNum, key uint64) *shard {
 func NewMap(opts ...CacheOpt) IBlockCache {
 	c := &hashMap{
 		shardNum:  defaultShardNum,
-		maxSize:   int64(defaultCacheSize),
+		maxSize:   defaultCacheSize,
 		cacheType: defaultCacheType,
 	}
 
@@ -133,7 +133,7 @@ func NewMap(opts ...CacheOpt) IBlockCache {
 		c.shardNum = defaultShardNum
 	}
 	c.shards = make([]*shard, c.shardNum)
-	for i := 0; i < c.shardNum; i++ {
+	for i := range c.shardNum {
 		shardMaxSize := (c.maxSize + int64(c.shardNum-1)) / int64(c.shardNum) // round up
 		c.shards[i] = newShard(shardMaxSize, c.cacheType)
 	}

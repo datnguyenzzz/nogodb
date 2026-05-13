@@ -117,7 +117,7 @@ func Test_Atomicity(t *testing.T) {
 
 	eg, _ := errgroup.WithContext(context.Background())
 	eg.SetLimit(20)
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		eg.Go(func() error {
 			for {
 				version, _ := ol.RLock()

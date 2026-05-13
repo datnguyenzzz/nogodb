@@ -1,6 +1,7 @@
 package predictable_size
 
 import (
+	"bytes"
 	"math/bits"
 	"sync"
 )
@@ -29,12 +30,12 @@ func NewPredictablePool() *PredictablePool {
 // Get the buffer from the pool. Note that the buffer always has 0 size
 func (p *PredictablePool) Get(dataLen int) []byte {
 	id, poolCap := getPoolIDAndCapacity(dataLen)
-	for i := 0; i < 1; i++ {
+	for range 1 {
 		if id >= len(p.pools) {
 			break
 		}
 		if b := p.pools[id].Get(); b != nil {
-			return b.([]byte)
+			return b.(*bytes.Buffer).Bytes()
 		}
 		id++
 	}
@@ -54,7 +55,7 @@ func (p *PredictablePool) Put(buf []byte) {
 
 	// reset the buffer and remains the capacity, and put into the pool
 	buf = buf[:0]
-	p.pools[id].Put(buf)
+	p.pools[id].Put(bytes.NewBuffer(buf))
 }
 
 // getPoolIDAndCapacity predict the poolId from given data size

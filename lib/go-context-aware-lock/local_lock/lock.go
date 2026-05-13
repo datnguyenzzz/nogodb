@@ -5,8 +5,6 @@ import (
 	"fmt"
 )
 
-var ctxLock *CtxLock
-
 // CtxLock uses a Go channel to provide atomic locking and unlocking with context.Context cancellation
 // support. This lock is resolved locally and does not require network calls.
 type CtxLock struct {

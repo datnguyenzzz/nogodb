@@ -3,7 +3,7 @@
 ## H1 - 2026
 
 - Implement go-fs with the basic file operations
-  - [ ] P0: On local disk
+  - [x] P0: On local disk
   - [ ] P0: Remote storage (S3, ...) -- use [ministack](https://github.com/ministackorg/ministack)
 - Add an exhaustive functional tests (writer --> iterator) for the sstable
   - [ ] P0: On-local disk

@@ -165,7 +165,7 @@ func TestAdaptiveRateLimiter_Wait_single_thread(t *testing.T) {
 			ctx := context.Background()
 
 			start := time.Now()
-			for i := 0; i < tc.numWaits; i++ {
+			for range tc.numWaits {
 				err := limiter.Wait(ctx)
 				if tc.expectError {
 					assert.Error(t, err)
@@ -389,17 +389,15 @@ func TestAdaptiveRateLimiter_ConcurrentWait(t *testing.T) {
 			var successCount atomic.Int64
 
 			start := time.Now()
-			for i := 0; i < tc.concurrency; i++ {
-				wg.Add(1)
-				go func() {
-					defer wg.Done()
-					for j := 0; j < tc.operationsPerGoroutine; j++ {
+			for range tc.concurrency {
+				wg.Go(func() {
+					for range tc.operationsPerGoroutine {
 						err := limiter.Wait(context.Background())
 						if err == nil {
 							successCount.Add(1)
 						}
 					}
-				}()
+				})
 			}
 
 			wg.Wait()
@@ -450,7 +448,7 @@ func TestAdaptiveRateLimiter_RateLimiting(t *testing.T) {
 			limiter := NewAdaptiveRateLimiter(WithLimit(tc.qps, tc.qps))
 
 			start := time.Now()
-			for i := 0; i < tc.operations; i++ {
+			for range tc.operations {
 				err := limiter.Wait(context.Background())
 				assert.NoError(t, err)
 			}
@@ -560,7 +558,7 @@ func TestAdaptiveRateLimiter_EdgeCases(t *testing.T) {
 			desc:        "rapid successive calls",
 			limitPerSec: 100,
 			operation: func(limiter *AdaptiveRateLimiter) error {
-				for i := 0; i < 10; i++ {
+				for range 10 {
 					if err := limiter.Wait(context.Background()); err != nil {
 						return err
 					}
@@ -632,7 +630,7 @@ func TestAdaptiveRateLimiter_AdaptiveBehavior(t *testing.T) {
 			initialLimit := limiter.limitPerSec.Load()
 
 			ctx := context.Background()
-			for i := 0; i < tc.operations; i++ {
+			for range tc.operations {
 				limiter.Wait(ctx)
 			}
 
@@ -677,12 +675,10 @@ func TestAdaptiveRateLimiter_QueueManagement(t *testing.T) {
 			assert.Equal(t, 0, limiter.queue.Len(), "queue should start empty")
 
 			var wg sync.WaitGroup
-			for i := 0; i < tc.concurrentWaits; i++ {
-				wg.Add(1)
-				go func() {
-					defer wg.Done()
+			for range tc.concurrentWaits {
+				wg.Go(func() {
 					limiter.Wait(context.Background())
-				}()
+				})
 			}
 
 			time.Sleep(50 * time.Millisecond)

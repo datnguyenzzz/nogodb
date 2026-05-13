@@ -190,7 +190,7 @@ func (s *shard) evict(node *kv) bool {
 
 		if removed {
 			s.cacher.Evict(node)
-			node = nil // free the memory allocated for this node
+			node.value = nil
 			atomic.AddInt64(&s.stats.statDel, 1)
 		}
 

@@ -124,7 +124,7 @@ func Test_LazyValue_Release(t *testing.T) {
 			times := 5
 			// Get the lazy value of the given block
 			lazyValues := make([]LazyValue, times)
-			for i := 0; i < times; i++ {
+			for i := range times {
 				var ok bool
 				lazyValues[i], ok = cache.Get(uint64(1), uint64(1))
 				assert.True(t, ok)
@@ -189,7 +189,7 @@ func Test_Hashmap_Bulk_Set_Then_Get_And_Release_Async(t *testing.T) {
 
 	randomBytes := func(sz int) []byte {
 		res := make([]byte, sz)
-		for i := 0; i < sz; i++ {
+		for i := range sz {
 			res[i] = byte(rand.Intn(256))
 		}
 		return res
@@ -237,7 +237,7 @@ func Test_Hashmap_Bulk_Set_Then_Get_And_Release_Async(t *testing.T) {
 				}
 			}()
 
-			for i := 0; i < tc.nObjects; i++ {
+			for i := range tc.nObjects {
 				wg.Add(1)
 				// Set then Get new key/value pair to the cache
 				go func() {
@@ -311,7 +311,7 @@ func Test_HashMap_Hit_And_Miss(t *testing.T) {
 		t.Run(fmt.Sprintf("Test_HashMap_Hit_And_Miss_%s", cp.toString()), func(t *testing.T) {
 			randomBytes := func(sz int) []byte {
 				res := make([]byte, sz)
-				for i := 0; i < sz; i++ {
+				for i := range sz {
 					res[i] = byte(rand.Intn(256))
 				}
 				return res
@@ -319,12 +319,12 @@ func Test_HashMap_Hit_And_Miss(t *testing.T) {
 
 			cache := NewMap(WithCacheType(cp), WithShardNum(4))
 			keySize := 10
-			for i := 0; i < keySize; i++ {
+			for i := range keySize {
 				ok := cache.Set(uint64(0), uint64(i), randomBytes(keySize))
 				assert.True(t, ok, fmt.Sprintf("%v-%v should be updated into the cache", uint64(0), i))
 			}
 
-			for i := 0; i < keySize; i++ {
+			for i := range keySize {
 				_, ok := cache.Get(uint64(0), uint64(i))
 				assert.True(t, ok)
 				_, ok = cache.Get(uint64(0), uint64(i+keySize))
@@ -393,7 +393,7 @@ func Test_HashMap_Eviction(t *testing.T) {
 				WithMaxSize(100),
 				WithShardNum(4),
 			)
-			for i := 0; i < 100; i++ {
+			for i := range 100 {
 				ok := cache.Set(uint64(i), uint64(1), dummy10Bytes)
 				assert.True(t, ok)
 			}
@@ -433,7 +433,7 @@ func Test_HashMap_Close(t *testing.T) {
 				eg, _ := errgroup.WithContext(context.Background())
 				eg.SetLimit(parallelism)
 
-				for i := 0; i < 100; i++ {
+				for i := range 100 {
 					eg.Go(func() error {
 						ok := cache.Set(uint64(i), uint64(1), dummy10Bytes)
 						assert.True(t, ok)

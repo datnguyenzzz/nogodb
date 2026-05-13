@@ -56,7 +56,7 @@ func Test_Create_And_Open(t *testing.T) {
 			writers := make(map[FileDesc]Writable)
 			// create files
 			for fileType, num := range tc.fileCountPerType {
-				for i := 0; i < num; i++ {
+				for i := range num {
 					writer, fd, err := storage.Create(fileType, DiskfileNum(i))
 					assert.NoError(t, err, "can not create file")
 					writers[fd] = writer
@@ -72,7 +72,7 @@ func Test_Create_And_Open(t *testing.T) {
 			}
 
 			for fileType, num := range tc.fileCountPerType {
-				for i := 0; i < num; i++ {
+				for i := range num {
 					fd, err := storage.LookUp(fileType, DiskfileNum(i))
 					assert.NoError(t, err, "can not look up file")
 					eg.Go(func() error {
@@ -100,7 +100,7 @@ func Test_Create_And_Open(t *testing.T) {
 
 			// assert file content
 			for fileType, num := range tc.fileCountPerType {
-				for i := 0; i < num; i++ {
+				for i := range num {
 					reader, fd, err := storage.Open(fileType, DiskfileNum(i))
 					assert.NoError(t, err, "can not open file")
 					_, ok := writers[fd]

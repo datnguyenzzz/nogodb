@@ -139,7 +139,7 @@ func Test_AddNewNode_Then_Get_Big_Async(t *testing.T) {
 	}
 
 	r := rand.New(rand.NewSource(time.Now().UnixNano()))
-	for t := 0; t < size/100; t++ {
+	for range size / 100 {
 		i, j := r.Intn(size), r.Intn(size)
 		sequences[i], sequences[j] = sequences[j], sequences[i]
 	}

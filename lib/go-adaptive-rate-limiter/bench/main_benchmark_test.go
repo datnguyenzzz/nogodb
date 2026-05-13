@@ -459,7 +459,7 @@ func BenchmarkRandomisedFunc(b *testing.B) {
 func generateSineWave() [][]int64 {
 	input := sineWaveGenerate(benchEntries, 7000, math.Pi/100, 3*math.Pi/2, 7010)
 	res := make([][]int64, 2)
-	for i := 0; i < 2; i++ {
+	for i := range 2 {
 		res[i] = make([]int64, 0, benchEntries)
 		for _, v := range input[i] {
 			res[i] = append(res[i], int64(v))
@@ -476,7 +476,7 @@ func generateSineWave() [][]int64 {
 func generateCosineWave() [][]int64 {
 	input := cosineWaveGenerate(benchEntries, 7000, math.Pi/100, 2*math.Pi, 7010)
 	res := make([][]int64, 2)
-	for i := 0; i < 2; i++ {
+	for i := range 2 {
 		res[i] = make([]int64, 0, benchEntries)
 		for _, v := range input[i] {
 			res[i] = append(res[i], int64(v))
@@ -492,7 +492,7 @@ func generateCosineWave() [][]int64 {
 func generateSquareWave() [][]int64 {
 	input := squareWaveGenerate(benchEntries, math.Pi/100, -7000, 7010)
 	res := make([][]int64, 2)
-	for i := 0; i < 2; i++ {
+	for i := range 2 {
 		res[i] = make([]int64, 0, benchEntries)
 		for _, v := range input[i] {
 			res[i] = append(res[i], int64(v))
@@ -508,7 +508,7 @@ func generateSquareWave() [][]int64 {
 func generateConstFunction() [][]int64 {
 	input := constantFunctionGenerate(benchEntries, 300)
 	res := make([][]int64, 2)
-	for i := 0; i < 2; i++ {
+	for i := range 2 {
 		res[i] = make([]int64, 0, benchEntries)
 		for _, v := range input[i] {
 			res[i] = append(res[i], int64(v))
@@ -524,7 +524,7 @@ func generateConstFunction() [][]int64 {
 func generateRandomisedFunction(randomisedTestEntries int) [][]int64 {
 	randomisedInput := randomFunctionGenerate(randomisedTestEntries, 100, 14100)
 	res := make([][]int64, 2)
-	for i := 0; i < 2; i++ {
+	for i := range 2 {
 		res[i] = make([]int64, 0, len(randomisedInput[i]))
 		for _, v := range randomisedInput[i] {
 			res[i] = append(res[i], int64(v))
@@ -540,7 +540,7 @@ func generateRandomisedFunction(randomisedTestEntries int) [][]int64 {
 func generateRectangularFunction(benchEntries int) [][]int64 {
 	input := rectangularWaveGenerate(benchEntries, 0.1, 3000, 0.15)
 	res := make([][]int64, 2)
-	for i := 0; i < 2; i++ {
+	for i := range 2 {
 		res[i] = make([]int64, 0, len(input[i]))
 		for _, v := range input[i] {
 			res[i] = append(res[i], int64(v))

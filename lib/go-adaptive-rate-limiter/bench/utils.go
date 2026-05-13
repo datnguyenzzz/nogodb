@@ -86,7 +86,7 @@ func writeInputToFile(input [][]int64, dir string) error {
 	}
 	defer file.Close()
 
-	for i := 0; i < len(input[0]); i++ {
+	for i := range len(input[0]) {
 		fmt.Fprintf(file, "%d %d\n", input[0][i], input[1][i])
 	}
 
@@ -100,10 +100,10 @@ func sineWaveGenerate(entries int, a, b, c, d float64) [][]float64 {
 	}
 
 	res := make([][]float64, 2)
-	for i := 0; i < 2; i++ {
+	for i := range 2 {
 		res[i] = make([]float64, entries)
 	}
-	for i := 0; i < entries; i++ {
+	for i := range entries {
 		res[0][i] = float64(i)
 		res[1][i] = f(float64(i))
 	}
@@ -118,10 +118,10 @@ func cosineWaveGenerate(entries int, a, b, c, d float64) [][]float64 {
 	}
 
 	res := make([][]float64, 2)
-	for i := 0; i < 2; i++ {
+	for i := range 2 {
 		res[i] = make([]float64, entries)
 	}
-	for i := 0; i < entries; i++ {
+	for i := range entries {
 		res[0][i] = float64(i)
 		res[1][i] = f(float64(i))
 	}
@@ -132,10 +132,10 @@ func cosineWaveGenerate(entries int, a, b, c, d float64) [][]float64 {
 // constantFunctionGenerate F(x) = c
 func constantFunctionGenerate(entries int, c float64) [][]float64 {
 	res := make([][]float64, 2)
-	for i := 0; i < 2; i++ {
+	for i := range 2 {
 		res[i] = make([]float64, entries)
 	}
-	for i := 0; i < entries; i++ {
+	for i := range entries {
 		res[0][i] = float64(i)
 		res[1][i] = c
 	}
@@ -145,11 +145,11 @@ func constantFunctionGenerate(entries int, c float64) [][]float64 {
 
 func randomFunctionGenerate(entries int, lo, hi int) [][]float64 {
 	res := make([][]float64, 2)
-	for i := 0; i < 2; i++ {
+	for i := range 2 {
 		res[i] = make([]float64, entries)
 	}
 	counter := 0
-	for i := 0; i < entries; i++ {
+	for i := range entries {
 		res[0][i] = float64(i)
 		src := rand.NewSource(time.Now().UnixNano())
 		r := rand.New(src)
@@ -184,10 +184,10 @@ func squareWaveGenerate(entries int, b, c, d float64) [][]float64 {
 	}
 
 	res := make([][]float64, 2)
-	for i := 0; i < 2; i++ {
+	for i := range 2 {
 		res[i] = make([]float64, entries)
 	}
-	for i := 0; i < entries; i++ {
+	for i := range entries {
 		res[0][i] = float64(i)
 		res[1][i] = f(float64(i))
 	}
@@ -208,10 +208,10 @@ func rectangularWaveGenerate(entries int, frequency, amplitude, dutyCycle float6
 	}
 
 	res := make([][]float64, 2)
-	for i := 0; i < 2; i++ {
+	for i := range 2 {
 		res[i] = make([]float64, entries)
 	}
-	for i := 0; i < entries; i++ {
+	for i := range entries {
 		res[0][i] = float64(i)
 		res[1][i] = f(float64(i) * 0.1)
 	}

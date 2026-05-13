@@ -48,7 +48,6 @@ func FromFileDescToFileNum(fd FileDesc) DiskfileNum {
 
 var (
 	errFileNotFound = errors.New("file not found")
-	errFileIsOpened = errors.New("file is opened")
 	errFileIsClosed = errors.New("file is closed")
 	errFileExists   = errors.New("file exists")
 )

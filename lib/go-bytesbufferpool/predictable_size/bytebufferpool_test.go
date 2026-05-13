@@ -98,7 +98,7 @@ func TestPut(t *testing.T) {
 			// Create a buffer and put it in the pool
 			buf := make([]byte, tt.len, tt.cap)
 			// Write some content to verify buffer is reused
-			for i := 0; i < tt.len; i++ {
+			for i := range tt.len {
 				buf[i] = byte(i % 256)
 			}
 
@@ -182,11 +182,11 @@ func TestConcurrentAccess(t *testing.T) {
 
 	pool := NewPredictablePool()
 
-	for i := 0; i < workers; i++ {
+	for i := range workers {
 		go func(id int) {
 			defer wg.Done()
 
-			for j := 0; j < iterations; j++ {
+			for j := range iterations {
 				size := (id*iterations + j) % 10000
 				buf := pool.Get(size)
 				runtime.Gosched() // Force potential race conditions

@@ -36,8 +36,8 @@ func (f *bufferFileWritable) Sync() error {
 }
 
 func (f *bufferFileWritable) Finish() error {
-	err := f.bw.Flush()
-	err = f.File.Close()
+	_ = f.bw.Flush()
+	err := f.File.Close()
 	f.bw = nil
 	f.File = nil
 	return err
@@ -55,8 +55,7 @@ type syncableFile struct {
 	// The offset at which dirty data has been written.
 	offset atomic.Int64
 	// The offset at which data has been synced.
-	syncedOffset       atomic.Int64
-	preallocatedBlocks int64
+	syncedOffset atomic.Int64
 }
 
 func NewSyncableFile(file File, bytesPerSync int64) *syncableFile {

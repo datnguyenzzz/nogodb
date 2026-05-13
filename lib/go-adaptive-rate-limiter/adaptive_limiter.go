@@ -196,7 +196,7 @@ func (arl *AdaptiveRateLimiter) doWait(waitUntilUs int64) {
 }
 
 func (arl *AdaptiveRateLimiter) tune() {
-	if time.Now().Sub(arl.lastTunedAt).Microseconds() < arl.refillPerTune*arl.getRefillPeriodUs() {
+	if time.Since(arl.lastTunedAt).Microseconds() < arl.refillPerTune*arl.getRefillPeriodUs() {
 		return
 	}
 

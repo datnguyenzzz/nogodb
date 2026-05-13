@@ -1,7 +1,6 @@
 package go_block_cache
 
 import (
-	"fmt"
 	"math/rand"
 	"runtime"
 	"sync/atomic"
@@ -138,7 +137,7 @@ func Benchmark_NogoDB_Cache_Add_Read(b *testing.B) {
 		ClockPro,
 	}
 	for _, cp := range cachePolicies {
-		b.Run(fmt.Sprintf("%s", cp.toString()), func(b *testing.B) {
+		b.Run(cp.toString(), func(b *testing.B) {
 			var m0, m1 runtime.MemStats
 
 			runtime.GC()
@@ -176,7 +175,7 @@ func Benchmark_NogoDB_Cache_Read_After_Write_Async(b *testing.B) {
 		ClockPro,
 	}
 	for _, cp := range cachePolicies {
-		b.Run(fmt.Sprintf("%s", cp.toString()), func(b *testing.B) {
+		b.Run(cp.toString(), func(b *testing.B) {
 			var m0, m1 runtime.MemStats
 
 			runtime.GC()
@@ -214,7 +213,7 @@ func Benchmark_NogoDB_Cache_Add_Read_Random_Async(b *testing.B) {
 		ClockPro,
 	}
 	for _, cp := range cachePolicies {
-		b.Run(fmt.Sprintf("%s", cp.toString()), func(b *testing.B) {
+		b.Run(cp.toString(), func(b *testing.B) {
 			var m0, m1 runtime.MemStats
 
 			runtime.GC()
@@ -248,7 +247,7 @@ func Benchmark_NogoDB_Cache_Add_Read_Random_Async(b *testing.B) {
 
 func randomBytes(sz int) []byte {
 	res := make([]byte, sz)
-	for i := 0; i < sz; i++ {
+	for i := range sz {
 		res[i] = byte(rand.Intn(256))
 	}
 	return res

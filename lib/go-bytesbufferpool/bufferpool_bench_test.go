@@ -1,6 +1,7 @@
 package go_bytesbufferpool
 
 import (
+	"bytes"
 	"sync"
 	"testing"
 
@@ -20,7 +21,7 @@ var bufs = [][]byte{ // Total: 26MB
 
 func makeDummyBuffer(size int) []byte {
 	buf := make([]byte, size)
-	for i := 0; i < size; i++ {
+	for i := range size {
 		buf[i] = 0xff
 	}
 	return buf
@@ -29,42 +30,29 @@ func makeDummyBuffer(size int) []byte {
 // TODO:
 //   Benchmark the Unpredictable size
 
-func Benchmark_Generic_Buffer(b *testing.B) {
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		for _, b := range bufs {
-			buf := make([]byte, len(b))
-			buf = append(buf, b...)
-		}
-	}
-}
-
 func Benchmark_SyncPool_Buffer(b *testing.B) {
-	b.ResetTimer()
-
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		sPool := sync.Pool{
-			New: func() interface{} {
-				return []byte{}
+			New: func() any {
+				return new(bytes.Buffer)
 			},
 		}
 		for _, b := range bufs {
 			// get from the pool
-			buf := sPool.Get().([]byte)
-			if cap(buf) < len(b) {
-				buf = make([]byte, len(b))
+			buf := sPool.Get().(*bytes.Buffer)
+			if buf.Cap() < len(b) {
+				buf.Grow(len(b))
 			}
-			buf = append(buf, b...)
+			_, _ = buf.Write(b)
 			// put back to the pool
-			buf = buf[:0]
+			buf.Reset()
 			sPool.Put(buf)
 		}
 	}
 }
 
 func Benchmark_Predictable_Size_Buffer(b *testing.B) {
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		pool := predictable_size.NewPredictablePool()
 		for _, b := range bufs {
 			buf := pool.Get(len(b))

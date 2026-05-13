@@ -21,7 +21,7 @@ func Test_preorder_art_str_InsertAndRemoveNode_sync(t *testing.T) {
 	}
 
 	var dicts []string
-	for i := 0; i < 20; i++ {
+	for range 20 {
 		dicts = append(dicts, internal.RandomQuote())
 	}
 
@@ -527,7 +527,7 @@ func Test_preorder_art_str_InsertAndRemoveNode_sync(t *testing.T) {
 			}
 
 			// verify the pre-ordered nodes in the tree
-			internal.PreorderTraverseAndValidate[string](
+			internal.PreorderTraverseAndValidate(
 				t, ctx, art.root,
 				tc.expectedPreorder, 0, 0,
 			)
@@ -787,7 +787,7 @@ func Test_search_art_str_InsertAndRemoveNode_async(t *testing.T) {
 			eg, egCtx = errgroup.WithContext(ctx)
 			eg.SetLimit(20)
 			// insert
-			for i := 0; i < tc.size-tc.deleteActionsCount; i++ {
+			for i := range tc.size - tc.deleteActionsCount {
 				kv := expectedTotalKVMap[i]
 				eg.Go(func() error {
 					_, err := art.Insert(egCtx, kv.Key, kv.Value)
@@ -807,7 +807,7 @@ func Test_search_art_str_InsertAndRemoveNode_async(t *testing.T) {
 			assert.NoError(t, err, fmt.Sprintf("shouldn't fail to insert new key. Err: %v", err))
 
 			// verify key value after deletion
-			for i := 0; i < tc.size-tc.deleteActionsCount; i++ {
+			for i := range tc.size - tc.deleteActionsCount {
 				kv := expectedTotalKVMap[i]
 				actualV, err := art.Get(ctx, kv.Key)
 				assert.NoError(t, err, fmt.Sprintf("shouldn't fail to get key. Err: %v", err))
@@ -913,14 +913,14 @@ func Test_ART_NodeTransitions(t *testing.T) {
 	t.Run("Node growth and shrinkage", func(t *testing.T) {
 		// Insert 256 keys with different first bytes to force node growth
 		keys := make([][]byte, 256)
-		for i := 0; i < 256; i++ {
+		for i := range 256 {
 			keys[i] = []byte{byte(i)}
 			_, err := art.Insert(ctx, keys[i], i)
 			assert.NoError(t, err)
 		}
 
 		// Verify all keys
-		for i := 0; i < 256; i++ {
+		for i := range 256 {
 			val, err := art.Get(ctx, keys[i])
 			assert.NoError(t, err)
 			assert.Equal(t, i, val)
@@ -933,7 +933,7 @@ func Test_ART_NodeTransitions(t *testing.T) {
 
 			// Occasionally verify remaining keys
 			if i > 0 && i%64 == 0 {
-				for j := 0; j < i; j++ {
+				for j := range i {
 					val, err := art.Get(ctx, keys[j])
 					assert.NoError(t, err)
 					assert.Equal(t, j, val)

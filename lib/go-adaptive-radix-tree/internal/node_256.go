@@ -26,11 +26,11 @@ type Node256[V any] struct {
 	children [Node256PointersMax]*INode[V]
 }
 
-func (n *Node256[V]) getValue(ctx context.Context) V {
+func (n *Node256[V]) getValue(ctx context.Context) V { //nolint:unused
 	panic("node 256 doesn't hold any value")
 }
 
-func (n *Node256[V]) setValue(ctx context.Context, v V) {
+func (n *Node256[V]) setValue(ctx context.Context, v V) { //nolint:unused
 	panic("node 256 doesn't hold any value")
 }
 
@@ -54,7 +54,7 @@ func (n *Node256[V]) getKeyFromIdx(idx int) *nodeKey {
 	return ToNodeKey(byte(idx - 1))
 }
 
-func (n *Node256[V]) addChild(ctx context.Context, key *nodeKey, child *INode[V]) error {
+func (n *Node256[V]) addChild(ctx context.Context, key *nodeKey, child *INode[V]) error { //nolint:unused
 	currChildrenLen := n.getChildrenLen(ctx)
 	if uint16(currChildrenLen) >= Node256PointersMax {
 		return fmt.Errorf("node256 is maxed out and don't have enough room for a new Key")
@@ -65,7 +65,7 @@ func (n *Node256[V]) addChild(ctx context.Context, key *nodeKey, child *INode[V]
 	return nil
 }
 
-func (n *Node256[V]) removeChild(ctx context.Context, key *nodeKey) error {
+func (n *Node256[V]) removeChild(ctx context.Context, key *nodeKey) error { //nolint:unused
 	currChildrenLen := n.getChildrenLen(ctx)
 	n.children[n.getIdx(key)] = nil
 	n.setChildrenLen(ctx, currChildrenLen-1)
@@ -132,12 +132,12 @@ func (n *Node256[V]) getChildByIndex(ctx context.Context, idx uint8) (*nodeKey, 
 	return nil, nil, childNodeNotFound
 }
 
-func (n *Node256[V]) grow(ctx context.Context) (*INode[V], error) {
+func (n *Node256[V]) grow(ctx context.Context) (*INode[V], error) { //nolint:unused
 	return nil, fmt.Errorf("node256 can not grow anymore")
 }
 
 // shrink to node48
-func (n *Node256[V]) shrink(ctx context.Context) (*INode[V], error) {
+func (n *Node256[V]) shrink(ctx context.Context) (*INode[V], error) { //nolint:unused
 	if !n.isShrinkable(ctx) {
 		return nil, fmt.Errorf("node256 is still too big for shrinking")
 	}
@@ -163,12 +163,12 @@ func (n *Node256[V]) shrink(ctx context.Context) (*INode[V], error) {
 	return &n48, nil
 }
 
-func (n *Node256[V]) hasEnoughSpace(ctx context.Context) bool {
+func (n *Node256[V]) hasEnoughSpace(ctx context.Context) bool { //nolint:unused
 	// node256 is the biggest node so it always (supposed to be) has enough space
 	return true
 }
 
-func (n *Node256[V]) isShrinkable(ctx context.Context) bool {
+func (n *Node256[V]) isShrinkable(ctx context.Context) bool { //nolint:unused
 	return n.getChildrenLen(ctx) < Node256PointersMin
 }
 
@@ -180,7 +180,7 @@ func (n *Node256[V]) setLocker(locker go_context_aware_lock.IOptRWMutex) {
 	n.locker = locker
 }
 
-func (n *Node256[V]) clone() INode[V] {
+func (n *Node256[V]) clone() INode[V] { //nolint:unused
 	nn := &Node256[V]{}
 	nn.nodeHeader = n.nodeHeader
 	nn.locker = n.locker

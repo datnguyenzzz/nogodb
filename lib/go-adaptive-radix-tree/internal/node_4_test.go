@@ -475,7 +475,7 @@ func Test_node4_str_insertAndRemoveChildren(t *testing.T) {
 				assert.NoError(t, err)
 				assert.Equal(t, expectedChild, child)
 			}
-			for i := uint8(0); i < tc.expectedChildrenLen; i++ {
+			for i := range tc.expectedChildrenLen {
 				key, child, err := n4o.getChildByIndex(ctx, i)
 				assert.NoError(t, err)
 				assert.Equal(t, tc.expectedAscChildren[i], child)
@@ -540,10 +540,8 @@ func Test_node4_str_shrink(t *testing.T) {
 
 	sampleLeaves := generateStringLeaves(1)
 	// Add children to the node which is lower than its minimum required capacity
-	var keys []byte
 	var children []*INode[string]
 	leaf := sampleLeaves[0]
-	keys = append(keys, 0)
 	children = append(children, &leaf)
 	err := n4.addChild(ctx, ToNodeKey(0), &leaf)
 	assert.NoError(t, err)

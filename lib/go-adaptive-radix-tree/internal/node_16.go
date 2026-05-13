@@ -30,11 +30,11 @@ type Node16[V any] struct {
 	children [Node16PointersLen]*INode[V]
 }
 
-func (n *Node16[V]) getValue(ctx context.Context) V {
+func (n *Node16[V]) getValue(ctx context.Context) V { //nolint:unused
 	panic("node 16 doesn't hold any value")
 }
 
-func (n *Node16[V]) setValue(ctx context.Context, v V) {
+func (n *Node16[V]) setValue(ctx context.Context, v V) { //nolint:unused
 	panic("node 16 doesn't hold any value")
 }
 
@@ -42,7 +42,7 @@ func (n *Node16[V]) GetKind(ctx context.Context) Kind {
 	return KindNode16
 }
 
-func (n *Node16[V]) addChild(ctx context.Context, key *nodeKey, child *INode[V]) error {
+func (n *Node16[V]) addChild(ctx context.Context, key *nodeKey, child *INode[V]) error { //nolint:unused
 	currChildrenLen := n.getChildrenLen(ctx)
 	if currChildrenLen >= Node16KeysMax {
 		return fmt.Errorf("node_16 is maxed out and don't have enough room for a new Key")
@@ -73,7 +73,7 @@ func (n *Node16[V]) addChild(ctx context.Context, key *nodeKey, child *INode[V])
 	return nil
 }
 
-func (n *Node16[V]) removeChild(ctx context.Context, key *nodeKey) error {
+func (n *Node16[V]) removeChild(ctx context.Context, key *nodeKey) error { //nolint:unused
 	currChildrenLen := n.getChildrenLen(ctx)
 	if currChildrenLen == 0 {
 		return fmt.Errorf("node is empty")
@@ -145,7 +145,7 @@ func (n *Node16[V]) getChildByIndex(ctx context.Context, idx uint8) (*nodeKey, *
 }
 
 // grow to node48
-func (n *Node16[V]) grow(ctx context.Context) (*INode[V], error) {
+func (n *Node16[V]) grow(ctx context.Context) (*INode[V], error) { //nolint:unused
 	if n.getChildrenLen(ctx) != Node16KeysMax {
 		return nil, fmt.Errorf("node16 is not maxed out yet, so don't have to grow to a bigger node")
 	}
@@ -162,7 +162,7 @@ func (n *Node16[V]) grow(ctx context.Context) (*INode[V], error) {
 }
 
 // shrink to node4
-func (n *Node16[V]) shrink(ctx context.Context) (*INode[V], error) {
+func (n *Node16[V]) shrink(ctx context.Context) (*INode[V], error) { //nolint:unused
 	if !n.isShrinkable(ctx) {
 		return nil, fmt.Errorf("node16 is still too big for shrinking")
 	}
@@ -184,11 +184,11 @@ func (n *Node16[V]) shrink(ctx context.Context) (*INode[V], error) {
 	return &n4, nil
 }
 
-func (n *Node16[V]) hasEnoughSpace(ctx context.Context) bool {
+func (n *Node16[V]) hasEnoughSpace(ctx context.Context) bool { //nolint:unused
 	return n.getChildrenLen(ctx) < Node16KeysMax
 }
 
-func (n *Node16[V]) isShrinkable(ctx context.Context) bool {
+func (n *Node16[V]) isShrinkable(ctx context.Context) bool { //nolint:unused
 	return n.getChildrenLen(ctx) < Node16KeysMin
 }
 
@@ -200,7 +200,7 @@ func (n *Node16[V]) setLocker(locker go_context_aware_lock.IOptRWMutex) {
 	n.locker = locker
 }
 
-func (n *Node16[V]) clone() INode[V] {
+func (n *Node16[V]) clone() INode[V] { //nolint:unused
 	nn := &Node16[V]{}
 	nn.nodeHeader = n.nodeHeader
 	nn.locker = n.locker

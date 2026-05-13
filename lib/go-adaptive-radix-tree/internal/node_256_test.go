@@ -413,7 +413,7 @@ func Test_node256_str_insertAndRemoveChildren(t *testing.T) {
 				assert.NoError(t, err)
 				assert.Equal(t, expectedChild, child)
 			}
-			for i := uint8(0); i < tc.expectedChildrenLen; i++ {
+			for i := range tc.expectedChildrenLen {
 				key, child, err := n256o.getChildByIndex(ctx, i)
 				assert.NoError(t, err)
 				assert.Equal(t, tc.expectedAscChildren[i], child)

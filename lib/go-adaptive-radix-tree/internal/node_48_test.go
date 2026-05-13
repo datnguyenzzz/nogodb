@@ -417,7 +417,7 @@ func Test_node48_str_insertAndRemoveChildren(t *testing.T) {
 				assert.NoError(t, err)
 				assert.Equal(t, expectedChild, child)
 			}
-			for i := uint8(0); i < tc.expectedChildrenLen; i++ {
+			for i := range tc.expectedChildrenLen {
 				key, child, err := n48o.getChildByIndex(ctx, i)
 				assert.NoError(t, err)
 				assert.Equal(t, tc.expectedAscChildren[i], child)
@@ -500,7 +500,7 @@ func Test_node48_str_shrink(t *testing.T) {
 	for i, key := range keys {
 		expectedKeys[Node16KeysMax-uint8(len(keys))+uint8(i)] = ToNodeKey(key)
 	}
-	for i := 0; i < len(n16o.keys); i++ {
+	for i := range len(n16o.keys) {
 		assert.Zero(t, expectedKeys[i].Compare(n16o.keys[i]), "node keys is different")
 	}
 

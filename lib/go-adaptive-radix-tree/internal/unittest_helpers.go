@@ -49,7 +49,7 @@ func randomByte() byte {
 
 func RandomBytes(num uint8) []byte {
 	res := make([]byte, num)
-	for i := uint8(0); i < num; i++ {
+	for i := range num {
 		res[i] = randomByte()
 	}
 	return res
@@ -72,8 +72,8 @@ func RandomQuote() string {
 func generateStringLeaves(sz int) []INode[string] {
 	res := make([]INode[string], sz)
 
-	for i := 0; i < sz; i++ {
-		res[i] = NewLeafWithKV[string](context.Background(), RandomBytes(5), RandomQuote())
+	for i := range sz {
+		res[i] = NewLeafWithKV(context.Background(), RandomBytes(5), RandomQuote())
 	}
 
 	return res
@@ -81,9 +81,9 @@ func generateStringLeaves(sz int) []INode[string] {
 
 func SeedMapKVString(sz int) []KV[string] {
 	res := make([]KV[string], sz)
-	for i := 0; i < sz; i++ {
+	for i := range sz {
 		res[i] = KV[string]{
-			Key:   []byte(fmt.Sprintf("%d__%v", i, RandomQuote())),
+			Key:   fmt.Appendf(nil, "%d__%v", i, RandomQuote()),
 			Value: RandomQuote(),
 		}
 	}
@@ -99,7 +99,7 @@ func SeedNode4[V any](ctx context.Context, prefix []byte) INode[V] {
 
 // SeedNodeLeaf generate a node leaf with prefix and value for testing purposes
 func SeedNodeLeaf[V any](ctx context.Context, prefix []byte, value V) INode[V] {
-	return NewLeafWithKV[V](ctx, prefix, value)
+	return NewLeafWithKV(ctx, prefix, value)
 }
 
 // PreorderTraverseAndValidate traverse through the tree by the pre-order and perform the validation

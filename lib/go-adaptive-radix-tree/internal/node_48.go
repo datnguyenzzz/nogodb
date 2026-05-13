@@ -49,11 +49,11 @@ func (n *Node48[V]) getKeyFromIdx(idx int) *nodeKey {
 	return ToNodeKey(byte(idx - 1))
 }
 
-func (n *Node48[V]) getValue(ctx context.Context) V {
+func (n *Node48[V]) getValue(ctx context.Context) V { //nolint:unused
 	panic("node 48 doesn't hold any value")
 }
 
-func (n *Node48[V]) setValue(ctx context.Context, v V) {
+func (n *Node48[V]) setValue(ctx context.Context, v V) { //nolint:unused
 	panic("node 48 doesn't hold any value")
 }
 
@@ -61,7 +61,7 @@ func (n *Node48[V]) GetKind(ctx context.Context) Kind {
 	return KindNode48
 }
 
-func (n *Node48[V]) addChild(ctx context.Context, key *nodeKey, child *INode[V]) error {
+func (n *Node48[V]) addChild(ctx context.Context, key *nodeKey, child *INode[V]) error { //nolint:unused
 	currChildrenLen := n.getChildrenLen(ctx)
 	if currChildrenLen >= Node48PointersMax {
 		return fmt.Errorf("node_48 is maxed out and don't have enough room for a new Key")
@@ -72,7 +72,7 @@ func (n *Node48[V]) addChild(ctx context.Context, key *nodeKey, child *INode[V])
 	}
 
 	// shift all keys[Key+1:] 1 step to the right to make room
-	for k := int(Node48KeysLen) - 1; k > int(n.getIdx(key)); k-- {
+	for k := int(Node48KeysLen) - 1; k > n.getIdx(key); k-- {
 		if n.keys[k] == 0 {
 			// Key k-th is not exist yet
 			continue
@@ -86,7 +86,7 @@ func (n *Node48[V]) addChild(ctx context.Context, key *nodeKey, child *INode[V])
 		n.keys[k] += 1
 	}
 	pos := uint8(0)
-	for k := 0; k < int(n.getIdx(key)); k++ {
+	for k := range n.getIdx(key) {
 		if n.keys[k] == 0 {
 			// Key k-th is not exist yet
 			continue
@@ -104,7 +104,7 @@ func (n *Node48[V]) addChild(ctx context.Context, key *nodeKey, child *INode[V])
 	return nil
 }
 
-func (n *Node48[V]) removeChild(ctx context.Context, key *nodeKey) error {
+func (n *Node48[V]) removeChild(ctx context.Context, key *nodeKey) error { //nolint:unused
 	currChildrenLen := n.getChildrenLen(ctx)
 	if currChildrenLen == 0 {
 		return fmt.Errorf("node is empty")
@@ -191,13 +191,12 @@ func (n *Node48[V]) getChildByIndex(ctx context.Context, idx uint8) (*nodeKey, *
 			return n.getKeyFromIdx(k), n.children[n.keys[k]-1], nil
 		}
 		cnt += 1
-
 	}
 	return nil, nil, childNodeNotFound
 }
 
 // grow to node256
-func (n *Node48[V]) grow(ctx context.Context) (*INode[V], error) {
+func (n *Node48[V]) grow(ctx context.Context) (*INode[V], error) { //nolint:unused
 	if n.getChildrenLen(ctx) != Node48PointersMax {
 		return nil, fmt.Errorf("node48 is not maxed out yet, so don't have to grow to a bigger node")
 	}
@@ -221,7 +220,7 @@ func (n *Node48[V]) grow(ctx context.Context) (*INode[V], error) {
 }
 
 // shrink to node16
-func (n *Node48[V]) shrink(ctx context.Context) (*INode[V], error) {
+func (n *Node48[V]) shrink(ctx context.Context) (*INode[V], error) { //nolint:unused
 	if !n.isShrinkable(ctx) {
 		return nil, fmt.Errorf("node48 is still too big for shrinking")
 	}
@@ -249,11 +248,11 @@ func (n *Node48[V]) shrink(ctx context.Context) (*INode[V], error) {
 	return &n16, nil
 }
 
-func (n *Node48[V]) hasEnoughSpace(ctx context.Context) bool {
+func (n *Node48[V]) hasEnoughSpace(ctx context.Context) bool { //nolint:unused
 	return n.getChildrenLen(ctx) < Node48PointersMax
 }
 
-func (n *Node48[V]) isShrinkable(ctx context.Context) bool {
+func (n *Node48[V]) isShrinkable(ctx context.Context) bool { //nolint:unused
 	return n.getChildrenLen(ctx) < Node48PointersMin
 }
 
@@ -265,7 +264,7 @@ func (n *Node48[V]) setLocker(locker go_context_aware_lock.IOptRWMutex) {
 	n.locker = locker
 }
 
-func (n *Node48[V]) clone() INode[V] {
+func (n *Node48[V]) clone() INode[V] { //nolint:unused
 	nn := &Node48[V]{}
 	nn.nodeHeader = n.nodeHeader
 	nn.locker = n.locker

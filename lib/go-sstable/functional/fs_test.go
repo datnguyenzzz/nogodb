@@ -3,9 +3,9 @@
 package functional
 
 import (
-	"bytes"
-	"fmt"
 	"math/rand"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -22,19 +22,42 @@ import (
 )
 
 const (
-	testSize = 10_000
+	dirname     = ".nogodb"
+	bytePerSync = 2 * 1024 * 1024
 )
 
-const (
-	kB = 1024
-	mB = kB * 1024
-)
-
-type SSTSuite struct {
+type SSTSuiteFS struct {
 	suite.Suite
+	storage go_fs.Storage
 }
 
-func (w *SSTSuite) Test_Integration_Writer_No_Errors() {
+func (w *SSTSuiteFS) SetupSubTest() {
+	var err error
+	w.storage, err = go_fs.OpenVfsProvider(
+		go_fs.WithDirName(dirname),
+		go_fs.WithBytesPerSync(bytePerSync),
+		go_fs.WithFS(go_fs.NewDefaultUnix()),
+	)
+	require.Nil(w.T(), err)
+}
+
+func (w *SSTSuiteFS) TearDownSubTest() {
+	err := w.storage.Close()
+	require.Nil(w.T(), err)
+
+	// Remove all page data files
+	files, _ := os.ReadDir(dirname)
+	for _, file := range files {
+		if !file.IsDir() {
+			filePath := filepath.Join(dirname, file.Name())
+			_ = os.Remove(filePath)
+		}
+	}
+
+	_ = os.Remove(dirname)
+}
+
+func (w *SSTSuiteFS) Test_Integration_Writer_No_Errors() {
 	type param struct {
 		name      string
 		restart   int
@@ -98,11 +121,10 @@ func (w *SSTSuite) Test_Integration_Writer_No_Errors() {
 		},
 	}
 
-	t := w.T()
 	for i, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			inMemStorage := go_fs.NewInmemStorage()
-			fileWritable, _, err := inMemStorage.Create(go_fs.TypeTable, go_fs.DiskfileNum(i))
+		w.Run(tc.name, func() {
+			t := w.T()
+			fileWritable, _, err := w.storage.Create(go_fs.TypeTable, go_fs.DiskfileNum(i))
 			assert.NoError(t, err)
 			writer := go_sstable.NewWriter(
 				fileWritable,
@@ -110,11 +132,6 @@ func (w *SSTSuite) Test_Integration_Writer_No_Errors() {
 				go_sstable.WithBlockRestartInterval(tc.restart),
 				go_sstable.WithBlockSize(tc.blockSize),
 			)
-
-			defer func() {
-				err := writer.Close()
-				assert.NoError(t, err)
-			}()
 
 			sample := generateKV(testSize, tc.isUnique)
 			for _, kv := range sample {
@@ -127,11 +144,14 @@ func (w *SSTSuite) Test_Integration_Writer_No_Errors() {
 					assert.NoError(t, err, "failed to delete")
 				}
 			}
+
+			err = writer.Close()
+			assert.NoError(t, err)
 		})
 	}
 }
 
-func (w *SSTSuite) Test_Integration_Writer_No_Errors_MVCC_col_block() {
+func (w *SSTSuiteFS) Test_Integration_Writer_No_Errors_MVCC_col_block() {
 	type param struct {
 		name      string
 		restart   int
@@ -195,11 +215,10 @@ func (w *SSTSuite) Test_Integration_Writer_No_Errors_MVCC_col_block() {
 		},
 	}
 
-	t := w.T()
 	for i, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			inMemStorage := go_fs.NewInmemStorage()
-			fileWritable, _, err := inMemStorage.Create(go_fs.TypeTable, go_fs.DiskfileNum(i))
+		w.Run(tc.name, func() {
+			t := w.T()
+			fileWritable, _, err := w.storage.Create(go_fs.TypeTable, go_fs.DiskfileNum(i))
 			assert.NoError(t, err)
 			writer := go_sstable.NewWriter(
 				fileWritable,
@@ -227,7 +246,7 @@ func (w *SSTSuite) Test_Integration_Writer_No_Errors_MVCC_col_block() {
 	}
 }
 
-func (w *SSTSuite) Test_Iterator_Seeking_Ops_single_table() {
+func (w *SSTSuiteFS) Test_Iterator_Seeking_Ops_single_table() {
 	type param struct {
 		name                string
 		restart             int
@@ -364,12 +383,11 @@ func (w *SSTSuite) Test_Iterator_Seeking_Ops_single_table() {
 		},
 	}
 
-	t := w.T()
 	for i, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
+		w.Run(tc.name, func() {
+			t := w.T()
 			// Init a table
-			inMemStorage := go_fs.NewInmemStorage()
-			fileWritable, _, err := inMemStorage.Create(go_fs.TypeTable, go_fs.DiskfileNum(i))
+			fileWritable, _, err := w.storage.Create(go_fs.TypeTable, go_fs.DiskfileNum(i))
 			assert.NoError(t, err)
 			writer := go_sstable.NewWriter(
 				fileWritable,
@@ -388,7 +406,7 @@ func (w *SSTSuite) Test_Iterator_Seeking_Ops_single_table() {
 			assert.NoError(t, err)
 
 			// Evaluate the result of the seek operations
-			fileReadable, fd, err := inMemStorage.Open(go_fs.TypeTable, go_fs.DiskfileNum(i))
+			fileReadable, fd, err := w.storage.Open(go_fs.TypeTable, go_fs.DiskfileNum(i))
 			assert.NoError(t, err)
 			var iterOpts []options.IteratorOptsFunc
 			if tc.cacheSize > 0 {
@@ -435,7 +453,7 @@ func (w *SSTSuite) Test_Iterator_Seeking_Ops_single_table() {
 	}
 }
 
-func (w *SSTSuite) Test_Iterator_Seeking_Ops_single_table_MVCC_col_block() {
+func (w *SSTSuiteFS) Test_Iterator_Seeking_Ops_single_table_MVCC_col_block() {
 	type param struct {
 		name                string
 		isUnique            bool
@@ -556,12 +574,12 @@ func (w *SSTSuite) Test_Iterator_Seeking_Ops_single_table_MVCC_col_block() {
 		},
 	}
 
-	t := w.T()
 	for i, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
+		w.Run(tc.name, func() {
+			t := w.T()
+
 			// Init a table
-			inMemStorage := go_fs.NewInmemStorage()
-			fileWritable, _, err := inMemStorage.Create(go_fs.TypeTable, go_fs.DiskfileNum(i))
+			fileWritable, _, err := w.storage.Create(go_fs.TypeTable, go_fs.DiskfileNum(i))
 			require.NoError(t, err)
 			mvccComparer := NewMvccComparer()
 			writer := go_sstable.NewWriter(
@@ -581,7 +599,7 @@ func (w *SSTSuite) Test_Iterator_Seeking_Ops_single_table_MVCC_col_block() {
 			require.NoError(t, err)
 
 			// Evaluate the result of the seek operations
-			fileReadable, fd, err := inMemStorage.Open(go_fs.TypeTable, go_fs.DiskfileNum(i))
+			fileReadable, fd, err := w.storage.Open(go_fs.TypeTable, go_fs.DiskfileNum(i))
 			require.NoError(t, err)
 			iterOpts := []options.IteratorOptsFunc{
 				options.WithComparer(mvccComparer),
@@ -628,7 +646,7 @@ func (w *SSTSuite) Test_Iterator_Seeking_Ops_single_table_MVCC_col_block() {
 	}
 }
 
-func (w *SSTSuite) Test_Iterator_Concurrently_Seeking_Ops_multiple_tables() {
+func (w *SSTSuiteFS) Test_Iterator_Concurrently_Seeking_Ops_multiple_tables() {
 	type param struct {
 		name                string
 		restart             int
@@ -744,14 +762,13 @@ func (w *SSTSuite) Test_Iterator_Concurrently_Seeking_Ops_multiple_tables() {
 
 	numberOfSSTs := 3
 
-	t := w.T()
 	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
+		w.Run(tc.name, func() {
+			t := w.T()
 			// Init a table
-			inMemStorage := go_fs.NewInmemStorage()
 			sample := make([][]kvType, 0, numberOfSSTs)
 			for sst := 1; sst <= numberOfSSTs; sst++ {
-				fileWritable, _, err := inMemStorage.Create(go_fs.TypeTable, go_fs.DiskfileNum(sst))
+				fileWritable, _, err := w.storage.Create(go_fs.TypeTable, go_fs.DiskfileNum(sst))
 				assert.NoError(t, err)
 				writer := go_sstable.NewWriter(
 					fileWritable,
@@ -776,7 +793,7 @@ func (w *SSTSuite) Test_Iterator_Concurrently_Seeking_Ops_multiple_tables() {
 			for sst := 1; sst <= numberOfSSTs; sst++ {
 				eg.Go(func() error {
 					kvs := sample[sst-1]
-					fileReadable, fd, err := inMemStorage.Open(go_fs.TypeTable, go_fs.DiskfileNum(sst))
+					fileReadable, fd, err := w.storage.Open(go_fs.TypeTable, go_fs.DiskfileNum(sst))
 					assert.NoError(t, err)
 					var iterOpts []options.IteratorOptsFunc
 					if tc.cacheSize > 0 {
@@ -829,7 +846,7 @@ func (w *SSTSuite) Test_Iterator_Concurrently_Seeking_Ops_multiple_tables() {
 	}
 }
 
-func (w *SSTSuite) Test_Iterator_Concurrently_Seeking_Ops_multiple_tables_MVCC_col_block() {
+func (w *SSTSuiteFS) Test_Iterator_Concurrently_Seeking_Ops_multiple_tables_MVCC_col_block() {
 	type param struct {
 		name                string
 		restart             int
@@ -945,16 +962,15 @@ func (w *SSTSuite) Test_Iterator_Concurrently_Seeking_Ops_multiple_tables_MVCC_c
 
 	numberOfSSTs := 3
 
-	t := w.T()
 	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
+		w.Run(tc.name, func() {
+			t := w.T()
 			// Init a table
-			inMemStorage := go_fs.NewInmemStorage()
 			sample := make([][]kvType, 0, numberOfSSTs)
 			mvccComparer := NewMvccComparer()
 
 			for sst := 1; sst <= numberOfSSTs; sst++ {
-				fileWritable, _, err := inMemStorage.Create(go_fs.TypeTable, go_fs.DiskfileNum(sst))
+				fileWritable, _, err := w.storage.Create(go_fs.TypeTable, go_fs.DiskfileNum(sst))
 				assert.NoError(t, err)
 				writer := go_sstable.NewWriter(
 					fileWritable,
@@ -979,7 +995,7 @@ func (w *SSTSuite) Test_Iterator_Concurrently_Seeking_Ops_multiple_tables_MVCC_c
 			for sst := 1; sst <= numberOfSSTs; sst++ {
 				eg.Go(func() error {
 					kvs := sample[sst-1]
-					fileReadable, fd, err := inMemStorage.Open(go_fs.TypeTable, go_fs.DiskfileNum(sst))
+					fileReadable, fd, err := w.storage.Open(go_fs.TypeTable, go_fs.DiskfileNum(sst))
 					assert.NoError(t, err)
 					iterOpts := []options.IteratorOptsFunc{
 						options.WithComparer(mvccComparer),
@@ -1032,59 +1048,7 @@ func (w *SSTSuite) Test_Iterator_Concurrently_Seeking_Ops_multiple_tables_MVCC_c
 	}
 }
 
-func validateSeekGTE(t *testing.T, iter go_sstable.IIterator, expectedKV kvType, prevKV kvType, i int) {
-	kv := iter.SeekGTE(expectedKV.key)
-	require.NotNil(t, kv, fmt.Sprintf("SeekGTE with an exact key must found, test case #%d", i))
-	assertKv(t, expectedKV, kv, i)
-	assert.Zero(t, bytes.Compare(expectedKV.value, kv.V.Value()), fmt.Sprintf("SeekGTE with smaller key: key must value, test case #%d. Expected: %v, actual: %v", i, expectedKV.value, kv.V.Value()))
-	// SeekGTEPrefix with an exact key
-	kv = iter.SeekPrefixGTE(expectedKV.key, expectedKV.key)
-	require.NotNil(t, kv, fmt.Sprintf("SeekGTEPrefix with an exact key must found, test case #%d", i))
-	assertKv(t, expectedKV, kv, i)
-	// SeekGTE with smaller key
-
-	k := generateBytes(prevKV.key, expectedKV.key)
-	assert.Less(t, bytes.Compare(k, expectedKV.key), 0, fmt.Sprintf("a test key must be < than the current key, test case #%d.", i))
-	assert.Greater(t, bytes.Compare(k, prevKV.key), 0, fmt.Sprintf("a test key must be > than the previous key, test case #%d.", i))
-	kv = iter.SeekGTE(k)
-	require.NotNil(t, kv, fmt.Sprintf("SeekGTE with smaller key must found, test case #%d", i))
-	assertKv(t, expectedKV, kv, i)
-}
-
-func validateSeekGTE_MVCC_Key(t *testing.T, iter go_sstable.IIterator, expectedKV kvType, prevKV kvType, i int) {
-	kv := iter.SeekGTE(expectedKV.key)
-	require.NotNil(t, kv, fmt.Sprintf("SeekGTE with an exact key must found, test case #%d", i))
-	assertKv(t, expectedKV, kv, i)
-	require.Zero(t, bytes.Compare(expectedKV.value, kv.V.Value()), fmt.Sprintf("SeekGTE with smaller key: key must value, test case #%d. Expected: %v, actual: %v", i, expectedKV.value, kv.V.Value()))
-	// SeekGTEPrefix with an exact key
-	kv = iter.SeekPrefixGTE(expectedKV.key, expectedKV.key)
-	require.NotNil(t, kv, fmt.Sprintf("SeekGTEPrefix with an exact key must found, test case #%d", i))
-	assertKv(t, expectedKV, kv, i)
-
-	// SeekGTE with smaller prefix key
-	cp := NewMvccComparer()
-	var prevKeyPrefix []byte
-	if len(prevKV.key) > suffixLen {
-		prevKeyPrefix = prevKV.key[:cp.Split(prevKV.key)]
-	}
-	expectKeyPrefix := expectedKV.key[:cp.Split(expectedKV.key)]
-	prefix := generateBytes(prevKeyPrefix, expectKeyPrefix)
-	require.Less(t, bytes.Compare(prefix, expectKeyPrefix), 0, fmt.Sprintf("a test key must be < than the current key, test case #%d.", i))
-	require.Greater(t, bytes.Compare(prefix, prevKeyPrefix), 0, fmt.Sprintf("a test key must be > than the previous key, test case #%d.", i))
-
-	var suf [suffixLen]byte
-	k := append(prefix, suf[:]...)
-	kv = iter.SeekGTE(k)
-	require.NotNil(t, kv, fmt.Sprintf("SeekGTE with smaller key must found, test case #%d", i))
-	assertKv(t, expectedKV, kv, i)
-}
-
-func assertKv(t *testing.T, expectedKV kvType, kv *common.InternalKV, i int) {
-	require.Zero(t, bytes.Compare(expectedKV.key, kv.K.UserKey), fmt.Sprintf("SeekGTE with smaller key: key must match, test case #%d. Expected: %v, actual: %v", i, expectedKV.key, kv.K.UserKey))
-	require.Zero(t, bytes.Compare(expectedKV.value, kv.V.Value()), fmt.Sprintf("SeekGTE with smaller key: key must value, test case #%d. Expected: %v, actual: %v", i, expectedKV.value, kv.V.Value()))
-}
-
-func (w *SSTSuite) Test_Iterator_First_Then_Next_Ops() {
+func (w *SSTSuiteFS) Test_Iterator_First_Then_Next_Ops() {
 	type param struct {
 		name      string
 		restart   int
@@ -1191,14 +1155,13 @@ func (w *SSTSuite) Test_Iterator_First_Then_Next_Ops() {
 
 	sampleSize := 100_000
 
-	t := w.T()
 	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
+		w.Run(tc.name, func() {
+			t := w.T()
 			// Init a table
-			inMemStorage := go_fs.NewInmemStorage()
 			sample := make([][]kvType, 0, tc.sstNum)
 			for sst := 1; sst <= tc.sstNum; sst++ {
-				fileWritable, _, err := inMemStorage.Create(go_fs.TypeTable, go_fs.DiskfileNum(sst))
+				fileWritable, _, err := w.storage.Create(go_fs.TypeTable, go_fs.DiskfileNum(sst))
 				assert.NoError(t, err)
 				writer := go_sstable.NewWriter(
 					fileWritable,
@@ -1223,7 +1186,7 @@ func (w *SSTSuite) Test_Iterator_First_Then_Next_Ops() {
 			for sst := 1; sst <= tc.sstNum; sst++ {
 				eg.Go(func() error {
 					kvs := sample[sst-1]
-					fileReadable, fd, err := inMemStorage.Open(go_fs.TypeTable, go_fs.DiskfileNum(sst))
+					fileReadable, fd, err := w.storage.Open(go_fs.TypeTable, go_fs.DiskfileNum(sst))
 					assert.NoError(t, err)
 					var iterOpts []options.IteratorOptsFunc
 					if tc.cacheSize > 0 {
@@ -1267,7 +1230,7 @@ func (w *SSTSuite) Test_Iterator_First_Then_Next_Ops() {
 	}
 }
 
-func (w *SSTSuite) Test_Iterator_First_Then_Next_Ops_MVCC_colblock() {
+func (w *SSTSuiteFS) Test_Iterator_First_Then_Next_Ops_MVCC_colblock() {
 	type param struct {
 		name      string
 		restart   int
@@ -1374,15 +1337,14 @@ func (w *SSTSuite) Test_Iterator_First_Then_Next_Ops_MVCC_colblock() {
 
 	sampleSize := 100_000
 
-	t := w.T()
 	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
+		w.Run(tc.name, func() {
+			t := w.T()
 			// Init a table
-			inMemStorage := go_fs.NewInmemStorage()
 			sample := make([][]kvType, 0, tc.sstNum)
 			mvccComparer := NewMvccComparer()
 			for sst := 1; sst <= tc.sstNum; sst++ {
-				fileWritable, _, err := inMemStorage.Create(go_fs.TypeTable, go_fs.DiskfileNum(sst))
+				fileWritable, _, err := w.storage.Create(go_fs.TypeTable, go_fs.DiskfileNum(sst))
 				assert.NoError(t, err)
 				writer := go_sstable.NewWriter(
 					fileWritable,
@@ -1408,7 +1370,7 @@ func (w *SSTSuite) Test_Iterator_First_Then_Next_Ops_MVCC_colblock() {
 			for sst := 1; sst <= tc.sstNum; sst++ {
 				eg.Go(func() error {
 					kvs := sample[sst-1]
-					fileReadable, fd, err := inMemStorage.Open(go_fs.TypeTable, go_fs.DiskfileNum(sst))
+					fileReadable, fd, err := w.storage.Open(go_fs.TypeTable, go_fs.DiskfileNum(sst))
 					assert.NoError(t, err)
 					iterOpts := []options.IteratorOptsFunc{
 						options.WithComparer(mvccComparer),
@@ -1454,6 +1416,6 @@ func (w *SSTSuite) Test_Iterator_First_Then_Next_Ops_MVCC_colblock() {
 	}
 }
 
-func TestSSTSuite(t *testing.T) {
-	suite.Run(t, new(SSTSuite))
+func TestSSTSuiteFS(t *testing.T) {
+	suite.Run(t, new(SSTSuiteFS))
 }

@@ -21,8 +21,6 @@ type WalFSSuite struct {
 }
 
 func (w *WalFSSuite) SetupTest() {
-	w.T().Log("Pre-test setup")
-
 	w.wal = go_wal.New(
 		go_wal.WithLocation(go_fs.FileSystem),
 		go_wal.WithDirPath(CommonDirPath),
@@ -35,8 +33,6 @@ func (w *WalFSSuite) SetupTest() {
 }
 
 func (w *WalFSSuite) TearDownTest() {
-	w.T().Logf("TearDown after test")
-
 	err := w.wal.Close(context.Background())
 	require.Nil(w.T(), err)
 
@@ -45,7 +41,6 @@ func (w *WalFSSuite) TearDownTest() {
 	for _, file := range files {
 		if !file.IsDir() {
 			filePath := filepath.Join(CommonDirPath, file.Name())
-			w.T().Logf("remove file %s\n", filePath)
 			_ = os.Remove(filePath)
 		}
 	}

@@ -76,10 +76,6 @@ func (c *ColBlockWriter) Add(key common.InternalKey, value []byte) error {
 
 // Close finishes writing the table and closes the underlying file that the table was written to.
 func (c *ColBlockWriter) Close() error {
-	defer func() {
-		c.storageWriter.Abort()
-	}()
-
 	if c.dataBlock.Rows() > 0 {
 		if err := c.doFlushAll(); err != nil {
 			return err

@@ -56,10 +56,6 @@ func (rw *RowBlockWriter) Add(key common.InternalKey, value []byte) error {
 }
 
 func (rw *RowBlockWriter) Close() error {
-	defer func() {
-		rw.storageWriter.Abort()
-	}()
-
 	// Flush the last (current) data block to the storage
 	if rw.dataBlock.EntryCount() > 0 {
 		// create an index with key ≥ currentKey

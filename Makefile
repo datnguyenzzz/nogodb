@@ -13,10 +13,9 @@ fmt:
 	@gofumpt -l -w .
 
 functional-test:
-	- go clean -cache
-
-	- echo "functional tests for lib/go-wal"
-	- cd lib/go-wal/functional && go test -v -timeout=30m -tags=functional_tests ./...
-
-	- echo "functional tests for lib/go-sstable"
-	- cd lib/go-sstable/functional && go test -v -timeout=30m -tags=functional_tests ./...
+	@go clean -cache
+	@echo "Running functional tests..."
+	@echo "Progress for lib/go-wal:"
+	@cd lib/go-wal/functional && gotestsum --format testname --format-icons hivis -- -timeout=10m -tags=functional_tests ./...
+	@echo "\nProgress for lib/go-sstable:"
+	@cd lib/go-sstable/functional && gotestsum --format testname --format-icons hivis -- -timeout=60m -tags=functional_tests ./...

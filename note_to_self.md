@@ -6,7 +6,7 @@
   - [x] P0: On local disk
   - [ ] P0: Remote storage (S3, ...) -- use [ministack](https://github.com/ministackorg/ministack)
 - Add an exhaustive functional tests (writer --> iterator) for the sstable
-  - [ ] P0: On-local disk
+  - [x] P0: On-local disk
   - [ ] P0: Remote storage (S3, ...)
 - [ ] P1: Add benchmark tests for Iterator + Writer
 - [x] P0: Implement lock-free concurrent ART and benchmark against the current sequential adaptive radix tree
@@ -20,8 +20,8 @@
   - It does this by storing historical versions of key/value pairs. The version number is simply a number that's incremented for every new transaction
   - Each transaction has its own unique version number. When it writes a key/value pair it appends its version number to the key
 - [ ] P2: Write Github workflow to schedule a microbenchmark task to each components
-- [ ] P0: Design the DB public APIs
-- [ ] P0: Implement Fluid LSM tree and Lazy Leveling Merging. Reference: https://nivdayan.github.io/dostoevsky.pdf
+- [ ] P0: Design the DB public APIs and skeleton the main flow
+- [ ] P0: Implement Fluid LSM tree and Lazy Leveling Merging for compaction. Reference: https://nivdayan.github.io/dostoevsky.pdf
 
 ## H2 - 2025
 

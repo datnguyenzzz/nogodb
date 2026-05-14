@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"slices"
 
+	nogodb_common "github.com/datnguyenzzz/nogodb/lib/common"
 	"github.com/datnguyenzzz/nogodb/lib/go-bytesbufferpool/predictable_size"
 	bitmapcodex "github.com/datnguyenzzz/nogodb/lib/go-sstable/block/col_block/codex/bitmap_codex"
 	layoutcodex "github.com/datnguyenzzz/nogodb/lib/go-sstable/block/col_block/codex/layout_codex"
@@ -19,7 +20,7 @@ import (
 
 type DataBlockIter struct {
 	bpool    *predictable_size.PredictablePool
-	comparer common.IComparer
+	comparer nogodb_common.IComparer
 
 	keyDecoder struct {
 		prefix  *prefixbytescodex.PrefixBytesDecoder
@@ -157,7 +158,7 @@ func (i *DataBlockIter) toKv() *common.InternalKV {
 
 func NewDataBlockIter(
 	bp *predictable_size.PredictablePool,
-	cp common.IComparer,
+	cp nogodb_common.IComparer,
 	data *common.InternalLazyValue,
 ) *DataBlockIter {
 	d := &DataBlockIter{

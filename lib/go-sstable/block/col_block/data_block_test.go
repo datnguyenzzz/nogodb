@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	nogodb_common "github.com/datnguyenzzz/nogodb/lib/common"
 	"github.com/datnguyenzzz/nogodb/lib/go-bytesbufferpool/predictable_size"
 	colblock "github.com/datnguyenzzz/nogodb/lib/go-sstable/block/col_block"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
@@ -22,12 +23,12 @@ const (
 )
 
 type mvccComparer struct {
-	common.DefaultComparer
+	nogodb_common.DefaultComparer
 }
 
 func newMvccComparer() *mvccComparer {
 	return &mvccComparer{
-		DefaultComparer: *common.NewComparer(),
+		DefaultComparer: *nogodb_common.NewComparer(),
 	}
 }
 
@@ -35,7 +36,7 @@ func (c *mvccComparer) Split(b []byte) int {
 	return len(b) - suffixLen
 }
 
-var _ common.IComparer = (*mvccComparer)(nil)
+var _ nogodb_common.IComparer = (*mvccComparer)(nil)
 
 func Test_iterating_over_a_block(t *testing.T) {
 	type param struct {

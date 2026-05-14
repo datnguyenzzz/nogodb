@@ -1,6 +1,7 @@
 package col_block
 
 import (
+	nogodb_common "github.com/datnguyenzzz/nogodb/lib/common"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/block"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
 	commonBlock "github.com/datnguyenzzz/nogodb/lib/go-sstable/common/block"
@@ -19,7 +20,7 @@ type IndexWriter struct {
 
 	// utilities
 	flushDecider common.IFlushDecider
-	comparer     common.IComparer
+	comparer     nogodb_common.IComparer
 	compressor   compression.ICompression
 	checksumer   common.IChecksum
 
@@ -37,7 +38,7 @@ type IndexWriter struct {
 func NewIndexWriter(
 	storageWriter storage.ILayoutWriter,
 	flushDecider common.IFlushDecider,
-	comparer common.IComparer,
+	comparer nogodb_common.IComparer,
 	compressor compression.ICompression,
 	checksumer common.IChecksum,
 ) *IndexWriter {

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sync"
 
+	nogodb_common "github.com/datnguyenzzz/nogodb/lib/common"
 	"github.com/datnguyenzzz/nogodb/lib/go-bytesbufferpool/predictable_size"
 	go_fs "github.com/datnguyenzzz/nogodb/lib/go-fs"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/block"
@@ -21,7 +22,7 @@ import (
 // indexedIterator iter is the iteration of the data, received from the given index
 type indexedIterator struct {
 	common.InternalIterator
-	cmp common.IComparer
+	cmp nogodb_common.IComparer
 	ver common.TableVersion
 
 	reader    row_block.IBlockReader
@@ -31,7 +32,7 @@ type indexedIterator struct {
 }
 
 func newIndexedIterator(
-	cmp common.IComparer,
+	cmp nogodb_common.IComparer,
 	ver common.TableVersion,
 	reader row_block.IBlockReader,
 	bpool *predictable_size.PredictablePool,
@@ -111,7 +112,7 @@ func (ii *indexedIterator) Close() error {
 //
 // Todo (med) - Optimisation: Make all functions of DataIterator to be monotonic
 type DataIterator struct {
-	cmp         common.IComparer
+	cmp         nogodb_common.IComparer
 	blockReader row_block.IBlockReader
 	ver         common.TableVersion
 
@@ -350,7 +351,7 @@ func getBlockIter(
 	ver common.TableVersion,
 	blockKind block_common.BlockKind,
 	bp *predictable_size.PredictablePool,
-	cp common.IComparer,
+	cp nogodb_common.IComparer,
 	data *common.InternalLazyValue,
 ) common.InternalIterator {
 	if ver == common.TableV1 {
@@ -372,7 +373,7 @@ func getBlockIter(
 func NewIterator(
 	bpool *predictable_size.PredictablePool, // shared buffer pool across iterator
 	fr go_fs.Readable,
-	cmp common.IComparer,
+	cmp nogodb_common.IComparer,
 	opts *options.IteratorOpts,
 ) (*DataIterator, error) {
 	iter := dataBlockIteratorPool.Get().(*DataIterator)

@@ -1,6 +1,7 @@
 package col_block
 
 import (
+	nogodb_common "github.com/datnguyenzzz/nogodb/lib/common"
 	"github.com/datnguyenzzz/nogodb/lib/go-bytesbufferpool/predictable_size"
 	layoutcodex "github.com/datnguyenzzz/nogodb/lib/go-sstable/block/col_block/codex/layout_codex"
 	rawbytescodex "github.com/datnguyenzzz/nogodb/lib/go-sstable/block/col_block/codex/raw_bytes_codex"
@@ -92,7 +93,7 @@ func (i *KVBlockIter) toKv() *common.InternalKV {
 
 func NewKVBlockIter(
 	bp *predictable_size.PredictablePool,
-	cp common.IComparer,
+	cp nogodb_common.IComparer,
 	data *common.InternalLazyValue,
 ) *KVBlockIter {
 	kv := &KVBlockIter{

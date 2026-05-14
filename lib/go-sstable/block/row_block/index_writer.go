@@ -3,6 +3,7 @@ package row_block
 import (
 	"encoding/binary"
 
+	nogodb_common "github.com/datnguyenzzz/nogodb/lib/common"
 	"github.com/datnguyenzzz/nogodb/lib/go-bytesbufferpool/predictable_size"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/block"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
@@ -32,7 +33,7 @@ type firstLevelIndex struct {
 type indexWriter struct {
 	firstLevelBlock   *rowBlockBuf
 	secondLevelBlock  *rowBlockBuf
-	comparer          common.IComparer
+	comparer          nogodb_common.IComparer
 	compressor        compression.ICompression
 	checksumer        common.IChecksum
 	flushDecider      common.IFlushDecider
@@ -140,7 +141,7 @@ func (w *indexWriter) Release() {
 }
 
 func newIndexWriter(
-	comparer common.IComparer,
+	comparer nogodb_common.IComparer,
 	compressor compression.ICompression,
 	checksumer common.IChecksum,
 	flushDecider common.IFlushDecider,

@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"unsafe"
 
+	nogodb_common "github.com/datnguyenzzz/nogodb/lib/common"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/block/col_block/codex"
-	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
 )
 
 type LayoutDecoder struct {
@@ -39,7 +39,7 @@ func (d *LayoutDecoder) PageOffset(col uint16) uint32 {
 }
 
 func Decode[T codex.EncodableDataType](
-	cp common.IComparer,
+	cp nogodb_common.IComparer,
 	d *LayoutDecoder,
 	col uint16,
 	instructor codex.DecoderInstructor[T],

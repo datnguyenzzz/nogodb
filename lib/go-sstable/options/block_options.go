@@ -1,7 +1,7 @@
 package options
 
 import (
-	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
+	nogodb_common "github.com/datnguyenzzz/nogodb/lib/common"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common/block"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/compression"
 )
@@ -26,7 +26,7 @@ type BlockWriteOpt struct {
 	// The default value is 0.9.
 	BlockSizeThreshold float32
 
-	Comparer common.IComparer
+	Comparer nogodb_common.IComparer
 
 	// Compression defines the per-block compression to use.
 	Compression CompressionOpts

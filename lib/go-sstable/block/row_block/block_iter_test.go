@@ -3,6 +3,7 @@ package row_block
 import (
 	"testing"
 
+	nogodb_common "github.com/datnguyenzzz/nogodb/lib/common"
 	"github.com/datnguyenzzz/nogodb/lib/go-bytesbufferpool/predictable_size"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
 	"github.com/stretchr/testify/assert"
@@ -168,7 +169,7 @@ func TestDataBlockIterator_readEntry(t *testing.T) {
 			blk.Finish(blockData)
 
 			// 2. Create iterator and test readEntry on specific offsets
-			cmp := common.NewComparer()
+			cmp := nogodb_common.NewComparer()
 
 			for _, entry := range tc.testEntries {
 				lz := common.NewBlankInternalLazyValue(common.ValueFromBuffer)
@@ -318,7 +319,7 @@ func TestDataBlockIterator_First(t *testing.T) {
 			blk.Finish(blockData)
 
 			// 2. Create iterator and test First()
-			cmp := common.NewComparer()
+			cmp := nogodb_common.NewComparer()
 			lz := common.NewBlankInternalLazyValue(common.ValueFromBuffer)
 			lz.ReserveBuffer(bp, len(blockData))
 			_ = lz.SetBufferValue(blockData)
@@ -500,7 +501,7 @@ func TestBlockIterator_Next(t *testing.T) {
 			blk.Finish(blockData)
 
 			// 2. Create iterator and test sequential Next() calls
-			cmp := common.NewComparer()
+			cmp := nogodb_common.NewComparer()
 			lz := common.NewBlankInternalLazyValue(common.ValueFromBuffer)
 			lz.ReserveBuffer(bp, len(blockData))
 			_ = lz.SetBufferValue(blockData)
@@ -699,7 +700,7 @@ func TestDataBlockIterator_Last(t *testing.T) {
 			blk.Finish(blockData)
 
 			// 2. Create iterator and test Last()
-			cmp := common.NewComparer()
+			cmp := nogodb_common.NewComparer()
 			lz := common.NewBlankInternalLazyValue(common.ValueFromBuffer)
 			lz.ReserveBuffer(bp, len(blockData))
 			_ = lz.SetBufferValue(blockData)
@@ -881,7 +882,7 @@ func TestDataBlockIterator_Prev(t *testing.T) {
 			blk.Finish(blockData)
 
 			// 2. Create iterator and position it correctly
-			cmp := common.NewComparer()
+			cmp := nogodb_common.NewComparer()
 			lz := common.NewBlankInternalLazyValue(common.ValueFromBuffer)
 			lz.ReserveBuffer(bp, len(blockData))
 			_ = lz.SetBufferValue(blockData)
@@ -1137,7 +1138,7 @@ func TestDataBlockIterator_SeekGTE(t *testing.T) {
 			blk.Finish(blockData)
 
 			// 2. Create iterator and test SeekGTE
-			cmp := common.NewComparer()
+			cmp := nogodb_common.NewComparer()
 			lz := common.NewBlankInternalLazyValue(common.ValueFromBuffer)
 			lz.ReserveBuffer(bp, len(blockData))
 			_ = lz.SetBufferValue(blockData)
@@ -1302,7 +1303,7 @@ func TestBlockIterator_Close(t *testing.T) {
 			blk.Finish(blockData)
 
 			// 2. Create iterator
-			cmp := common.NewComparer()
+			cmp := nogodb_common.NewComparer()
 			lz := common.NewBlankInternalLazyValue(common.ValueFromBuffer)
 			lz.ReserveBuffer(bp, len(blockData))
 			_ = lz.SetBufferValue(blockData)
@@ -1679,7 +1680,7 @@ func TestDataBlockIterator_SeekLTE(t *testing.T) {
 			blk.Finish(blockData)
 
 			// 2. Create iterator and test SeekLT
-			cmp := common.NewComparer()
+			cmp := nogodb_common.NewComparer()
 			lz := common.NewBlankInternalLazyValue(common.ValueFromBuffer)
 			lz.ReserveBuffer(bp, len(blockData))
 			_ = lz.SetBufferValue(blockData)

@@ -1,7 +1,7 @@
 package go_sstable
 
 import (
-	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
+	nogodb_common "github.com/datnguyenzzz/nogodb/lib/common"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/compression"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/options"
 )
@@ -13,10 +13,10 @@ var DefaultWriteOpt = &options.BlockWriteOpt{
 	BlockSize:            4 * 1024,
 	BlockSizeThreshold:   0.9,
 	DefaultCompression:   compression.SnappyCompression,
-	Comparer:             common.NewComparer(),
+	Comparer:             nogodb_common.NewComparer(),
 }
 
-func WithComparer(cp common.IComparer) WriteOptFn {
+func WithComparer(cp nogodb_common.IComparer) WriteOptFn {
 	return func(w *Writer) {
 		w.datablockOpts.Comparer = cp
 	}

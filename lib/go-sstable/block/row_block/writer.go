@@ -3,6 +3,7 @@ package row_block
 import (
 	"fmt"
 
+	nogodb_common "github.com/datnguyenzzz/nogodb/lib/common"
 	"github.com/datnguyenzzz/nogodb/lib/go-bytesbufferpool/predictable_size"
 	go_fs "github.com/datnguyenzzz/nogodb/lib/go-fs"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/block"
@@ -26,7 +27,7 @@ type RowBlockWriter struct {
 	metaIndexBlock  *rowBlockBuf
 	indexWriter     *indexWriter
 	flushDecider    common.IFlushDecider
-	comparer        common.IComparer
+	comparer        nogodb_common.IComparer
 	filterWriter    filter.IWriter
 	compressors     compressorPerBlock
 	checksumer      common.IChecksum
@@ -222,7 +223,7 @@ func NewRowBlockWriter(w go_fs.Writable, opts options.BlockWriteOpt, version com
 		c[blockKind] = compression.NewCompressor(opts.Compression[blockKind])
 	}
 	crc32Checksum := common.NewChecksumer(common.CRC32Checksum)
-	comparer := common.NewComparer()
+	comparer := nogodb_common.NewComparer()
 	flushDecider := common.NewFlushDecider(opts.BlockSize, opts.BlockSizeThreshold)
 	storageWriter := storage.NewLayoutWriter(w)
 	bp := predictable_size.NewPredictablePool()

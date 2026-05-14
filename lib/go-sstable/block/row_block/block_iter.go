@@ -3,6 +3,7 @@ package row_block
 import (
 	"encoding/binary"
 
+	nogodb_common "github.com/datnguyenzzz/nogodb/lib/common"
 	"github.com/datnguyenzzz/nogodb/lib/go-bytesbufferpool/predictable_size"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
 	"go.uber.org/zap"
@@ -26,7 +27,7 @@ type BlockIterator struct {
 	numRestarts   int32
 	restartPoints []int32
 	// auxiliary
-	cmp common.IComparer
+	cmp nogodb_common.IComparer
 	// TODO(high): Need to explore how to cache the block, that have been iterated through.
 	//  For example, in the Last() or Prev() function, we will need to jump to certain
 	//  restart points, then keep moving forward until we hit the target offset. This means
@@ -240,7 +241,7 @@ func (i *BlockIterator) readEntry() {
 // and set the cursor at the first position
 func NewBlockIterator(
 	bpool *predictable_size.PredictablePool,
-	cmp common.IComparer,
+	cmp nogodb_common.IComparer,
 	data *common.InternalLazyValue,
 ) *BlockIterator {
 	// refer to the README to understand the data layout

@@ -1,9 +1,9 @@
 package go_sstable
 
 import (
+	nogodb_common "github.com/datnguyenzzz/nogodb/lib/common"
 	"github.com/datnguyenzzz/nogodb/lib/go-bytesbufferpool/predictable_size"
 	go_fs "github.com/datnguyenzzz/nogodb/lib/go-fs"
-	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/iterators"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/options"
 )
@@ -17,7 +17,7 @@ func NewSingularIterator(
 	optFuncs ...options.IteratorOptsFunc,
 ) (IIterator, error) {
 	o := &options.IteratorOpts{
-		Comparer: common.NewComparer(),
+		Comparer: nogodb_common.NewComparer(),
 	} // default is no cache
 
 	for _, f := range optFuncs {

@@ -1,19 +1,19 @@
 package options
 
 import (
+	nogodb_common "github.com/datnguyenzzz/nogodb/lib/common"
 	go_block_cache "github.com/datnguyenzzz/nogodb/lib/go-block-cache"
 	go_fs "github.com/datnguyenzzz/nogodb/lib/go-fs"
-	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
 )
 
 type IteratorOptsFunc func(opts *IteratorOpts)
 
 type IteratorOpts struct {
 	CacheOpts *CacheOptions
-	Comparer  common.IComparer
+	Comparer  nogodb_common.IComparer
 }
 
-func WithComparer(comparer common.IComparer) IteratorOptsFunc {
+func WithComparer(comparer nogodb_common.IComparer) IteratorOptsFunc {
 	return func(opts *IteratorOpts) {
 		opts.Comparer = comparer
 	}

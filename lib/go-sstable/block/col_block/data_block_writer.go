@@ -3,6 +3,7 @@ package col_block
 import (
 	"fmt"
 
+	nogodb_common "github.com/datnguyenzzz/nogodb/lib/common"
 	bitmapcodex "github.com/datnguyenzzz/nogodb/lib/go-sstable/block/col_block/codex/bitmap_codex"
 	layoutcodex "github.com/datnguyenzzz/nogodb/lib/go-sstable/block/col_block/codex/layout_codex"
 	prefixbytescodex "github.com/datnguyenzzz/nogodb/lib/go-sstable/block/col_block/codex/prefix_bytes_codex"
@@ -24,7 +25,7 @@ var columnsOrder = []string{
 }
 
 type DataBlockWriter struct {
-	comparer common.IComparer
+	comparer nogodb_common.IComparer
 
 	keyEncoder struct {
 		// prefix stores the prefix of an user key, aka an actual user key
@@ -150,7 +151,7 @@ func (d *DataBlockWriter) Finish(rows uint32, size int) (finished []byte) {
 	return finished
 }
 
-func NewDataBlockWriter(comparer common.IComparer) *DataBlockWriter {
+func NewDataBlockWriter(comparer nogodb_common.IComparer) *DataBlockWriter {
 	d := &DataBlockWriter{
 		comparer: comparer,
 	}

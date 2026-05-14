@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"testing"
 
+	nogodb_common "github.com/datnguyenzzz/nogodb/lib/common"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -44,7 +45,7 @@ func TestInternalKeyCompare(t *testing.T) {
 		"\xff\xff" + "\x01\xff\xff\xff\xff\xff\xff\xff",
 		"\xff\xff" + "\x00\x00\x00\x00\x00\x00\x00\x00",
 	}
-	c := NewComparer()
+	c := nogodb_common.NewComparer()
 	for i := range keys {
 		for j := range keys {
 			ik := DeserializeKey([]byte(keys[i]))

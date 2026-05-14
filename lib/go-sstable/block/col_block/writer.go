@@ -3,6 +3,7 @@ package col_block
 import (
 	"fmt"
 
+	nogodb_common "github.com/datnguyenzzz/nogodb/lib/common"
 	go_fs "github.com/datnguyenzzz/nogodb/lib/go-fs"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/block"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
@@ -35,7 +36,7 @@ type ColBlockWriter struct {
 
 	// utilities
 	flushDecider common.IFlushDecider
-	comparer     common.IComparer
+	comparer     nogodb_common.IComparer
 	compressors  compression.ICompression
 	checksumer   common.IChecksum
 

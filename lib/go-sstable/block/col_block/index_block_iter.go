@@ -1,6 +1,7 @@
 package col_block
 
 import (
+	nogodb_common "github.com/datnguyenzzz/nogodb/lib/common"
 	"github.com/datnguyenzzz/nogodb/lib/go-bytesbufferpool/predictable_size"
 	layoutcodex "github.com/datnguyenzzz/nogodb/lib/go-sstable/block/col_block/codex/layout_codex"
 	rawbytescodex "github.com/datnguyenzzz/nogodb/lib/go-sstable/block/col_block/codex/raw_bytes_codex"
@@ -12,7 +13,7 @@ import (
 
 type IndexBlockIter struct {
 	bpool    *predictable_size.PredictablePool
-	comparer common.IComparer
+	comparer nogodb_common.IComparer
 
 	// index block key's only contain UserKeys
 	keyDecoder *rawbytescodex.RawBytesDecoder
@@ -132,7 +133,7 @@ func (i *IndexBlockIter) toKv() *common.InternalKV {
 
 func NewIndexBlockIter(
 	bp *predictable_size.PredictablePool,
-	cp common.IComparer,
+	cp nogodb_common.IComparer,
 	data *common.InternalLazyValue,
 ) *IndexBlockIter {
 	d := &IndexBlockIter{

@@ -19,7 +19,7 @@ func NullNodeKey() *nodeKey {
 }
 
 func (k *nodeKey) IsNull() bool {
-	return !k.set
+	return k == nil || !k.set
 }
 
 // Compare return -1,0,1 if a k is less than, equal, greater than k2, respectively

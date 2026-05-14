@@ -26,6 +26,7 @@ jobs:
           - go-sstable
           - go-wal
           - go-adaptive-rate-limiter
+          - common
 
     steps:
     - uses: actions/checkout@v4

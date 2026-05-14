@@ -10,6 +10,9 @@ on:
     paths:
       - 'lib/**'
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -48,65 +51,42 @@ jobs:
         name: coverage-${{ matrix.package }}
         path: lib/${{ matrix.package }}/coverage.txt
 
-  update-readme:
+  report-coverage:
     needs: test
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/master'
-    
+
     steps:
-    - uses: actions/checkout@v4
-      with:
-        token: ${{ secrets.GITHUB_TOKEN }}
-    
     - name: Download all coverage artifacts
       uses: actions/download-artifact@v4
       with:
         path: coverage-reports
-    
-    - name: Generate coverage report and update README
+
+    - name: Generate coverage report summary
       run: |
-        echo "## Test Coverage" > coverage_section.md
-        echo "" >> coverage_section.md
-        echo "| Package | Coverage |" >> coverage_section.md
-        echo "|---------|----------|" >> coverage_section.md
-        
-        for dir in coverage-reports/coverage-*; do
+        echo "## Test Coverage Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "| Package | Coverage |" >> $GITHUB_STEP_SUMMARY
+        echo "|---------|----------|" >> $GITHUB_STEP_SUMMARY
+
+        # Sort directories to ensure consistent order in summary
+        for dir in $(ls -d coverage-reports/coverage-* | sort); do
           package_name=$(basename "$dir" | sed 's/coverage-//')
           if [ -f "$dir/coverage.txt" ]; then
             coverage=$(cat "$dir/coverage.txt")
             # Extract numeric value from coverage percentage
             coverage_num=$(echo "$coverage" | sed 's/%//' | sed 's/\..*//')
-            
+
             # Determine color based on coverage percentage
             if [ "$coverage_num" -lt 50 ]; then
-              color_badge="![Coverage](https://img.shields.io/badge/coverage-$coverage_num-red)"
+              color_badge="![Coverage](https://img.shields.io/badge/coverage-$coverage_num%-red)"
             elif [ "$coverage_num" -lt 75 ]; then
-              color_badge="![Coverage](https://img.shields.io/badge/coverage-$coverage_num-yellow)"
+              color_badge="![Coverage](https://img.shields.io/badge/coverage-$coverage_num%-yellow)"
             else
-              color_badge="![Coverage](https://img.shields.io/badge/coverage-$coverage_num-green)"
+              color_badge="![Coverage](https://img.shields.io/badge/coverage-$coverage_num%-green)"
             fi
-            
-            echo "| $package_name | $color_badge |" >> coverage_section.md
+
+            echo "| $package_name | $color_badge |" >> $GITHUB_STEP_SUMMARY
           else
-            echo "| $package_name | ![Coverage](https://img.shields.io/badge/coverage-N%2FA-lightgrey) |" >> coverage_section.md
+            echo "| $package_name | ![Coverage](https://img.shields.io/badge/coverage-N%2FA-lightgrey) |" >> $GITHUB_STEP_SUMMARY
           fi
         done
-        
-        # Remove existing coverage section if it exists
-        sed -i '/## Test Coverage/,/^## /d; /## Test Coverage/,$ { /## Test Coverage/d; }' README.md
-        
-        # Append coverage section at the end of README
-        echo "" >> README.md
-        cat coverage_section.md >> README.md
-    
-    - name: Commit coverage update
-      run: |
-        git config --local user.email "action@github.com"
-        git config --local user.name "GitHub Action"
-        git add README.md
-        if git diff --staged --quiet; then
-          echo "No changes to commit"
-        else
-          git commit -m "Update test coverage in README [skip ci]"
-          git push
-        fi

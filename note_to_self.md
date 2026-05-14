@@ -14,13 +14,12 @@
 -   [x] P0: Implement Sharding on the go-block-cache
 - [x] P0: Implement columnar block format in the go-sstable
   - [x] P0: Research on the key prefix compression , similarly performed by rowblk
-  - [!Important] The key don't need to have a MVCC version yet
 - [x] P1: Learn about the MVCC and how to apply it on the go-sstables
   - MVCC provides "an isolation level" called "snapshot isolation"
   - It does this by storing historical versions of key/value pairs. The version number is simply a number that's incremented for every new transaction
   - Each transaction has its own unique version number. When it writes a key/value pair it appends its version number to the key
 - [ ] P2: Write Github workflow to schedule a microbenchmark task to each components
-- [ ] P0: Design the DB public APIs and skeleton the main flow
+- [ ] P0 - **ongoing**: Design the DB public APIs and skeleton the main flow
 - [ ] P0: Implement Fluid LSM tree and Lazy Leveling Merging for compaction. Reference: https://nivdayan.github.io/dostoevsky.pdf
 
 ## H2 - 2025

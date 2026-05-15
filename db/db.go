@@ -118,5 +118,10 @@ var (
 func Open(dirName string, opt Options) (*DB, error) {
 	opt.SetDefault()
 	db := &DB{}
+
+	// TODO(high): reads the named database directory and recovers
+	// the set of files encoding the database state at the moment the previous
+	// process exited.
+
 	return db, nil
 }

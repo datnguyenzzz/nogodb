@@ -5,7 +5,6 @@ import (
 )
 
 const (
-	// TODO Make this configurable from 1->20
 	defaultBitsPerKeys = 10
 	blockBytesSize     = 64                 // Fit 1 CPU cache line
 	blockBitsSize      = 8 * blockBytesSize // Fit 1 CPU cache line

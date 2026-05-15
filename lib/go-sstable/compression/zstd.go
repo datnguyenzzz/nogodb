@@ -9,7 +9,6 @@ import (
 )
 
 const (
-	// TODO(low) make this configurable
 	defaultLevel = 3
 )
 

@@ -12,7 +12,7 @@ import (
 	"go.uber.org/zap"
 )
 
-// TODO P1. support a function to determine and delete the obsolete WAL files
+// TODO(high). support a function to determine and delete the obsolete WAL files
 
 func New(opts ...OptionFn) *WAL {
 	wal := &WAL{
@@ -159,7 +159,6 @@ func (w *WAL) Write(ctx context.Context, data []byte) (*Position, error) {
 
 	// if the active page doesn't have enough space to hold the data
 	if w.activePage.Size()+int64(estimateNeededSpaces(data)) > w.opts.pageSize {
-		// TODO sync the current active page, move it to immutable, and create new one
 		if err := w.activePage.Sync(ctx); err != nil {
 			zap.L().Error("Failed to sync file to the stable storage", zap.Error(err))
 			return nil, err

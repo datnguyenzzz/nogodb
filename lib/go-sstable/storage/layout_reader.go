@@ -34,8 +34,6 @@ func (l layoutReader) Close() error {
 }
 
 func NewLayoutReader(fsReader go_fs.Readable) ILayoutReader {
-	// TODO(high): Not every read requests need a read-ahead improvement
-	//  need to support caller to have an option to opt-in / opt-out the read ahead optimization
 	return &layoutReader{
 		fsReader: fsReader,
 	}

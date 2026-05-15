@@ -27,9 +27,6 @@ func makeDummyBuffer(size int) []byte {
 	return buf
 }
 
-// TODO:
-//   Benchmark the Unpredictable size
-
 func Benchmark_SyncPool_Buffer(b *testing.B) {
 	for b.Loop() {
 		sPool := sync.Pool{

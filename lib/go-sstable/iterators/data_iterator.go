@@ -293,7 +293,7 @@ func (i *DataIterator) IsClosed() bool {
 }
 
 func (i *DataIterator) readMetaIndexBlock(footer *block.Footer) error {
-	// TODO (medium - dat.ngthanh): Should we cache the metaIndex block ?
+	// TODO(low): Should we cache the metaIndex block ?
 	// Read and decode the meta index block
 	metaIndexBuf, err := i.blockReader.Read(footer.GetMetaIndex(), block_common.BlockKindMetaIntex)
 	if err != nil {
@@ -326,7 +326,7 @@ func (i *DataIterator) init2ndLevelIndexBlockIterator() error {
 		zap.L().Error("the secondLevelIndex block handle is nil")
 		return fmt.Errorf("%w: the secondLevelIndex block handle is nil", common.InternalServerError)
 	}
-	// TODO (low - dat.ngthanh): Should we cache the 2nd level index block ?
+	// TODO(low): Should we cache the 2nd level index block ?
 	secondLevelIndexBuf, err := i.blockReader.Read(i.secondLevelIndexBH, block_common.BlockKindIndex)
 	if err != nil {
 		zap.L().Error("failed to read secondLevelIndexBlock", zap.Error(err))

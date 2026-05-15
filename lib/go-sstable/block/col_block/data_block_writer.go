@@ -161,7 +161,7 @@ func NewDataBlockWriter(comparer nogodb_common.IComparer) *DataBlockWriter {
 		suffix rawbytescodex.RawByteEncoder
 	}{
 		prefix: prefixbytescodex.PrefixBytesEncoder{
-			// TODO(datnguyenzzz): Make this configurable
+			// TODO(low): Make this configurable
 			BundleSize: defaultBundleSize,
 		},
 		suffix: rawbytescodex.RawByteEncoder{},

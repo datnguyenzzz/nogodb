@@ -19,6 +19,3 @@ type IWriter interface {
 type IIterator interface {
 	common.InternalIterator
 }
-
-// TODO(med): Support functions can be exposed as a reader IReader,
-//  given that most of the cases the outsider caller only use iterator

@@ -28,15 +28,9 @@ type BlockIterator struct {
 	restartPoints []int32
 	// auxiliary
 	cmp nogodb_common.IComparer
-	// TODO(high): Need to explore how to cache the block, that have been iterated through.
-	//  For example, in the Last() or Prev() function, we will need to jump to certain
-	//  restart points, then keep moving forward until we hit the target offset. This means
-	//  certain blocks will have been iterated through when performing those actions.
-	//  We can cache those blocks to skip re-computation.
 }
 
 func (i *BlockIterator) SeekPrefixGTE(prefix, key []byte) *common.InternalKV {
-	// TODO implement me
 	panic("Block Iterator doesn't support SeekPrefixGE, this kind of function should be handled in the higher level iteration")
 }
 

@@ -76,7 +76,6 @@ func (c *clockPro) Promote(node *kv, diffSize int64, o op) bool {
 			if l.clockType == hot {
 				c.sizeHot += diffSize
 			} else {
-				// TODO (low): should we move to hot ?
 				c.sizeCold += diffSize
 			}
 

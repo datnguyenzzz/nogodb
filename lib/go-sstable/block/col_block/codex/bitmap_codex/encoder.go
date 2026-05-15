@@ -5,7 +5,6 @@ import (
 	uintcodex "github.com/datnguyenzzz/nogodb/lib/go-sstable/block/col_block/codex/uint_codex"
 )
 
-// TODO(med): Can enhance the BitmapEncoder to leverage Roaring Bitmap
 type BitmapEncoder struct {
 	// rows captures what is the maximum rows that the bitmap is holding
 	// bitmap holds all number within range [0...rows-1]

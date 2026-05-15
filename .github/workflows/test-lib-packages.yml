@@ -42,6 +42,7 @@ jobs:
     - name: Test ${{ matrix.package }} with coverage
       run: |
         cd lib/${{ matrix.package }}
+        go clean -testcache
         go test -v -coverprofile=coverage.out ./...
         go tool cover -func=coverage.out | tail -1 | awk '{print $3}' > coverage.txt
     

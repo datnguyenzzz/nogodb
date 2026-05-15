@@ -6,6 +6,12 @@ golangci-lint: install-golangci-lint
 		(cd $$dir && golangci-lint run --config $(CURDIR)/.golangci.yaml) || exit 1; \
 	done
 
+test:
+	@for dir in $$(find lib -maxdepth 2 -name go.mod -exec dirname {} \;); do \
+		echo "Testing $$dir..."; \
+		(cd $$dir && go test -v ./...) || exit 1; \
+	done
+
 install-golangci-lint:
 	which golangci-lint && (golangci-lint --version | grep -q $(GOLANGCI_LINT_VERSION)) || curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(shell go env GOPATH)/bin v$(GOLANGCI_LINT_VERSION)
 

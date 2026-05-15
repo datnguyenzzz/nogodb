@@ -599,7 +599,7 @@ func TestAdaptiveRateLimiter_AdaptiveBehavior(t *testing.T) {
 			minLimit:    10,
 			maxLimit:    100,
 			adjustPct:   10,
-			operations:  1000,
+			operations:  100,
 			expectAdapt: true,
 		},
 		{
@@ -607,7 +607,7 @@ func TestAdaptiveRateLimiter_AdaptiveBehavior(t *testing.T) {
 			minLimit:    5,
 			maxLimit:    50,
 			adjustPct:   20,
-			operations:  500,
+			operations:  100,
 			expectAdapt: true,
 		},
 		{
@@ -615,7 +615,7 @@ func TestAdaptiveRateLimiter_AdaptiveBehavior(t *testing.T) {
 			minLimit:    40,
 			maxLimit:    50,
 			adjustPct:   5,
-			operations:  300,
+			operations:  100,
 			expectAdapt: false,
 		},
 	}

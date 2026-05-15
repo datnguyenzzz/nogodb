@@ -15,7 +15,8 @@ type Value []byte
 type CacheType byte
 
 const (
-	LRU CacheType = iota
+	Unknown CacheType = iota
+	LRU
 	ClockPro
 )
 

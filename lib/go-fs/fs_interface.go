@@ -54,6 +54,16 @@ type FS interface {
 	// Remove removes the named file or directory.
 	Remove(name string) error
 
+	// Lock locks the given file, creating the file if necessary, and
+	// truncating the file if it already exists. The lock is an exclusive lock
+	// (a write lock), but locked files should neither be read from nor written
+	// to. Such files should have zero size and only exist to co-ordinate
+	// ownership across processes.
+	//
+	// Attempting to lock a file that is already locked by the current process
+	// returns an error and leaves the existing lock untouched.
+	Lock(name string) (io.Closer, error)
+
 	// // Remove removes the named file or directory and any children it
 	// // contains. It removes everything it can but returns the first error it
 	// // encounters.
@@ -81,8 +91,8 @@ type FS interface {
 	// separator if necessary.
 	PathJoin(elem ...string) string
 
-	// // PathDir returns all but the last element of path, typically the path's directory.
-	// PathDir(path string) string
+	// PathDir returns all but the last element of path, typically the path's directory.
+	PathDir(path string) string
 
 	// // GetDiskUsage returns disk space statistics for the filesystem where
 	// // path is any file or directory within that filesystem.

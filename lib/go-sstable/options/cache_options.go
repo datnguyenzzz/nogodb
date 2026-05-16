@@ -1,8 +1,8 @@
 package options
 
 import (
+	nogodb_common "github.com/datnguyenzzz/nogodb/lib/common"
 	go_block_cache "github.com/datnguyenzzz/nogodb/lib/go-block-cache"
-	go_fs "github.com/datnguyenzzz/nogodb/lib/go-fs"
 )
 
 const (
@@ -12,6 +12,6 @@ const (
 type CacheOptions struct {
 	CacheMethod go_block_cache.CacheType
 	MaxSize     int64
-	FileNum     go_fs.DiskfileNum
+	FileNum     nogodb_common.DiskfileNum
 	ShardNum    int
 }

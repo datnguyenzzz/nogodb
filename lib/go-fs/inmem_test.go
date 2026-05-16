@@ -8,6 +8,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
+
+	nogodb_common "github.com/datnguyenzzz/nogodb/lib/common"
 )
 
 func Test_Create_And_Open(t *testing.T) {
@@ -20,7 +22,7 @@ func Test_Create_And_Open(t *testing.T) {
 
 	type param struct {
 		name             string
-		fileCountPerType map[ObjectType]int
+		fileCountPerType map[nogodb_common.ObjectType]int
 		fileSize         int
 		async            bool
 	}
@@ -31,20 +33,20 @@ func Test_Create_And_Open(t *testing.T) {
 		{
 			name:  "async",
 			async: true,
-			fileCountPerType: map[ObjectType]int{
-				TypeManifest: 1,
-				TypeTable:    3,
-				TypeWAL:      2,
+			fileCountPerType: map[nogodb_common.ObjectType]int{
+				nogodb_common.TypeManifest: 1,
+				nogodb_common.TypeTable:    3,
+				nogodb_common.TypeWAL:      2,
 			},
 			fileSize: 5,
 		},
 		{
 			name:  "sync",
 			async: true,
-			fileCountPerType: map[ObjectType]int{
-				TypeManifest: 1,
-				TypeTable:    3,
-				TypeWAL:      2,
+			fileCountPerType: map[nogodb_common.ObjectType]int{
+				nogodb_common.TypeManifest: 1,
+				nogodb_common.TypeTable:    3,
+				nogodb_common.TypeWAL:      2,
 			},
 			fileSize: 5,
 		},
@@ -57,7 +59,7 @@ func Test_Create_And_Open(t *testing.T) {
 			// create files
 			for fileType, num := range tc.fileCountPerType {
 				for i := range num {
-					writer, fd, err := storage.Create(fileType, DiskfileNum(i))
+					writer, fd, err := storage.Create(fileType, nogodb_common.DiskfileNum(i))
 					assert.NoError(t, err, "can not create file")
 					writers[fd] = writer
 				}
@@ -73,7 +75,7 @@ func Test_Create_And_Open(t *testing.T) {
 
 			for fileType, num := range tc.fileCountPerType {
 				for i := range num {
-					fd, err := storage.LookUp(fileType, DiskfileNum(i))
+					fd, err := storage.LookUp(fileType, nogodb_common.DiskfileNum(i))
 					assert.NoError(t, err, "can not look up file")
 					eg.Go(func() error {
 						writer, ok := writers[fd]
@@ -101,7 +103,7 @@ func Test_Create_And_Open(t *testing.T) {
 			// assert file content
 			for fileType, num := range tc.fileCountPerType {
 				for i := range num {
-					reader, fd, err := storage.Open(fileType, DiskfileNum(i))
+					reader, fd, err := storage.Open(fileType, nogodb_common.DiskfileNum(i))
 					assert.NoError(t, err, "can not open file")
 					_, ok := writers[fd]
 					assert.True(t, ok, fmt.Sprintf("can not find writer for %#v", fd))
@@ -121,9 +123,9 @@ func Test_Create_And_Open(t *testing.T) {
 func Test_Read_During_Write(t *testing.T) {
 	storage := NewInmemStorage()
 	fid := 1
-	writer, _, err := storage.Create(TypeWAL, DiskfileNum(fid))
+	writer, _, err := storage.Create(nogodb_common.TypeWAL, nogodb_common.DiskfileNum(fid))
 	require.NoError(t, err)
-	reader, _, err := storage.Open(TypeWAL, DiskfileNum(fid))
+	reader, _, err := storage.Open(nogodb_common.TypeWAL, nogodb_common.DiskfileNum(fid))
 	require.NoError(t, err)
 	// first write
 	n, err := writer.Write([]byte{1, 2, 3, 4, 5})

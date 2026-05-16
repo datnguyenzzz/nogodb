@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"io"
 	"sync/atomic"
+
+	nogodb_common "github.com/datnguyenzzz/nogodb/lib/common"
 )
 
 type DirLockSet struct {
@@ -47,7 +49,7 @@ type DirLock struct {
 }
 
 func LockDir(dirName string, fs FS) (*DirLock, error) {
-	path := fs.PathJoin(dirName, ObjectTypeToString[TypeLock])
+	path := fs.PathJoin(dirName, nogodb_common.ObjectTypeToString[nogodb_common.TypeLock])
 
 	fileLock, err := fs.Lock(path)
 	if err != nil {

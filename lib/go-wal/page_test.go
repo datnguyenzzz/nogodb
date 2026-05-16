@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"testing"
 
+	nogodb_common "github.com/datnguyenzzz/nogodb/lib/common"
 	go_fs "github.com/datnguyenzzz/nogodb/lib/go-fs"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -199,7 +200,7 @@ func Test_writeToMemBuffer(t *testing.T) {
 	for i, tc := range testCases {
 		t.Run(tc.testName, func(t *testing.T) {
 			storage := go_fs.NewInmemStorage()
-			writer, _, err := storage.Create(go_fs.TypeWAL, go_fs.DiskfileNum(i))
+			writer, _, err := storage.Create(nogodb_common.TypeWAL, nogodb_common.DiskfileNum(i))
 			require.NoError(t, err)
 			ctx := context.Background()
 			p := tc.pageInfo

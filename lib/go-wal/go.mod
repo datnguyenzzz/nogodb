@@ -6,7 +6,10 @@ replace github.com/datnguyenzzz/nogodb/lib/go-bytesbufferpool => ../go-bytesbuff
 
 replace github.com/datnguyenzzz/nogodb/lib/go-fs => ../go-fs
 
+replace github.com/datnguyenzzz/nogodb/lib/common => ../common
+
 require (
+	github.com/datnguyenzzz/nogodb/lib/common v0.0.0-00010101000000-000000000000
 	github.com/datnguyenzzz/nogodb/lib/go-bytesbufferpool v0.0.0-00010101000000-000000000000
 	github.com/datnguyenzzz/nogodb/lib/go-fs v0.0.0-00010101000000-000000000000
 	github.com/stretchr/testify v1.11.1

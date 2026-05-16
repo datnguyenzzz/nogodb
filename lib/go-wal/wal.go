@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	nogodb_common "github.com/datnguyenzzz/nogodb/lib/common"
 	go_fs "github.com/datnguyenzzz/nogodb/lib/go-fs"
 	"go.uber.org/zap"
 )
@@ -49,7 +50,7 @@ func New(opts ...OptionFn) *WAL {
 
 func (w *WAL) Open(ctx context.Context) error {
 	// loads all existing pages file
-	pageEntries := w.storage.List(go_fs.TypeWAL)
+	pageEntries := w.storage.List(nogodb_common.TypeWAL)
 
 	pageIDs := make([]PageID, 0, len(pageEntries))
 	for _, fd := range pageEntries {
@@ -239,13 +240,13 @@ func (w *WAL) openPage(id PageID, mode PageAccessMode) (*Page, error) {
 	var writer go_fs.Writable
 	if mode == PageAccessModeReadWrite {
 		var err error
-		writer, _, err = w.storage.Create(go_fs.TypeWAL, go_fs.DiskfileNum(id))
+		writer, _, err = w.storage.Create(nogodb_common.TypeWAL, nogodb_common.DiskfileNum(id))
 		if err != nil {
 			zap.L().Error("Failed to create page", zap.Error(err))
 			return nil, err
 		}
 	}
-	reader, _, err := w.storage.Open(go_fs.TypeWAL, go_fs.DiskfileNum(id))
+	reader, _, err := w.storage.Open(nogodb_common.TypeWAL, nogodb_common.DiskfileNum(id))
 	if err != nil {
 		zap.L().Error("Failed to open page", zap.Error(err))
 		return nil, err

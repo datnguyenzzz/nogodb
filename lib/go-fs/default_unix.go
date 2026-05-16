@@ -10,6 +10,7 @@ import (
 	"sync"
 	"syscall"
 
+	nogodb_common "github.com/datnguyenzzz/nogodb/lib/common"
 	"golang.org/x/sys/unix"
 )
 
@@ -40,7 +41,7 @@ func (f *defaultUnix) OpenDir(name string) (File, error) {
 	return wrapOSFile(file), nil
 }
 
-func (f *defaultUnix) Create(name string, objType ObjectType) (File, error) {
+func (f *defaultUnix) Create(name string, objType nogodb_common.ObjectType) (File, error) {
 	const openFlags = os.O_RDWR | os.O_CREATE | os.O_EXCL | syscall.O_CLOEXEC
 	osFile, err := os.OpenFile(name, openFlags, 0o666)
 	// If the file already exists, remove it and try again.

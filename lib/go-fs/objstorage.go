@@ -3,32 +3,8 @@ package go_fs
 import (
 	"errors"
 	"io"
-)
 
-type DiskfileNum int64
-
-type ObjectType byte
-
-const (
-	TypeManifest ObjectType = iota
-	TypeTable
-	TypeWAL
-	TypeLock
-)
-
-var (
-	ObjectTypeFromString = map[string]ObjectType{
-		"manifest": TypeManifest,
-		"sst":      TypeTable,
-		"wal":      TypeWAL,
-		"LOCK":     TypeLock,
-	}
-	ObjectTypeToString = map[ObjectType]string{
-		TypeManifest: "manifest",
-		TypeTable:    "sst",
-		TypeWAL:      "wal",
-		TypeLock:     "LOCK",
-	}
+	nogodb_common "github.com/datnguyenzzz/nogodb/lib/common"
 )
 
 type Location byte
@@ -40,13 +16,13 @@ const (
 )
 
 type FileDesc struct {
-	Type ObjectType
-	Num  DiskfileNum
+	Type nogodb_common.ObjectType
+	Num  nogodb_common.DiskfileNum
 	Loc  Location
 }
 
-func FromFileDescToFileNum(fd FileDesc) DiskfileNum {
-	return DiskfileNum(int64(fd.Num)<<8 | int64(fd.Type))
+func FromFileDescToFileNum(fd FileDesc) nogodb_common.DiskfileNum {
+	return nogodb_common.DiskfileNum(int64(fd.Num)<<8 | int64(fd.Type))
 }
 
 var (
@@ -95,21 +71,21 @@ type Readable interface {
 // storage.
 type Storage interface {
 	// Open opens an existing object with the given 'file descriptor' read-only.
-	Open(objType ObjectType, num DiskfileNum) (Readable, FileDesc, error)
+	Open(objType nogodb_common.ObjectType, num nogodb_common.DiskfileNum) (Readable, FileDesc, error)
 
 	// Create creates a new object and opens it for writing.
 	//
 	// The object is not guaranteed to be durable (accessible in case of crashes)
 	// until Sync is called.
-	Create(objType ObjectType, num DiskfileNum) (Writable, FileDesc, error)
+	Create(objType nogodb_common.ObjectType, num nogodb_common.DiskfileNum) (Writable, FileDesc, error)
 
 	// LookUp returns the metadata of an object that is already exists
 	// it doesn't perform any I/O operations
-	LookUp(objType ObjectType, num DiskfileNum) (FileDesc, error)
+	LookUp(objType nogodb_common.ObjectType, num nogodb_common.DiskfileNum) (FileDesc, error)
 
-	Remove(objType ObjectType, num DiskfileNum) error
+	Remove(objType nogodb_common.ObjectType, num nogodb_common.DiskfileNum) error
 
-	List(objType ObjectType) []FileDesc
+	List(objType nogodb_common.ObjectType) []FileDesc
 
 	Close() error
 }

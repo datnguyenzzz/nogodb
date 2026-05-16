@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"io"
 	"sync"
+
+	nogodb_common "github.com/datnguyenzzz/nogodb/lib/common"
 )
 
 type fileId int64
@@ -88,7 +90,7 @@ func NewInmemStorage() Storage {
 	}
 }
 
-func (i *inmemStorage) Open(objType ObjectType, num DiskfileNum) (Readable, FileDesc, error) {
+func (i *inmemStorage) Open(objType nogodb_common.ObjectType, num nogodb_common.DiskfileNum) (Readable, FileDesc, error) {
 	i.mu.Lock()
 	defer i.mu.Unlock()
 
@@ -100,7 +102,7 @@ func (i *inmemStorage) Open(objType ObjectType, num DiskfileNum) (Readable, File
 	return nil, FileDesc{}, errFileNotFound
 }
 
-func (i *inmemStorage) Create(objType ObjectType, num DiskfileNum) (Writable, FileDesc, error) {
+func (i *inmemStorage) Create(objType nogodb_common.ObjectType, num nogodb_common.DiskfileNum) (Writable, FileDesc, error) {
 	i.mu.Lock()
 	defer i.mu.Unlock()
 
@@ -114,11 +116,11 @@ func (i *inmemStorage) Create(objType ObjectType, num DiskfileNum) (Writable, Fi
 	return memWriter{memFile: i.files[fid]}, i.toFileDesc(objType, num), nil
 }
 
-func (i *inmemStorage) LookUp(objType ObjectType, num DiskfileNum) (FileDesc, error) {
+func (i *inmemStorage) LookUp(objType nogodb_common.ObjectType, num nogodb_common.DiskfileNum) (FileDesc, error) {
 	return i.toFileDesc(objType, num), nil
 }
 
-func (i *inmemStorage) Remove(objType ObjectType, num DiskfileNum) error {
+func (i *inmemStorage) Remove(objType nogodb_common.ObjectType, num nogodb_common.DiskfileNum) error {
 	i.mu.Lock()
 	defer i.mu.Unlock()
 
@@ -132,7 +134,7 @@ func (i *inmemStorage) Remove(objType ObjectType, num DiskfileNum) error {
 	return nil
 }
 
-func (i *inmemStorage) List(objType ObjectType) []FileDesc {
+func (i *inmemStorage) List(objType nogodb_common.ObjectType) []FileDesc {
 	res := make([]FileDesc, 0, len(i.files))
 	for fid := range i.files {
 		fd := i.fromFileId(fid)
@@ -148,17 +150,17 @@ func (i *inmemStorage) Close() error {
 	return nil
 }
 
-func (i *inmemStorage) toFileId(objType ObjectType, num DiskfileNum) fileId {
+func (i *inmemStorage) toFileId(objType nogodb_common.ObjectType, num nogodb_common.DiskfileNum) fileId {
 	return fileId(int64(num)<<4 | int64(objType))
 }
 
 func (i *inmemStorage) fromFileId(fileId fileId) FileDesc {
-	objType := ObjectType(fileId & (1 << 4))
+	objType := nogodb_common.ObjectType(fileId & (1 << 4))
 	num := int64(fileId >> 4)
-	return i.toFileDesc(objType, DiskfileNum(num))
+	return i.toFileDesc(objType, nogodb_common.DiskfileNum(num))
 }
 
-func (i *inmemStorage) toFileDesc(objType ObjectType, num DiskfileNum) FileDesc {
+func (i *inmemStorage) toFileDesc(objType nogodb_common.ObjectType, num nogodb_common.DiskfileNum) FileDesc {
 	return FileDesc{Num: num, Type: objType, Loc: InMemory}
 }
 

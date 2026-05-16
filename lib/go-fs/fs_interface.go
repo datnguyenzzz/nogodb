@@ -3,6 +3,8 @@ package go_fs
 import (
 	"io"
 	"os"
+
+	nogodb_common "github.com/datnguyenzzz/nogodb/lib/common"
 )
 
 // File System interfaces
@@ -39,7 +41,7 @@ type FS interface {
 	// Create creates the named file for reading and writing. If a file
 	// already exists at the provided name, it's removed first ensuring the
 	// resulting file descriptor points to a new inode.
-	Create(name string, objType ObjectType) (File, error)
+	Create(name string, objType nogodb_common.ObjectType) (File, error)
 
 	// Open opens the named file for reading. openOptions provides
 	Open(name string) (File, error)

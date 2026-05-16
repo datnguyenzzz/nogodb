@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+
+	nogodb_common "github.com/datnguyenzzz/nogodb/lib/common"
 )
 
 type vfsProvider struct {
@@ -74,13 +76,13 @@ func (v *vfsProvider) init() error {
 	return nil
 }
 
-func ParseFileName(name string) (ObjectType, DiskfileNum, bool) {
-	parseDiskFileNum := func(s string) (DiskfileNum, bool) {
+func ParseFileName(name string) (nogodb_common.ObjectType, nogodb_common.DiskfileNum, bool) {
+	parseDiskFileNum := func(s string) (nogodb_common.DiskfileNum, bool) {
 		u, err := strconv.ParseUint(s, 10, 64)
 		if err != nil {
-			return DiskfileNum(0), false
+			return nogodb_common.DiskfileNum(0), false
 		}
-		return DiskfileNum(u), true
+		return nogodb_common.DiskfileNum(u), true
 	}
 
 	i := strings.IndexByte(name, '-')
@@ -93,7 +95,7 @@ func ParseFileName(name string) (ObjectType, DiskfileNum, bool) {
 		return 0, 0, false
 	}
 
-	object, ok := ObjectTypeFromString[name[:i]]
+	object, ok := nogodb_common.ObjectTypeFromString[name[:i]]
 	if !ok {
 		return 0, 0, false
 	}
@@ -102,13 +104,13 @@ func ParseFileName(name string) (ObjectType, DiskfileNum, bool) {
 }
 
 // Open opens an existing object with the given 'file descriptor' read-only.
-func (v *vfsProvider) Open(objType ObjectType, num DiskfileNum) (Readable, FileDesc, error) {
+func (v *vfsProvider) Open(objType nogodb_common.ObjectType, num nogodb_common.DiskfileNum) (Readable, FileDesc, error) {
 	_, err := v.LookUp(objType, num)
 	if err != nil {
 		return nil, FileDesc{}, err
 	}
 
-	fileName := fmt.Sprintf("%s-%d", ObjectTypeToString[objType], num)
+	fileName := fmt.Sprintf("%s-%d", nogodb_common.ObjectTypeToString[objType], num)
 	filePath := v.fs.PathJoin(v.dirName, fileName)
 	file, err := v.fs.Open(filePath)
 	if err != nil {
@@ -131,8 +133,8 @@ func (v *vfsProvider) Open(objType ObjectType, num DiskfileNum) (Readable, FileD
 //
 // The object is not guaranteed to be durable (accessible in case of crashes)
 // until Sync is called.
-func (v *vfsProvider) Create(objType ObjectType, num DiskfileNum) (Writable, FileDesc, error) {
-	fileName := fmt.Sprintf("%s-%d", ObjectTypeToString[objType], num)
+func (v *vfsProvider) Create(objType nogodb_common.ObjectType, num nogodb_common.DiskfileNum) (Writable, FileDesc, error) {
+	fileName := fmt.Sprintf("%s-%d", nogodb_common.ObjectTypeToString[objType], num)
 	filePath := v.fs.PathJoin(v.dirName, fileName)
 	file, err := v.fs.Create(filePath, objType)
 	if err != nil {
@@ -152,14 +154,14 @@ func (v *vfsProvider) Create(objType ObjectType, num DiskfileNum) (Writable, Fil
 	}, nil
 }
 
-func (v *vfsProvider) addMeta(objType ObjectType, num DiskfileNum) {
+func (v *vfsProvider) addMeta(objType nogodb_common.ObjectType, num nogodb_common.DiskfileNum) {
 	v.mu.Lock()
 	defer v.mu.Unlock()
 
 	v.knownObjects[FileDesc{Type: objType, Num: num, Loc: FileSystem}] = true
 }
 
-func (v *vfsProvider) removeMeta(objType ObjectType, num DiskfileNum) {
+func (v *vfsProvider) removeMeta(objType nogodb_common.ObjectType, num nogodb_common.DiskfileNum) {
 	v.mu.Lock()
 	defer v.mu.Unlock()
 
@@ -168,7 +170,7 @@ func (v *vfsProvider) removeMeta(objType ObjectType, num DiskfileNum) {
 
 // LookUp returns the metadata of an object that is already exists
 // it doesn't perform any I/O operations
-func (v *vfsProvider) LookUp(objType ObjectType, num DiskfileNum) (FileDesc, error) {
+func (v *vfsProvider) LookUp(objType nogodb_common.ObjectType, num nogodb_common.DiskfileNum) (FileDesc, error) {
 	v.mu.Lock()
 	defer v.mu.Unlock()
 	fd := FileDesc{
@@ -181,12 +183,12 @@ func (v *vfsProvider) LookUp(objType ObjectType, num DiskfileNum) (FileDesc, err
 	return fd, nil
 }
 
-func (v *vfsProvider) Remove(objType ObjectType, num DiskfileNum) error {
+func (v *vfsProvider) Remove(objType nogodb_common.ObjectType, num nogodb_common.DiskfileNum) error {
 	_, err := v.LookUp(objType, num)
 	if err != nil {
 		return err
 	}
-	fileName := fmt.Sprintf("%s-%d", ObjectTypeToString[objType], num)
+	fileName := fmt.Sprintf("%s-%d", nogodb_common.ObjectTypeToString[objType], num)
 	filePath := v.fs.PathJoin(v.dirName, fileName)
 	err = v.fs.Remove(filePath)
 	if err != nil {
@@ -198,7 +200,7 @@ func (v *vfsProvider) Remove(objType ObjectType, num DiskfileNum) error {
 	return nil
 }
 
-func (v *vfsProvider) List(objType ObjectType) []FileDesc {
+func (v *vfsProvider) List(objType nogodb_common.ObjectType) []FileDesc {
 	v.mu.Lock()
 	defer v.mu.Unlock()
 

@@ -2,7 +2,7 @@ package go_sstable
 
 import (
 	nogodb_common "github.com/datnguyenzzz/nogodb/lib/common"
-	"github.com/datnguyenzzz/nogodb/lib/go-sstable/compression"
+	"github.com/datnguyenzzz/nogodb/lib/common/compression"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/options"
 )
 

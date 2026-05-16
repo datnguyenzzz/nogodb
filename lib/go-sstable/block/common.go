@@ -3,15 +3,15 @@ package block
 import (
 	"encoding/binary"
 
-	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
+	nogodb_common "github.com/datnguyenzzz/nogodb/lib/common"
+	"github.com/datnguyenzzz/nogodb/lib/common/compression"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common/block"
-	"github.com/datnguyenzzz/nogodb/lib/go-sstable/compression"
 )
 
 // CompressToPb compress the raw bytes by using the given compressor
 func CompressToPb(
 	compressor compression.ICompression,
-	checksumer common.IChecksum,
+	checksumer nogodb_common.IChecksum,
 	rawData []byte,
 ) *block.PhysicalBlock {
 	pb := &block.PhysicalBlock{}

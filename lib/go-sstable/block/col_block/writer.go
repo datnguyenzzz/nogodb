@@ -4,11 +4,11 @@ import (
 	"fmt"
 
 	nogodb_common "github.com/datnguyenzzz/nogodb/lib/common"
+	"github.com/datnguyenzzz/nogodb/lib/common/compression"
 	go_fs "github.com/datnguyenzzz/nogodb/lib/go-fs"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/block"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
 	blockCommon "github.com/datnguyenzzz/nogodb/lib/go-sstable/common/block"
-	"github.com/datnguyenzzz/nogodb/lib/go-sstable/compression"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/filter"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/options"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/queue"
@@ -38,7 +38,7 @@ type ColBlockWriter struct {
 	flushDecider common.IFlushDecider
 	comparer     nogodb_common.IComparer
 	compressors  compression.ICompression
-	checksumer   common.IChecksum
+	checksumer   nogodb_common.IChecksum
 
 	// data and indexes
 	dataBlock  *DataBlockWriter
@@ -257,7 +257,7 @@ func NewColBlockWriter(
 	storageWriter := storage.NewLayoutWriter(w)
 	flushDecider := common.NewFlushDecider(opts.BlockSize, opts.BlockSizeThreshold)
 	compressor := compression.NewCompressor(opts.DefaultCompression)
-	checksumer := common.NewChecksumer(common.CRC32Checksum)
+	checksumer := nogodb_common.NewChecksumer(nogodb_common.CRC32Checksum)
 
 	return &ColBlockWriter{
 		opt:          opts,

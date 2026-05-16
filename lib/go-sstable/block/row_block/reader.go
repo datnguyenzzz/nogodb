@@ -5,11 +5,12 @@ import (
 	"errors"
 	"fmt"
 
+	nogodb_common "github.com/datnguyenzzz/nogodb/lib/common"
+	"github.com/datnguyenzzz/nogodb/lib/common/compression"
 	go_block_cache "github.com/datnguyenzzz/nogodb/lib/go-block-cache"
 	"github.com/datnguyenzzz/nogodb/lib/go-bytesbufferpool/predictable_size"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
 	block_common "github.com/datnguyenzzz/nogodb/lib/go-sstable/common/block"
-	"github.com/datnguyenzzz/nogodb/lib/go-sstable/compression"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/options"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/storage"
 	"go.uber.org/zap"
@@ -167,7 +168,7 @@ func (r *RowBlockReader) readFromStorage(
 	}
 
 	// Assume we would use CRC32 checksum method for every operation
-	if !r.validateChecksum(common.CRC32Checksum, compressedVal.Value()) {
+	if !r.validateChecksum(nogodb_common.CRC32Checksum, compressedVal.Value()) {
 		compressedVal.Release()
 		return nil, common.MismatchedChecksumError
 	}
@@ -194,15 +195,15 @@ func (r *RowBlockReader) readFromStorage(
 	return decompressedVal, nil
 }
 
-func (r *RowBlockReader) validateChecksum(checksumType common.ChecksumType, blockData []byte) bool {
+func (r *RowBlockReader) validateChecksum(checksumType nogodb_common.ChecksumType, blockData []byte) bool {
 	blockLengthWithoutTrailer := len(blockData) - block_common.TrailerLen
 	foundChecksum := binary.LittleEndian.Uint32(blockData[blockLengthWithoutTrailer+1:])
 
 	compressor := blockData[blockLengthWithoutTrailer]
-	checksumer := common.NewChecksumer(checksumType)
+	checksumer := nogodb_common.NewChecksumer(checksumType)
 
 	switch checksumType {
-	case common.CRC32Checksum:
+	case nogodb_common.CRC32Checksum:
 		expected := checksumer.Checksum(blockData[:blockLengthWithoutTrailer], compressor)
 		if expected != foundChecksum {
 			return false

@@ -2,10 +2,10 @@ package col_block
 
 import (
 	nogodb_common "github.com/datnguyenzzz/nogodb/lib/common"
+	"github.com/datnguyenzzz/nogodb/lib/common/compression"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/block"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
 	commonBlock "github.com/datnguyenzzz/nogodb/lib/go-sstable/common/block"
-	"github.com/datnguyenzzz/nogodb/lib/go-sstable/compression"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/storage"
 )
 
@@ -22,7 +22,7 @@ type IndexWriter struct {
 	flushDecider common.IFlushDecider
 	comparer     nogodb_common.IComparer
 	compressor   compression.ICompression
-	checksumer   common.IChecksum
+	checksumer   nogodb_common.IChecksum
 
 	// indexBuffer holds the all compressed block of the completed first level index
 	// and they will be flushed to the storage at once when the SSTable is closed.
@@ -40,7 +40,7 @@ func NewIndexWriter(
 	flushDecider common.IFlushDecider,
 	comparer nogodb_common.IComparer,
 	compressor compression.ICompression,
-	checksumer common.IChecksum,
+	checksumer nogodb_common.IChecksum,
 ) *IndexWriter {
 	return &IndexWriter{
 		firstLevelIndex:  NewIndexBlockWriter(),

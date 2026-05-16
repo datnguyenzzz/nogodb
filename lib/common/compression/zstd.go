@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/DataDog/zstd"
-	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
 )
 
 const (
@@ -66,7 +65,7 @@ func (z *zstdCompressor) Decompress(buf, compressed []byte) error {
 func (z *zstdCompressor) DecompressedLen(b []byte) (decompressedLen int, err error) {
 	decodedLenU64, varIntLen := binary.Uvarint(b)
 	if varIntLen <= 0 {
-		return 0, fmt.Errorf("%w: Decompressed size too small: %d", common.InternalServerError, varIntLen)
+		return 0, fmt.Errorf("Decompressed size too small: %d", varIntLen)
 	}
 	return int(decodedLenU64), nil
 }

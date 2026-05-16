@@ -2,8 +2,8 @@ package options
 
 import (
 	nogodb_common "github.com/datnguyenzzz/nogodb/lib/common"
+	"github.com/datnguyenzzz/nogodb/lib/common/compression"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common/block"
-	"github.com/datnguyenzzz/nogodb/lib/go-sstable/compression"
 )
 
 type CompressionOpts map[block.BlockKind]compression.CompressionType

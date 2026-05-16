@@ -4,12 +4,12 @@ import (
 	"fmt"
 
 	nogodb_common "github.com/datnguyenzzz/nogodb/lib/common"
+	"github.com/datnguyenzzz/nogodb/lib/common/compression"
 	"github.com/datnguyenzzz/nogodb/lib/go-bytesbufferpool/predictable_size"
 	go_fs "github.com/datnguyenzzz/nogodb/lib/go-fs"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/block"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
 	commonBlock "github.com/datnguyenzzz/nogodb/lib/go-sstable/common/block"
-	"github.com/datnguyenzzz/nogodb/lib/go-sstable/compression"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/filter"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/options"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/queue"
@@ -30,7 +30,7 @@ type RowBlockWriter struct {
 	comparer        nogodb_common.IComparer
 	filterWriter    filter.IWriter
 	compressors     compressorPerBlock
-	checksumer      common.IChecksum
+	checksumer      nogodb_common.IChecksum
 	taskQueue       queue.IQueue
 	tableVersion    common.TableVersion
 	bytesBufferPool *predictable_size.PredictablePool
@@ -222,7 +222,7 @@ func NewRowBlockWriter(w go_fs.Writable, opts options.BlockWriteOpt, version com
 
 		c[blockKind] = compression.NewCompressor(opts.Compression[blockKind])
 	}
-	crc32Checksum := common.NewChecksumer(common.CRC32Checksum)
+	crc32Checksum := nogodb_common.NewChecksumer(nogodb_common.CRC32Checksum)
 	comparer := nogodb_common.NewComparer()
 	flushDecider := common.NewFlushDecider(opts.BlockSize, opts.BlockSizeThreshold)
 	storageWriter := storage.NewLayoutWriter(w)

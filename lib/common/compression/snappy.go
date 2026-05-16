@@ -3,7 +3,6 @@ package compression
 import (
 	"fmt"
 
-	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
 	"github.com/golang/snappy"
 )
 
@@ -24,7 +23,7 @@ func (s *snappyCompressor) Decompress(buf, compressed []byte) error {
 		return err
 	}
 	if len(res) != len(buf) || (len(res) > 0 && &res[0] != &buf[0]) {
-		return fmt.Errorf("%w: snappy: compressed data mismatch", common.InternalServerError)
+		return fmt.Errorf("snappy: compressed data mismatch")
 	}
 	return nil
 }

@@ -5,13 +5,14 @@ import (
 	"math/rand"
 	"testing"
 
+	nogodb_common "github.com/datnguyenzzz/nogodb/lib/common"
+	"github.com/datnguyenzzz/nogodb/lib/common/compression"
 	go_block_cache "github.com/datnguyenzzz/nogodb/lib/go-block-cache"
 	"github.com/datnguyenzzz/nogodb/lib/go-bytesbufferpool/predictable_size"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/block"
 	rowBlockMocks "github.com/datnguyenzzz/nogodb/lib/go-sstable/block/row_block/mocks"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
 	commonBlock "github.com/datnguyenzzz/nogodb/lib/go-sstable/common/block"
-	"github.com/datnguyenzzz/nogodb/lib/go-sstable/compression"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/options"
 	storageMocks "github.com/datnguyenzzz/nogodb/lib/go-sstable/storage/mocks"
 	"github.com/stretchr/testify/assert"
@@ -20,7 +21,7 @@ import (
 
 var (
 	defaultCompressor = compression.NewCompressor(compression.SnappyCompression)
-	defaultChecksumer = common.NewChecksumer(common.CRC32Checksum)
+	defaultChecksumer = nogodb_common.NewChecksumer(nogodb_common.CRC32Checksum)
 )
 
 func Test_Read(t *testing.T) {

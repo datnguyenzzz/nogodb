@@ -4,11 +4,11 @@ import (
 	"encoding/binary"
 
 	nogodb_common "github.com/datnguyenzzz/nogodb/lib/common"
+	"github.com/datnguyenzzz/nogodb/lib/common/compression"
 	"github.com/datnguyenzzz/nogodb/lib/go-bytesbufferpool/predictable_size"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/block"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
 	commonBlock "github.com/datnguyenzzz/nogodb/lib/go-sstable/common/block"
-	"github.com/datnguyenzzz/nogodb/lib/go-sstable/compression"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/options"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/storage"
 )
@@ -35,7 +35,7 @@ type indexWriter struct {
 	secondLevelBlock  *rowBlockBuf
 	comparer          nogodb_common.IComparer
 	compressor        compression.ICompression
-	checksumer        common.IChecksum
+	checksumer        nogodb_common.IChecksum
 	flushDecider      common.IFlushDecider
 	storageWriter     storage.ILayoutWriter
 	firstLevelIndices []*firstLevelIndex
@@ -143,7 +143,7 @@ func (w *indexWriter) Release() {
 func newIndexWriter(
 	comparer nogodb_common.IComparer,
 	compressor compression.ICompression,
-	checksumer common.IChecksum,
+	checksumer nogodb_common.IChecksum,
 	flushDecider common.IFlushDecider,
 	storageWriter storage.ILayoutWriter,
 	metaIndexBlock *rowBlockBuf,

@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	nogodb_common "github.com/datnguyenzzz/nogodb/lib/common"
 	go_block_cache "github.com/datnguyenzzz/nogodb/lib/go-block-cache"
 	"github.com/datnguyenzzz/nogodb/lib/go-bytesbufferpool/predictable_size"
 	go_fs "github.com/datnguyenzzz/nogodb/lib/go-fs"
@@ -124,7 +125,7 @@ func (w *SSTSuiteFS) Test_Integration_Writer_No_Errors() {
 	for i, tc := range tests {
 		w.Run(tc.name, func() {
 			t := w.T()
-			fileWritable, _, err := w.storage.Create(go_fs.TypeTable, go_fs.DiskfileNum(i))
+			fileWritable, _, err := w.storage.Create(nogodb_common.TypeTable, nogodb_common.DiskfileNum(i))
 			assert.NoError(t, err)
 			writer := go_sstable.NewWriter(
 				fileWritable,
@@ -218,7 +219,7 @@ func (w *SSTSuiteFS) Test_Integration_Writer_No_Errors_MVCC_col_block() {
 	for i, tc := range tests {
 		w.Run(tc.name, func() {
 			t := w.T()
-			fileWritable, _, err := w.storage.Create(go_fs.TypeTable, go_fs.DiskfileNum(i))
+			fileWritable, _, err := w.storage.Create(nogodb_common.TypeTable, nogodb_common.DiskfileNum(i))
 			assert.NoError(t, err)
 			writer := go_sstable.NewWriter(
 				fileWritable,
@@ -387,7 +388,7 @@ func (w *SSTSuiteFS) Test_Iterator_Seeking_Ops_single_table() {
 		w.Run(tc.name, func() {
 			t := w.T()
 			// Init a table
-			fileWritable, _, err := w.storage.Create(go_fs.TypeTable, go_fs.DiskfileNum(i))
+			fileWritable, _, err := w.storage.Create(nogodb_common.TypeTable, nogodb_common.DiskfileNum(i))
 			assert.NoError(t, err)
 			writer := go_sstable.NewWriter(
 				fileWritable,
@@ -406,14 +407,17 @@ func (w *SSTSuiteFS) Test_Iterator_Seeking_Ops_single_table() {
 			assert.NoError(t, err)
 
 			// Evaluate the result of the seek operations
-			fileReadable, fd, err := w.storage.Open(go_fs.TypeTable, go_fs.DiskfileNum(i))
+			fileReadable, fd, err := w.storage.Open(nogodb_common.TypeTable, nogodb_common.DiskfileNum(i))
 			assert.NoError(t, err)
 			var iterOpts []options.IteratorOptsFunc
 			if tc.cacheSize > 0 {
+				c := go_block_cache.NewMap(
+					go_block_cache.WithMaxSize(int64(tc.cacheSize)),
+					go_block_cache.WithCacheType(tc.cacheType),
+					go_block_cache.WithShardNum(4),
+				)
 				iterOpts = []options.IteratorOptsFunc{
-					options.WithBlockCache(tc.cacheType, fd),
-					options.WithBlockCacheSize(int64(tc.cacheSize)),
-					options.WithShardNum(4),
+					options.WithBlockCache(c, fd),
 				}
 			}
 			sharedBufferPool := predictable_size.NewPredictablePool()
@@ -579,7 +583,7 @@ func (w *SSTSuiteFS) Test_Iterator_Seeking_Ops_single_table_MVCC_col_block() {
 			t := w.T()
 
 			// Init a table
-			fileWritable, _, err := w.storage.Create(go_fs.TypeTable, go_fs.DiskfileNum(i))
+			fileWritable, _, err := w.storage.Create(nogodb_common.TypeTable, nogodb_common.DiskfileNum(i))
 			require.NoError(t, err)
 			mvccComparer := NewMvccComparer()
 			writer := go_sstable.NewWriter(
@@ -599,16 +603,19 @@ func (w *SSTSuiteFS) Test_Iterator_Seeking_Ops_single_table_MVCC_col_block() {
 			require.NoError(t, err)
 
 			// Evaluate the result of the seek operations
-			fileReadable, fd, err := w.storage.Open(go_fs.TypeTable, go_fs.DiskfileNum(i))
+			fileReadable, fd, err := w.storage.Open(nogodb_common.TypeTable, nogodb_common.DiskfileNum(i))
 			require.NoError(t, err)
 			iterOpts := []options.IteratorOptsFunc{
 				options.WithComparer(mvccComparer),
 			}
 			if tc.cacheSize > 0 {
+				c := go_block_cache.NewMap(
+					go_block_cache.WithMaxSize(int64(tc.cacheSize)),
+					go_block_cache.WithCacheType(tc.cacheType),
+					go_block_cache.WithShardNum(4),
+				)
 				iterOpts = append(iterOpts, []options.IteratorOptsFunc{
-					options.WithBlockCache(tc.cacheType, fd),
-					options.WithBlockCacheSize(int64(tc.cacheSize)),
-					options.WithShardNum(4),
+					options.WithBlockCache(c, fd),
 				}...)
 			}
 			sharedBufferPool := predictable_size.NewPredictablePool()
@@ -768,7 +775,7 @@ func (w *SSTSuiteFS) Test_Iterator_Concurrently_Seeking_Ops_multiple_tables() {
 			// Init a table
 			sample := make([][]kvType, 0, numberOfSSTs)
 			for sst := 1; sst <= numberOfSSTs; sst++ {
-				fileWritable, _, err := w.storage.Create(go_fs.TypeTable, go_fs.DiskfileNum(sst))
+				fileWritable, _, err := w.storage.Create(nogodb_common.TypeTable, nogodb_common.DiskfileNum(sst))
 				assert.NoError(t, err)
 				writer := go_sstable.NewWriter(
 					fileWritable,
@@ -793,14 +800,17 @@ func (w *SSTSuiteFS) Test_Iterator_Concurrently_Seeking_Ops_multiple_tables() {
 			for sst := 1; sst <= numberOfSSTs; sst++ {
 				eg.Go(func() error {
 					kvs := sample[sst-1]
-					fileReadable, fd, err := w.storage.Open(go_fs.TypeTable, go_fs.DiskfileNum(sst))
+					fileReadable, fd, err := w.storage.Open(nogodb_common.TypeTable, nogodb_common.DiskfileNum(sst))
 					assert.NoError(t, err)
 					var iterOpts []options.IteratorOptsFunc
 					if tc.cacheSize > 0 {
+						c := go_block_cache.NewMap(
+							go_block_cache.WithMaxSize(int64(tc.cacheSize)),
+							go_block_cache.WithCacheType(tc.cacheType),
+							go_block_cache.WithShardNum(4),
+						)
 						iterOpts = []options.IteratorOptsFunc{
-							options.WithBlockCache(tc.cacheType, fd),
-							options.WithBlockCacheSize(int64(tc.cacheSize)),
-							options.WithShardNum(4),
+							options.WithBlockCache(c, fd),
 						}
 					}
 					sharedBufferPool := predictable_size.NewPredictablePool()
@@ -970,7 +980,7 @@ func (w *SSTSuiteFS) Test_Iterator_Concurrently_Seeking_Ops_multiple_tables_MVCC
 			mvccComparer := NewMvccComparer()
 
 			for sst := 1; sst <= numberOfSSTs; sst++ {
-				fileWritable, _, err := w.storage.Create(go_fs.TypeTable, go_fs.DiskfileNum(sst))
+				fileWritable, _, err := w.storage.Create(nogodb_common.TypeTable, nogodb_common.DiskfileNum(sst))
 				assert.NoError(t, err)
 				writer := go_sstable.NewWriter(
 					fileWritable,
@@ -995,16 +1005,19 @@ func (w *SSTSuiteFS) Test_Iterator_Concurrently_Seeking_Ops_multiple_tables_MVCC
 			for sst := 1; sst <= numberOfSSTs; sst++ {
 				eg.Go(func() error {
 					kvs := sample[sst-1]
-					fileReadable, fd, err := w.storage.Open(go_fs.TypeTable, go_fs.DiskfileNum(sst))
+					fileReadable, fd, err := w.storage.Open(nogodb_common.TypeTable, nogodb_common.DiskfileNum(sst))
 					assert.NoError(t, err)
 					iterOpts := []options.IteratorOptsFunc{
 						options.WithComparer(mvccComparer),
 					}
 					if tc.cacheSize > 0 {
+						c := go_block_cache.NewMap(
+							go_block_cache.WithMaxSize(int64(tc.cacheSize)),
+							go_block_cache.WithCacheType(tc.cacheType),
+							go_block_cache.WithShardNum(4),
+						)
 						iterOpts = append(iterOpts, []options.IteratorOptsFunc{
-							options.WithBlockCache(tc.cacheType, fd),
-							options.WithBlockCacheSize(int64(tc.cacheSize)),
-							options.WithShardNum(4),
+							options.WithBlockCache(c, fd),
 						}...)
 					}
 					sharedBufferPool := predictable_size.NewPredictablePool()
@@ -1161,7 +1174,7 @@ func (w *SSTSuiteFS) Test_Iterator_First_Then_Next_Ops() {
 			// Init a table
 			sample := make([][]kvType, 0, tc.sstNum)
 			for sst := 1; sst <= tc.sstNum; sst++ {
-				fileWritable, _, err := w.storage.Create(go_fs.TypeTable, go_fs.DiskfileNum(sst))
+				fileWritable, _, err := w.storage.Create(nogodb_common.TypeTable, nogodb_common.DiskfileNum(sst))
 				assert.NoError(t, err)
 				writer := go_sstable.NewWriter(
 					fileWritable,
@@ -1186,14 +1199,17 @@ func (w *SSTSuiteFS) Test_Iterator_First_Then_Next_Ops() {
 			for sst := 1; sst <= tc.sstNum; sst++ {
 				eg.Go(func() error {
 					kvs := sample[sst-1]
-					fileReadable, fd, err := w.storage.Open(go_fs.TypeTable, go_fs.DiskfileNum(sst))
+					fileReadable, fd, err := w.storage.Open(nogodb_common.TypeTable, nogodb_common.DiskfileNum(sst))
 					assert.NoError(t, err)
 					var iterOpts []options.IteratorOptsFunc
 					if tc.cacheSize > 0 {
+						c := go_block_cache.NewMap(
+							go_block_cache.WithMaxSize(int64(tc.cacheSize)),
+							go_block_cache.WithCacheType(tc.cacheType),
+							go_block_cache.WithShardNum(4),
+						)
 						iterOpts = []options.IteratorOptsFunc{
-							options.WithBlockCache(tc.cacheType, fd),
-							options.WithBlockCacheSize(int64(tc.cacheSize)),
-							options.WithShardNum(4),
+							options.WithBlockCache(c, fd),
 						}
 					}
 					sharedBufferPool := predictable_size.NewPredictablePool()
@@ -1344,7 +1360,7 @@ func (w *SSTSuiteFS) Test_Iterator_First_Then_Next_Ops_MVCC_colblock() {
 			sample := make([][]kvType, 0, tc.sstNum)
 			mvccComparer := NewMvccComparer()
 			for sst := 1; sst <= tc.sstNum; sst++ {
-				fileWritable, _, err := w.storage.Create(go_fs.TypeTable, go_fs.DiskfileNum(sst))
+				fileWritable, _, err := w.storage.Create(nogodb_common.TypeTable, nogodb_common.DiskfileNum(sst))
 				assert.NoError(t, err)
 				writer := go_sstable.NewWriter(
 					fileWritable,
@@ -1370,16 +1386,19 @@ func (w *SSTSuiteFS) Test_Iterator_First_Then_Next_Ops_MVCC_colblock() {
 			for sst := 1; sst <= tc.sstNum; sst++ {
 				eg.Go(func() error {
 					kvs := sample[sst-1]
-					fileReadable, fd, err := w.storage.Open(go_fs.TypeTable, go_fs.DiskfileNum(sst))
+					fileReadable, fd, err := w.storage.Open(nogodb_common.TypeTable, nogodb_common.DiskfileNum(sst))
 					assert.NoError(t, err)
 					iterOpts := []options.IteratorOptsFunc{
 						options.WithComparer(mvccComparer),
 					}
 					if tc.cacheSize > 0 {
+						c := go_block_cache.NewMap(
+							go_block_cache.WithMaxSize(int64(tc.cacheSize)),
+							go_block_cache.WithCacheType(tc.cacheType),
+							go_block_cache.WithShardNum(4),
+						)
 						iterOpts = append(iterOpts, []options.IteratorOptsFunc{
-							options.WithBlockCache(tc.cacheType, fd),
-							options.WithBlockCacheSize(int64(tc.cacheSize)),
-							options.WithShardNum(4),
+							options.WithBlockCache(c, fd),
 						}...)
 					}
 					sharedBufferPool := predictable_size.NewPredictablePool()

@@ -21,11 +21,12 @@
 - [ ] P2: Write Github workflow to schedule a microbenchmark task to each components
 - [ ] P0 - **ongoing**: Design the DB public APIs and skeleton the main flow
   - [x] Implement [record format](https://github.com/facebook/rocksdb/wiki/Write-Ahead-Log-File-Format#record-format) to a common `lib`
-- [ ] Implement Manifest / [Version Set](https://github.com/facebook/rocksdb/wiki/MANIFEST)
-- [ ] (Re)implement WAL
+- [ ] P0 - Implement Manifest / [Version Set](https://github.com/facebook/rocksdb/wiki/MANIFEST)
+- [ ] P0 - (Re)implement WAL
   - https://github.com/facebook/rocksdb/wiki/Track-WAL-in-MANIFEST
   - https://github.com/facebook/rocksdb/wiki/Write-Ahead-Log-%28WAL%29
-- [ ] Implement Fluid LSM tree and Lazy Leveling Merging for compaction. Reference: https://nivdayan.github.io/dostoevsky.pdf
+- [ ] P0 - Implement Fluid LSM tree and Lazy Leveling Merging for compaction. Reference: https://nivdayan.github.io/dostoevsky.pdf
+- [ ] P1 - Open DB from the leftover state, replay from WALs, ...
 
 ## H2 - 2025
 

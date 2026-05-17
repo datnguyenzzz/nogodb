@@ -91,9 +91,11 @@ func Test_Read(t *testing.T) {
 
 			r := &RowBlockReader{}
 			cacheOpts := &options.CacheOptions{
-				CacheMethod: go_block_cache.LRU,
-				MaxSize:     1 * 1024 * 1024,
-				FileNum:     10,
+				Cache: go_block_cache.NewMap(
+					go_block_cache.WithCacheType(go_block_cache.LRU),
+					go_block_cache.WithMaxSize(1*1024*1024),
+				),
+				FileNum: 10,
 			}
 			r.Init(predictable_size.NewPredictablePool(), mockStorageReader, cacheOpts)
 

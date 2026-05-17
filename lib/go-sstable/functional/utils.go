@@ -11,7 +11,8 @@ import (
 	"sort"
 	"time"
 
-	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
+	"github.com/datnguyenzzz/nogodb/lib/common"
+	nogodb_common "github.com/datnguyenzzz/nogodb/lib/common"
 	"github.com/go-faker/faker/v4"
 )
 
@@ -20,12 +21,12 @@ const (
 )
 
 type mvccComparer struct {
-	common.DefaultComparer
+	nogodb_common.DefaultComparer
 }
 
 func NewMvccComparer() *mvccComparer {
 	return &mvccComparer{
-		DefaultComparer: *common.NewComparer(),
+		DefaultComparer: *nogodb_common.NewComparer(),
 	}
 }
 

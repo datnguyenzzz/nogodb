@@ -19,28 +19,12 @@ func WithComparer(comparer nogodb_common.IComparer) IteratorOptsFunc {
 	}
 }
 
-func WithBlockCache(method go_block_cache.CacheType, fd go_fs.FileDesc) IteratorOptsFunc {
+func WithBlockCache(cache go_block_cache.IBlockCache, fd go_fs.FileDesc) IteratorOptsFunc {
 	return func(opts *IteratorOpts) {
 		opts.CacheOpts = &CacheOptions{}
-		opts.CacheOpts.CacheMethod = method
-		opts.CacheOpts.MaxSize = defaultCacheSize
+		opts.CacheOpts.Cache = cache
 		// notes: the block cache use file_num as a part of the cache key
 		// a block cache with key = [file_num + offset], value = data[offset:offset + length]
 		opts.CacheOpts.FileNum = go_fs.FromFileDescToFileNum(fd)
-	}
-}
-
-func WithBlockCacheSize(size int64) IteratorOptsFunc {
-	return func(opts *IteratorOpts) {
-		if opts.CacheOpts == nil {
-			return
-		}
-		opts.CacheOpts.MaxSize = size
-	}
-}
-
-func WithShardNum(size int) IteratorOptsFunc {
-	return func(opts *IteratorOpts) {
-		opts.CacheOpts.ShardNum = size
 	}
 }

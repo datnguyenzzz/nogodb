@@ -5,13 +5,7 @@ import (
 	go_block_cache "github.com/datnguyenzzz/nogodb/lib/go-block-cache"
 )
 
-const (
-	defaultCacheSize = 2 * 1024 * 1024 // 2mB
-)
-
 type CacheOptions struct {
-	CacheMethod go_block_cache.CacheType
-	MaxSize     int64
-	FileNum     nogodb_common.DiskfileNum
-	ShardNum    int
+	Cache   go_block_cache.IBlockCache
+	FileNum nogodb_common.DiskfileNum
 }

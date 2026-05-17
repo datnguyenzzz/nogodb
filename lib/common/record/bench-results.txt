@@ -1,0 +1,14 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/datnguyenzzz/nogodb/tree/master/lib/common/record
+cpu: Apple M2
+Benchmark_Record_write/size=8-8         	31973035	        37.56 ns/op	 213.01 MB/s	      18 B/op	       2 allocs/op
+Benchmark_Record_write/size=16-8        	31300060	        38.49 ns/op	 415.74 MB/s	      18 B/op	       2 allocs/op
+Benchmark_Record_write/size=32-8        	30096402	        40.50 ns/op	 790.16 MB/s	      18 B/op	       2 allocs/op
+Benchmark_Record_write/size=64-8        	28864598	        40.78 ns/op	1569.25 MB/s	      18 B/op	       2 allocs/op
+Benchmark_Record_write/size=256-8       	19477488	        61.48 ns/op	4164.18 MB/s	      18 B/op	       2 allocs/op
+Benchmark_Record_write/size=1028-8      	 7067059	       167.1 ns/op	6153.64 MB/s	      18 B/op	       2 allocs/op
+Benchmark_Record_write/size=4096-8      	 2092585	       572.8 ns/op	7151.24 MB/s	      18 B/op	       2 allocs/op
+Benchmark_Record_write/size=65536-8     	  136778	      8778 ns/op	7465.61 MB/s	      22 B/op	       4 allocs/op
+PASS
+ok  	github.com/datnguyenzzz/nogodb/tree/master/lib/common/record	9.918s

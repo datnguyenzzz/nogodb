@@ -20,13 +20,12 @@
   - Each transaction has its own unique version number. When it writes a key/value pair it appends its version number to the key
 - [ ] P2: Write Github workflow to schedule a microbenchmark task to each components
 - [ ] P0 - **ongoing**: Design the DB public APIs and skeleton the main flow
-  - [ ] Implement [record format](https://github.com/facebook/rocksdb/wiki/Write-Ahead-Log-File-Format#record-format) to a common `lib`
-  - [ ] Implement Manifest / [Version Set](https://github.com/facebook/rocksdb/wiki/MANIFEST)
-  - [ ] (Re)implement WAL
-    - https://github.com/facebook/rocksdb/wiki/Track-WAL-in-MANIFEST
-    - https://github.com/facebook/rocksdb/wiki/Write-Ahead-Log-%28WAL%29
-  - ... TBU ...
-- [ ] P0: Implement Fluid LSM tree and Lazy Leveling Merging for compaction. Reference: https://nivdayan.github.io/dostoevsky.pdf
+  - [x] Implement [record format](https://github.com/facebook/rocksdb/wiki/Write-Ahead-Log-File-Format#record-format) to a common `lib`
+- [ ] Implement Manifest / [Version Set](https://github.com/facebook/rocksdb/wiki/MANIFEST)
+- [ ] (Re)implement WAL
+  - https://github.com/facebook/rocksdb/wiki/Track-WAL-in-MANIFEST
+  - https://github.com/facebook/rocksdb/wiki/Write-Ahead-Log-%28WAL%29
+- [ ] Implement Fluid LSM tree and Lazy Leveling Merging for compaction. Reference: https://nivdayan.github.io/dostoevsky.pdf
 
 ## H2 - 2025
 

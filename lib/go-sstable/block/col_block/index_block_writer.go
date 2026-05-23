@@ -5,7 +5,6 @@ import (
 	rawbytescodex "github.com/datnguyenzzz/nogodb/lib/go-sstable/block/col_block/codex/raw_bytes_codex"
 	uintcodex "github.com/datnguyenzzz/nogodb/lib/go-sstable/block/col_block/codex/uint_codex"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
-	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common/block"
 )
 
 var indexColumnsOrder = []string{
@@ -55,7 +54,7 @@ func (i *IndexBlockWriter) Rows() uint32 {
 
 // Add, caller ensure that the key is full UserKey
 // that include MVCC suffix
-func (i *IndexBlockWriter) Add(key []byte, bh *block.BlockHandle) {
+func (i *IndexBlockWriter) Add(key []byte, bh *common.BlockHandle) {
 	i.rows += 1
 
 	// for index key, we only interested in the UserKey

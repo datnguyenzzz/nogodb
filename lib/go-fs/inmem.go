@@ -150,6 +150,10 @@ func (i *inmemStorage) Close() error {
 	return nil
 }
 
+func (i *inmemStorage) Sync(objType nogodb_common.ObjectType, num nogodb_common.DiskfileNum) error {
+	return nil
+}
+
 func (i *inmemStorage) toFileId(objType nogodb_common.ObjectType, num nogodb_common.DiskfileNum) fileId {
 	return fileId(int64(num)<<4 | int64(objType))
 }

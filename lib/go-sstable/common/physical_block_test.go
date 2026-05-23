@@ -1,4 +1,4 @@
-package block
+package common
 
 import (
 	"encoding/binary"

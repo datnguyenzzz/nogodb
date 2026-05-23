@@ -1,11 +1,8 @@
 package go_fs
 
 import (
-	"fmt"
 	"os"
 	"slices"
-	"strconv"
-	"strings"
 	"sync"
 
 	nogodb_common "github.com/datnguyenzzz/nogodb/lib/common"
@@ -66,7 +63,7 @@ func (v *vfsProvider) init() error {
 	for _, filePath := range filePaths {
 		name := v.fs.PathBase(filePath)
 
-		if objectType, fileNum, ok := ParseFileName(name); ok {
+		if objectType, fileNum, ok := nogodb_common.ParseFileName(name); ok {
 			v.knownObjects[FileDesc{
 				Type: objectType, Num: fileNum, Loc: FileSystem,
 			}] = true
@@ -76,33 +73,6 @@ func (v *vfsProvider) init() error {
 	return nil
 }
 
-func ParseFileName(name string) (nogodb_common.ObjectType, nogodb_common.DiskfileNum, bool) {
-	parseDiskFileNum := func(s string) (nogodb_common.DiskfileNum, bool) {
-		u, err := strconv.ParseUint(s, 10, 64)
-		if err != nil {
-			return nogodb_common.DiskfileNum(0), false
-		}
-		return nogodb_common.DiskfileNum(u), true
-	}
-
-	i := strings.IndexByte(name, '-')
-	if i == 0 {
-		return 0, 0, false
-	}
-
-	dfn, ok := parseDiskFileNum(name[i+1:])
-	if !ok {
-		return 0, 0, false
-	}
-
-	object, ok := nogodb_common.ObjectTypeFromString[name[:i]]
-	if !ok {
-		return 0, 0, false
-	}
-
-	return object, dfn, true
-}
-
 // Open opens an existing object with the given 'file descriptor' read-only.
 func (v *vfsProvider) Open(objType nogodb_common.ObjectType, num nogodb_common.DiskfileNum) (Readable, FileDesc, error) {
 	_, err := v.LookUp(objType, num)
@@ -110,7 +80,7 @@ func (v *vfsProvider) Open(objType nogodb_common.ObjectType, num nogodb_common.D
 		return nil, FileDesc{}, err
 	}
 
-	fileName := fmt.Sprintf("%s-%d", nogodb_common.ObjectTypeToString[objType], num)
+	fileName := nogodb_common.GetFileName(objType, num)
 	filePath := v.fs.PathJoin(v.dirName, fileName)
 	file, err := v.fs.Open(filePath)
 	if err != nil {
@@ -134,7 +104,7 @@ func (v *vfsProvider) Open(objType nogodb_common.ObjectType, num nogodb_common.D
 // The object is not guaranteed to be durable (accessible in case of crashes)
 // until Sync is called.
 func (v *vfsProvider) Create(objType nogodb_common.ObjectType, num nogodb_common.DiskfileNum) (Writable, FileDesc, error) {
-	fileName := fmt.Sprintf("%s-%d", nogodb_common.ObjectTypeToString[objType], num)
+	fileName := nogodb_common.GetFileName(objType, num)
 	filePath := v.fs.PathJoin(v.dirName, fileName)
 	file, err := v.fs.Create(filePath, objType)
 	if err != nil {
@@ -188,7 +158,7 @@ func (v *vfsProvider) Remove(objType nogodb_common.ObjectType, num nogodb_common
 	if err != nil {
 		return err
 	}
-	fileName := fmt.Sprintf("%s-%d", nogodb_common.ObjectTypeToString[objType], num)
+	fileName := nogodb_common.GetFileName(objType, num)
 	filePath := v.fs.PathJoin(v.dirName, fileName)
 	err = v.fs.Remove(filePath)
 	if err != nil {
@@ -224,6 +194,21 @@ func (v *vfsProvider) List(objType nogodb_common.ObjectType) []FileDesc {
 	})
 
 	return res
+}
+
+func (v *vfsProvider) Sync(objType nogodb_common.ObjectType, num nogodb_common.DiskfileNum) error {
+	_, err := v.LookUp(objType, num)
+	if err != nil {
+		return err
+	}
+	fileName := nogodb_common.GetFileName(objType, num)
+	filePath := v.fs.PathJoin(v.dirName, fileName)
+	file, err := v.fs.Open(filePath)
+	if err != nil {
+		return err
+	}
+
+	return file.Sync()
 }
 
 func (v *vfsProvider) Close() error {

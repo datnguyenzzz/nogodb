@@ -9,7 +9,6 @@ import (
 	go_fs "github.com/datnguyenzzz/nogodb/lib/go-fs"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/block"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
-	commonBlock "github.com/datnguyenzzz/nogodb/lib/go-sstable/common/block"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/filter"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/options"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/queue"
@@ -17,7 +16,7 @@ import (
 	"go.uber.org/zap"
 )
 
-type compressorPerBlock map[commonBlock.BlockKind]compression.ICompression
+type compressorPerBlock map[nogodb_common.BlockKind]compression.ICompression
 
 // RowBlockWriter is an implementation of common.InternalWriter, which writes SSTables with row-oriented blocks
 type RowBlockWriter struct {
@@ -36,7 +35,7 @@ type RowBlockWriter struct {
 	bytesBufferPool *predictable_size.PredictablePool
 }
 
-func (rw *RowBlockWriter) Add(key common.InternalKey, value []byte) error {
+func (rw *RowBlockWriter) Add(key nogodb_common.InternalKey, value []byte) error {
 	if err := rw.validateKey(key); err != nil {
 		return err
 	}
@@ -60,7 +59,7 @@ func (rw *RowBlockWriter) Close() error {
 	// Flush the last (current) data block to the storage
 	if rw.dataBlock.EntryCount() > 0 {
 		// create an index with key ≥ currentKey
-		if err := rw.doFlush(common.InternalKey{}); err != nil {
+		if err := rw.doFlush(nogodb_common.InternalKey{}); err != nil {
 			return err
 		}
 	}
@@ -76,7 +75,7 @@ func (rw *RowBlockWriter) Close() error {
 		var rawData []byte
 		rw.filterWriter.Build(&rawData)
 		// compress and checksum
-		compressor := rw.compressors[commonBlock.BlockKindFilter]
+		compressor := rw.compressors[nogodb_common.BlockKindFilter]
 		pb := block.CompressToPb(compressor, rw.checksumer, rawData)
 		// write to the stable storage
 		bh, err := rw.storageWriter.WritePhysicalBlock(*pb)
@@ -85,10 +84,10 @@ func (rw *RowBlockWriter) Close() error {
 			return err
 		}
 		// save the filter block location to the meta index block
-		encodedBH := make([]byte, commonBlock.MaxBlockHandleBytes)
+		encodedBH := make([]byte, common.MaxBlockHandleBytes)
 		n := bh.EncodeInto(encodedBH)
 		err = rw.metaIndexBlock.WriteEntry(
-			common.MakeMetaIndexKey(commonBlock.BlockKindFilter),
+			nogodb_common.MakeMetaIndexKey(nogodb_common.BlockKindFilter),
 			encodedBH[:n],
 		)
 		if err != nil {
@@ -105,10 +104,10 @@ func (rw *RowBlockWriter) Close() error {
 		}
 		// save the block location of the 2-level index to the index
 		// key - 1 byte indicate block kind , value - varint encoded of the block handle
-		encodedBH := make([]byte, commonBlock.MaxBlockHandleBytes)
+		encodedBH := make([]byte, common.MaxBlockHandleBytes)
 		n := indexBh.EncodeInto(encodedBH)
 		err = rw.metaIndexBlock.WriteEntry(
-			common.MakeMetaIndexKey(commonBlock.BlockKindIndex),
+			nogodb_common.MakeMetaIndexKey(nogodb_common.BlockKindIndex),
 			encodedBH[:n],
 		)
 		if err != nil {
@@ -120,7 +119,7 @@ func (rw *RowBlockWriter) Close() error {
 	metaIndexRaw := rw.bytesBufferPool.Get(rw.metaIndexBlock.EstimateSize())
 	metaIndexRaw = metaIndexRaw[:rw.metaIndexBlock.EstimateSize()]
 	rw.metaIndexBlock.Finish(metaIndexRaw)
-	compressor := rw.compressors[commonBlock.BlockKindIndex]
+	compressor := rw.compressors[nogodb_common.BlockKindIndex]
 	pb := block.CompressToPb(compressor, rw.checksumer, metaIndexRaw)
 	bh, err := rw.storageWriter.WritePhysicalBlock(*pb)
 	if err != nil {
@@ -159,7 +158,7 @@ func (rw *RowBlockWriter) Close() error {
 }
 
 // validateKey ensure the key is added in the asc order.
-func (rw *RowBlockWriter) validateKey(key common.InternalKey) error {
+func (rw *RowBlockWriter) validateKey(key nogodb_common.InternalKey) error {
 	if rw.dataBlock.EntryCount() == 0 {
 		return nil
 	}
@@ -173,7 +172,7 @@ func (rw *RowBlockWriter) validateKey(key common.InternalKey) error {
 }
 
 // mightFlush validate if required or not, if yes then flush (and compression) the data to the stable storage
-func (rw *RowBlockWriter) mightFlush(key common.InternalKey, dataLen int) error {
+func (rw *RowBlockWriter) mightFlush(key nogodb_common.InternalKey, dataLen int) error {
 	// Skip if the data block is not ready to flush
 	if !rw.dataBlock.ShouldFlush(key.Size(), dataLen, rw.flushDecider) {
 		return nil
@@ -182,7 +181,7 @@ func (rw *RowBlockWriter) mightFlush(key common.InternalKey, dataLen int) error 
 	return rw.doFlush(key)
 }
 
-func (rw *RowBlockWriter) doFlush(key common.InternalKey) error {
+func (rw *RowBlockWriter) doFlush(key nogodb_common.InternalKey) error {
 	prevKey := rw.dataBlock.CurKey()
 	// 1. Finish the data block, write the serialised data into the buffer
 	uncompressed := rw.bytesBufferPool.Get(rw.dataBlock.EstimateSize())
@@ -193,7 +192,7 @@ func (rw *RowBlockWriter) doFlush(key common.InternalKey) error {
 	// of the data block to prepare the needed input for the task
 	task := block.SpawnNewTask()
 	task.StorageWriter = rw.storageWriter
-	task.Physical = block.CompressToPb(rw.compressors[commonBlock.BlockKindData], rw.checksumer, uncompressed)
+	task.Physical = block.CompressToPb(rw.compressors[nogodb_common.BlockKindData], rw.checksumer, uncompressed)
 	// inputs for index writer
 	task.IndexKey = prevKey
 	task.IndexWriter = rw.indexWriter
@@ -214,7 +213,7 @@ func (rw *RowBlockWriter) doFlush(key common.InternalKey) error {
 
 func NewRowBlockWriter(w go_fs.Writable, opts options.BlockWriteOpt, version common.TableVersion) *RowBlockWriter {
 	c := compressorPerBlock{}
-	for blockKind := range commonBlock.BlockKindStrings {
+	for blockKind := range nogodb_common.BlockKindStrings {
 		if _, ok := opts.Compression[blockKind]; !ok {
 			c[blockKind] = compression.NewCompressor(opts.DefaultCompression)
 			continue
@@ -235,7 +234,7 @@ func NewRowBlockWriter(w go_fs.Writable, opts options.BlockWriteOpt, version com
 		metaIndexBlock: metaIndexBlock,
 		indexWriter: newIndexWriter(
 			comparer,
-			c[commonBlock.BlockKindIndex],
+			c[nogodb_common.BlockKindIndex],
 			crc32Checksum,
 			flushDecider,
 			storageWriter,

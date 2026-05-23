@@ -7,10 +7,10 @@ import (
 	"testing"
 	"time"
 
+	nogodb_common "github.com/datnguyenzzz/nogodb/lib/common"
 	"github.com/datnguyenzzz/nogodb/lib/go-bytesbufferpool/predictable_size"
 	colblock "github.com/datnguyenzzz/nogodb/lib/go-sstable/block/col_block"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
-	commonBlock "github.com/datnguyenzzz/nogodb/lib/go-sstable/common/block"
 	"github.com/stretchr/testify/require"
 )
 
@@ -63,9 +63,9 @@ func Test_iterating_over_an_index_block(t *testing.T) {
 
 			// Prep input data
 			keys := reduceDuplicate(genInput(tc.size, tc.sharedPrefixLen, false))
-			blockHandles := make([]*commonBlock.BlockHandle, 0, len(keys))
+			blockHandles := make([]*common.BlockHandle, 0, len(keys))
 			for range keys {
-				blockHandles = append(blockHandles, &commonBlock.BlockHandle{
+				blockHandles = append(blockHandles, &common.BlockHandle{
 					Offset: r.Uint64(),
 					Length: r.Uint64(),
 				})
@@ -80,7 +80,7 @@ func Test_iterating_over_an_index_block(t *testing.T) {
 			data := writer.Finish(uint32(len(keys)), estSize)
 
 			// Create iterator
-			lz := common.NewBlankInternalLazyValue(common.ValueFromBuffer)
+			lz := nogodb_common.NewBlankInternalLazyValue(nogodb_common.ValueFromBuffer)
 			lz.ReserveBuffer(bp, len(data))
 			lz.SetBufferValue(data)
 
@@ -151,9 +151,9 @@ func Test_Seeking_on_an_index_block(t *testing.T) {
 
 			// Prep input data
 			keys := reduceDuplicate(genInput(tc.size, tc.sharedPrefixLen, false))
-			blockHandles := make([]*commonBlock.BlockHandle, 0, len(keys))
+			blockHandles := make([]*common.BlockHandle, 0, len(keys))
 			for range keys {
-				blockHandles = append(blockHandles, &commonBlock.BlockHandle{
+				blockHandles = append(blockHandles, &common.BlockHandle{
 					Offset: r.Uint64(),
 					Length: r.Uint64(),
 				})
@@ -168,7 +168,7 @@ func Test_Seeking_on_an_index_block(t *testing.T) {
 			data := writer.Finish(uint32(len(keys)), estSize)
 
 			// Create iterator
-			lz := common.NewBlankInternalLazyValue(common.ValueFromBuffer)
+			lz := nogodb_common.NewBlankInternalLazyValue(nogodb_common.ValueFromBuffer)
 			lz.ReserveBuffer(bp, len(data))
 			lz.SetBufferValue(data)
 
@@ -229,12 +229,12 @@ func reduceDuplicate(slice [][]byte) [][]byte {
 func assertIndexKv(
 	t *testing.T,
 	op string,
-	actual *common.InternalKV,
+	actual *nogodb_common.InternalKV,
 	expectedKey []byte,
-	expectedBh *commonBlock.BlockHandle,
+	expectedBh *common.BlockHandle,
 ) {
 	k, v := actual.K.UserKey, actual.V.Value()
-	bh := &commonBlock.BlockHandle{}
+	bh := &common.BlockHandle{}
 	bh.DecodeFrom(v)
 
 	require.Equal(t, expectedKey, k, fmt.Sprintf("[%s]: key is mismatch", op))

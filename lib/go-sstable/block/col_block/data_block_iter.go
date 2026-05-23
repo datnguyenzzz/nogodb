@@ -35,7 +35,7 @@ type DataBlockIter struct {
 	closed  bool
 }
 
-func (i *DataBlockIter) SeekGTE(key []byte) *common.InternalKV {
+func (i *DataBlockIter) SeekGTE(key []byte) *nogodb_common.InternalKV {
 	foundRow, _ := i.seekGTEInternal(key)
 	if foundRow >= i.keyDecoder.prefix.Rows() {
 		return nil
@@ -47,12 +47,12 @@ func (i *DataBlockIter) SeekGTE(key []byte) *common.InternalKV {
 
 // SeekPrefixGTE moves the iterator to the first key/value pair whose key >= to the given key.
 // that has the defined prefix for faster looking up
-func (i *DataBlockIter) SeekPrefixGTE(prefix, key []byte) *common.InternalKV {
+func (i *DataBlockIter) SeekPrefixGTE(prefix, key []byte) *nogodb_common.InternalKV {
 	panic("Block Iterator doesn't support SeekPrefixGE, this kind of function should be handled in the higher level iteration")
 }
 
 // SeekLTE moves the iterator to the last key/value pair whose key ≤ to the given key.
-func (i *DataBlockIter) SeekLTE(key []byte) *common.InternalKV {
+func (i *DataBlockIter) SeekLTE(key []byte) *nogodb_common.InternalKV {
 	foundRow, eq := i.seekGTEInternal(key)
 	if !eq {
 		foundRow -= 1
@@ -63,19 +63,19 @@ func (i *DataBlockIter) SeekLTE(key []byte) *common.InternalKV {
 }
 
 // First moves the iterator the first key/value pair.
-func (i *DataBlockIter) First() *common.InternalKV {
+func (i *DataBlockIter) First() *nogodb_common.InternalKV {
 	i.currRow = 0
 	return i.toKv()
 }
 
 // Last moves the iterator the last key/value pair.
-func (i *DataBlockIter) Last() *common.InternalKV {
+func (i *DataBlockIter) Last() *nogodb_common.InternalKV {
 	i.currRow = i.keyDecoder.prefix.Rows() - 1
 	return i.toKv()
 }
 
 // Next moves the iterator to the next key/value pair
-func (i *DataBlockIter) Next() *common.InternalKV {
+func (i *DataBlockIter) Next() *nogodb_common.InternalKV {
 	if i.currRow == i.keyDecoder.prefix.Rows()-1 {
 		return nil
 	}
@@ -85,7 +85,7 @@ func (i *DataBlockIter) Next() *common.InternalKV {
 }
 
 // Prev moves the iterator to the previous key/value pair.
-func (i *DataBlockIter) Prev() *common.InternalKV {
+func (i *DataBlockIter) Prev() *nogodb_common.InternalKV {
 	if i.currRow == 0 {
 		return nil
 	}
@@ -135,8 +135,8 @@ func (i *DataBlockIter) seekGTEInternal(key []byte) (foundRow uint32, eq bool) {
 }
 
 // toKv converts the current row to the InternalKV
-func (i *DataBlockIter) toKv() *common.InternalKV {
-	iKv := &common.InternalKV{}
+func (i *DataBlockIter) toKv() *nogodb_common.InternalKV {
+	iKv := &nogodb_common.InternalKV{}
 	var trailer [8]byte
 	binary.LittleEndian.PutUint64(trailer[:], i.keyDecoder.trailer.Get(i.currRow))
 	key := slices.Concat(
@@ -145,9 +145,9 @@ func (i *DataBlockIter) toKv() *common.InternalKV {
 		trailer[:],
 	)
 
-	iKv.K = *common.DeserializeKey(key)
+	iKv.K = *nogodb_common.DeserializeKey(key)
 
-	v := common.NewBlankInternalLazyValue(common.ValueFromBuffer)
+	v := nogodb_common.NewBlankInternalLazyValue(nogodb_common.ValueFromBuffer)
 	v.ReserveBuffer(i.bpool, len(i.values.Get(i.currRow)))
 	if err := v.SetBufferValue(i.values.Get(i.currRow)); err != nil {
 		zap.L().Error("failed to set value", zap.Error(err))
@@ -159,7 +159,7 @@ func (i *DataBlockIter) toKv() *common.InternalKV {
 func NewDataBlockIter(
 	bp *predictable_size.PredictablePool,
 	cp nogodb_common.IComparer,
-	data *common.InternalLazyValue,
+	data *nogodb_common.InternalLazyValue,
 ) *DataBlockIter {
 	d := &DataBlockIter{
 		bpool:    bp,

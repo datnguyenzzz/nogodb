@@ -5,7 +5,6 @@ import (
 	"github.com/datnguyenzzz/nogodb/lib/common/compression"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/block"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
-	commonBlock "github.com/datnguyenzzz/nogodb/lib/go-sstable/common/block"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/storage"
 )
 
@@ -27,12 +26,12 @@ type IndexWriter struct {
 	// indexBuffer holds the all compressed block of the completed first level index
 	// and they will be flushed to the storage at once when the SSTable is closed.
 	indexBuffer []struct {
-		key        *common.InternalKey
+		key        *nogodb_common.InternalKey
 		rows       int
-		compressed *commonBlock.PhysicalBlock
+		compressed *common.PhysicalBlock
 	}
 
-	prevKey *common.InternalKey
+	prevKey *nogodb_common.InternalKey
 }
 
 func NewIndexWriter(
@@ -52,11 +51,11 @@ func NewIndexWriter(
 		compressor:    compressor,
 		checksumer:    checksumer,
 
-		prevKey: &common.InternalKey{},
+		prevKey: &nogodb_common.InternalKey{},
 	}
 }
 
-func (iw *IndexWriter) Add(key *common.InternalKey, bh *commonBlock.BlockHandle) error {
+func (iw *IndexWriter) Add(key *nogodb_common.InternalKey, bh *common.BlockHandle) error {
 	if len(iw.prevKey.UserKey) > 0 && iw.comparer.Compare(iw.prevKey.UserKey, key.UserKey) >= 0 {
 		panic("IndexWriter key must be in a strictly increasing order")
 	}
@@ -77,7 +76,7 @@ func (iw *IndexWriter) Add(key *common.InternalKey, bh *commonBlock.BlockHandle)
 	return nil
 }
 
-func (iw *IndexWriter) BuildIndex() (*commonBlock.BlockHandle, error) {
+func (iw *IndexWriter) BuildIndex() (*common.BlockHandle, error) {
 	// flush all pendings 1st level index
 	iw.flushAll()
 
@@ -109,9 +108,9 @@ func (iw *IndexWriter) BuildIndex() (*commonBlock.BlockHandle, error) {
 func (iw *IndexWriter) flushToMemWithoutLastKey(size int) {
 	rows := int(iw.firstLevelIndex.Rows())
 	idx := struct {
-		key        *common.InternalKey
+		key        *nogodb_common.InternalKey
 		rows       int
-		compressed *commonBlock.PhysicalBlock
+		compressed *common.PhysicalBlock
 	}{
 		key:        iw.prevKey,
 		rows:       rows - 1,
@@ -134,9 +133,9 @@ func (iw *IndexWriter) flushAll() {
 	rows := int(iw.firstLevelIndex.Rows())
 	size := int(iw.firstLevelIndex.Size())
 	idx := struct {
-		key        *common.InternalKey
+		key        *nogodb_common.InternalKey
 		rows       int
-		compressed *commonBlock.PhysicalBlock
+		compressed *common.PhysicalBlock
 	}{
 		key:        iw.prevKey,
 		rows:       rows,

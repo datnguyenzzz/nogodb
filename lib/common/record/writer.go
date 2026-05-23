@@ -5,7 +5,7 @@ import (
 	"errors"
 	"io"
 
-	nogodb_common "github.com/datnguyenzzz/nogodb/tree/master/lib/common"
+	nogodb_common "github.com/datnguyenzzz/nogodb/lib/common"
 )
 
 const (

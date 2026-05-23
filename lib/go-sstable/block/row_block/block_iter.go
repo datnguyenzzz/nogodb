@@ -14,7 +14,7 @@ import (
 type BlockIterator struct {
 	bpool *predictable_size.PredictablePool
 	// data represents entire data of the block
-	data *common.InternalLazyValue
+	data *nogodb_common.InternalLazyValue
 	// key represents key of the current entry
 	key []byte
 	// value represents value of the current entry
@@ -30,11 +30,11 @@ type BlockIterator struct {
 	cmp nogodb_common.IComparer
 }
 
-func (i *BlockIterator) SeekPrefixGTE(prefix, key []byte) *common.InternalKV {
+func (i *BlockIterator) SeekPrefixGTE(prefix, key []byte) *nogodb_common.InternalKV {
 	panic("Block Iterator doesn't support SeekPrefixGE, this kind of function should be handled in the higher level iteration")
 }
 
-func (i *BlockIterator) SeekGTE(key []byte) *common.InternalKV {
+func (i *BlockIterator) SeekGTE(key []byte) *nogodb_common.InternalKV {
 	lo, hi := int32(0), i.numRestarts-1
 	var pos int32
 	for lo <= hi {
@@ -69,7 +69,7 @@ func (i *BlockIterator) SeekGTE(key []byte) *common.InternalKV {
 	return i.toKV()
 }
 
-func (i *BlockIterator) SeekLTE(key []byte) *common.InternalKV {
+func (i *BlockIterator) SeekLTE(key []byte) *nogodb_common.InternalKV {
 	lo, hi := int32(0), i.numRestarts-1
 	pos := int32(-1)
 	for lo <= hi {
@@ -110,12 +110,12 @@ func (i *BlockIterator) SeekLTE(key []byte) *common.InternalKV {
 	return i.toKV()
 }
 
-func (i *BlockIterator) First() *common.InternalKV {
+func (i *BlockIterator) First() *nogodb_common.InternalKV {
 	i.readEntry()
 	return i.toKV()
 }
 
-func (i *BlockIterator) Last() *common.InternalKV {
+func (i *BlockIterator) Last() *nogodb_common.InternalKV {
 	// move offset to the last restart point
 	i.offset = uint64(i.restartPoints[len(i.restartPoints)-1])
 	i.readEntry()
@@ -128,7 +128,7 @@ func (i *BlockIterator) Last() *common.InternalKV {
 
 // Next move the cursor to the next entry position of the block
 // returns nil if the current position is already at the end
-func (i *BlockIterator) Next() *common.InternalKV {
+func (i *BlockIterator) Next() *nogodb_common.InternalKV {
 	if i.atTheEnd() {
 		// already at the endpoint of the block
 		return nil
@@ -138,7 +138,7 @@ func (i *BlockIterator) Next() *common.InternalKV {
 	return i.toKV()
 }
 
-func (i *BlockIterator) Prev() *common.InternalKV {
+func (i *BlockIterator) Prev() *nogodb_common.InternalKV {
 	if i.atTheFirst() {
 		return nil
 	}
@@ -189,10 +189,10 @@ func (i *BlockIterator) IsClosed() bool {
 	return i.data == nil
 }
 
-func (i *BlockIterator) toKV() *common.InternalKV {
-	iKV := &common.InternalKV{}
-	iKV.K = *common.DeserializeKey(i.key)
-	v := common.NewBlankInternalLazyValue(common.ValueFromBuffer)
+func (i *BlockIterator) toKV() *nogodb_common.InternalKV {
+	iKV := &nogodb_common.InternalKV{}
+	iKV.K = *nogodb_common.DeserializeKey(i.key)
+	v := nogodb_common.NewBlankInternalLazyValue(nogodb_common.ValueFromBuffer)
 	v.ReserveBuffer(i.bpool, len(i.value))
 	if err := v.SetBufferValue(i.value); err != nil {
 		zap.L().Error("failed to set value", zap.Error(err))
@@ -236,7 +236,7 @@ func (i *BlockIterator) readEntry() {
 func NewBlockIterator(
 	bpool *predictable_size.PredictablePool,
 	cmp nogodb_common.IComparer,
-	data *common.InternalLazyValue,
+	data *nogodb_common.InternalLazyValue,
 ) *BlockIterator {
 	// refer to the README to understand the data layout
 	block := data.Value()

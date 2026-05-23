@@ -1,9 +1,12 @@
-module github.com/datnguyenzzz/nogodb/tree/master/lib/common
+module github.com/datnguyenzzz/nogodb/lib/common
 
-go 1.25.0
+go 1.26.0
+
+replace github.com/datnguyenzzz/nogodb/lib/go-bytesbufferpool => ../go-bytesbufferpool
 
 require (
 	github.com/DataDog/zstd v1.5.7
+	github.com/datnguyenzzz/nogodb/lib/go-bytesbufferpool v0.0.0-00010101000000-000000000000
 	github.com/golang/snappy v1.0.0
 	github.com/stretchr/testify v1.11.1
 )

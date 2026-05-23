@@ -8,7 +8,6 @@ import (
 	"github.com/datnguyenzzz/nogodb/lib/go-bytesbufferpool/predictable_size"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/block"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
-	commonBlock "github.com/datnguyenzzz/nogodb/lib/go-sstable/common/block"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/options"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/storage"
 )
@@ -18,7 +17,7 @@ const (
 )
 
 type firstLevelIndex struct {
-	key           *common.InternalKey
+	key           *nogodb_common.InternalKey
 	entries       int
 	finishedBlock []byte
 }
@@ -44,20 +43,20 @@ type indexWriter struct {
 	opts              *options.BlockWriteOpt
 }
 
-func (w *indexWriter) Add(key *common.InternalKey, bh *commonBlock.BlockHandle) error {
+func (w *indexWriter) Add(key *nogodb_common.InternalKey, bh *common.BlockHandle) error {
 	if bh.Length == 0 {
 		return nil
 	}
 	if err := w.mightFlushToMem(key); err != nil {
 		return err
 	}
-	encoded := make([]byte, commonBlock.MaxBlockHandleBytes)
+	encoded := make([]byte, common.MaxBlockHandleBytes)
 	n := bh.EncodeInto(encoded)
 	encoded = encoded[:n]
 	return w.firstLevelBlock.WriteEntry(*key, encoded)
 }
 
-func (w *indexWriter) mightFlushToMem(key *common.InternalKey) error {
+func (w *indexWriter) mightFlushToMem(key *nogodb_common.InternalKey) error {
 	estimatedBHSize := binary.MaxVarintLen64 * 2
 	if !w.firstLevelBlock.ShouldFlush(key.Size(), estimatedBHSize, w.flushDecider) {
 		return nil
@@ -81,7 +80,7 @@ func (w *indexWriter) mightFlushToMem(key *common.InternalKey) error {
 	return nil
 }
 
-func (w *indexWriter) flushFirstLevelIndexToMem(key *common.InternalKey) {
+func (w *indexWriter) flushFirstLevelIndexToMem(key *nogodb_common.InternalKey) {
 	prevKey := w.firstLevelBlock.CurKey()
 	idx := &firstLevelIndex{
 		key:     prevKey,
@@ -101,7 +100,7 @@ func (w *indexWriter) flushFirstLevelIndexToMem(key *common.InternalKey) {
 }
 
 // buildIndex build the 2-level index for the SST
-func (w *indexWriter) BuildIndex() (*commonBlock.BlockHandle, error) {
+func (w *indexWriter) BuildIndex() (*common.BlockHandle, error) {
 	// flush all of pending/un-finished 1-level indices to mem
 	w.flushFirstLevelIndexToMem(w.firstLevelBlock.CurKey())
 	for _, idx := range w.firstLevelIndices {
@@ -113,7 +112,7 @@ func (w *indexWriter) BuildIndex() (*commonBlock.BlockHandle, error) {
 		}
 		// 2. Write the encoded value of the 1-level index block handle
 		// into buffer
-		encodedBH := make([]byte, commonBlock.MaxBlockHandleBytes)
+		encodedBH := make([]byte, common.MaxBlockHandleBytes)
 		n := bh.EncodeInto(encodedBH)
 		if err := w.secondLevelBlock.WriteEntry(*idx.key, encodedBH[:n]); err != nil {
 			return nil, err

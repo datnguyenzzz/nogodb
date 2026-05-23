@@ -13,7 +13,6 @@ import (
 	nogodb_common "github.com/datnguyenzzz/nogodb/lib/common"
 	"github.com/datnguyenzzz/nogodb/lib/go-bytesbufferpool/predictable_size"
 	colblock "github.com/datnguyenzzz/nogodb/lib/go-sstable/block/col_block"
-	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
 	"github.com/go-faker/faker/v4"
 	"github.com/stretchr/testify/require"
 )
@@ -86,10 +85,10 @@ func Test_iterating_over_a_block(t *testing.T) {
 
 			// Prep input data
 			userKeys := genInput(tc.size, tc.sharedPrefixLen, true)
-			keys := make([]common.InternalKey, 0, len(userKeys))
+			keys := make([]nogodb_common.InternalKey, 0, len(userKeys))
 			values := make([][]byte, 0, len(userKeys))
 			for i, userKey := range userKeys {
-				keys = append(keys, common.MakeKey(userKey, common.SeqNum(i), common.KeyKindSet))
+				keys = append(keys, nogodb_common.MakeKey(userKey, nogodb_common.SeqNum(i), nogodb_common.KeyKindSet))
 				values = append(values, randomByte())
 			}
 
@@ -102,7 +101,7 @@ func Test_iterating_over_a_block(t *testing.T) {
 			data := writer.Finish(uint32(len(keys)), estSize)
 
 			// Create iterator
-			lz := common.NewBlankInternalLazyValue(common.ValueFromBuffer)
+			lz := nogodb_common.NewBlankInternalLazyValue(nogodb_common.ValueFromBuffer)
 			lz.ReserveBuffer(bp, len(data))
 			lz.SetBufferValue(data)
 
@@ -172,10 +171,10 @@ func Test_seeking_on_data_block(t *testing.T) {
 
 			// Prep input data
 			userKeys := genInput(tc.size, tc.sharedPrefixLen, true)
-			keys := make([]common.InternalKey, 0, len(userKeys))
+			keys := make([]nogodb_common.InternalKey, 0, len(userKeys))
 			values := make([][]byte, 0, len(userKeys))
 			for i, userKey := range userKeys {
-				keys = append(keys, common.MakeKey(userKey, common.SeqNum(i), common.KeyKindSet))
+				keys = append(keys, nogodb_common.MakeKey(userKey, nogodb_common.SeqNum(i), nogodb_common.KeyKindSet))
 				values = append(values, randomByte())
 			}
 
@@ -188,7 +187,7 @@ func Test_seeking_on_data_block(t *testing.T) {
 			data := writer.Finish(uint32(len(keys)), estSize)
 
 			// Create iterator
-			lz := common.NewBlankInternalLazyValue(common.ValueFromBuffer)
+			lz := nogodb_common.NewBlankInternalLazyValue(nogodb_common.ValueFromBuffer)
 			lz.ReserveBuffer(bp, len(data))
 			lz.SetBufferValue(data)
 
@@ -232,7 +231,7 @@ func Test_seeking_on_data_block(t *testing.T) {
 	}
 }
 
-func assertKv(t *testing.T, i int, op string, foundKv *common.InternalKV, expectedKey []byte, expectedValue []byte) {
+func assertKv(t *testing.T, i int, op string, foundKv *nogodb_common.InternalKV, expectedKey []byte, expectedValue []byte) {
 	k, v := foundKv.K, foundKv.V.Value()
 	require.Equal(t, expectedKey, k.UserKey, fmt.Sprintf("[%s]: key is mismatch at %d-th row", op, i))
 	require.Zero(t, bytes.Compare(expectedValue, v), fmt.Sprintf("[%s]: value is mismatch at %d-th row", op, i))

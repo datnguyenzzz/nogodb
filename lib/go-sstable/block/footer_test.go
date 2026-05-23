@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
-	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common/block"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -38,7 +37,7 @@ func (m *MockLayoutReader) Close() error {
 
 func TestFooterSerialization(t *testing.T) {
 	// Create a footer with known values
-	metaIndexBH := block.BlockHandle{
+	metaIndexBH := common.BlockHandle{
 		Offset: 1234,
 		Length: 5678,
 	}
@@ -64,7 +63,7 @@ func TestFooterSerialization(t *testing.T) {
 
 	// Create a buffer to decode the BlockHandle
 	metaIndexBuf := serialized[:versionPos]
-	decodedBH := &block.BlockHandle{}
+	decodedBH := &common.BlockHandle{}
 	n := decodedBH.DecodeFrom(metaIndexBuf)
 	assert.Greater(t, n, 0)
 	assert.Equal(t, metaIndexBH.Offset, decodedBH.Offset)
@@ -81,7 +80,7 @@ func TestReadFooter(t *testing.T) {
 		{
 			name: "Valid footer",
 			setupFooter: func() ([]byte, *Footer) {
-				metaIndexBH := block.BlockHandle{
+				metaIndexBH := common.BlockHandle{
 					Offset: 1234,
 					Length: 5678,
 				}
@@ -98,7 +97,7 @@ func TestReadFooter(t *testing.T) {
 			name: "Invalid magic number",
 			setupFooter: func() ([]byte, *Footer) {
 				// Create a valid footer first
-				metaIndexBH := block.BlockHandle{
+				metaIndexBH := common.BlockHandle{
 					Offset: 1234,
 					Length: 5678,
 				}
@@ -119,7 +118,7 @@ func TestReadFooter(t *testing.T) {
 			name: "File too small",
 			setupFooter: func() ([]byte, *Footer) {
 				// Create a valid footer first
-				metaIndexBH := block.BlockHandle{
+				metaIndexBH := common.BlockHandle{
 					Offset: 1234,
 					Length: 5678,
 				}
@@ -160,7 +159,7 @@ func TestReadFooter(t *testing.T) {
 
 func TestReadFooterRoundTrip(t *testing.T) {
 	// Create a footer with test values
-	metaIndexBH := block.BlockHandle{
+	metaIndexBH := common.BlockHandle{
 		Offset: 9876,
 		Length: 5432,
 	}
@@ -193,7 +192,7 @@ func TestReadFooterRoundTrip(t *testing.T) {
 
 func TestFooterWithLargeOffsets(t *testing.T) {
 	// Create a footer with large offset values
-	metaIndexBH := block.BlockHandle{
+	metaIndexBH := common.BlockHandle{
 		Offset: 0xFFFFFFFF, // Large 32-bit value
 		Length: 0xFFFFFFFF, // Large 32-bit value
 	}
@@ -215,7 +214,7 @@ func TestFooterWithLargeOffsets(t *testing.T) {
 // Test for ReadFooter when file is smaller than MaxPossibleFooterSize
 func TestReadFooterSmallFile(t *testing.T) {
 	// Create a valid but small footer
-	metaIndexBH := block.BlockHandle{
+	metaIndexBH := common.BlockHandle{
 		Offset: 10,
 		Length: 20,
 	}

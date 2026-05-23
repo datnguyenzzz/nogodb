@@ -5,13 +5,12 @@ import (
 	"fmt"
 
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
-	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common/block"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/storage"
 )
 
 type Footer struct {
 	Version     common.TableVersion
-	MetaIndexBH block.BlockHandle
+	MetaIndexBH common.BlockHandle
 }
 
 func (f *Footer) Serialise() []byte {
@@ -23,7 +22,7 @@ func (f *Footer) Serialise() []byte {
 	return buf
 }
 
-func (f *Footer) GetMetaIndex() *block.BlockHandle {
+func (f *Footer) GetMetaIndex() *common.BlockHandle {
 	return &f.MetaIndexBH
 }
 
@@ -48,7 +47,7 @@ func ReadFooter(
 		}
 
 		metaIndexBuf := buf[len(buf)-common.TableFooterSize[version]:]
-		metaIndexBH := &block.BlockHandle{}
+		metaIndexBH := &common.BlockHandle{}
 		if n := metaIndexBH.DecodeFrom(metaIndexBuf); n <= 0 {
 			return nil, fmt.Errorf("%w failed to decode the meta index buf", common.InternalServerError)
 		}

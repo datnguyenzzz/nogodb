@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"fmt"
 
+	nogodb_common "github.com/datnguyenzzz/nogodb/lib/common"
 	"github.com/datnguyenzzz/nogodb/lib/go-bytesbufferpool/predictable_size"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/block"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
@@ -43,12 +44,12 @@ func (d *rowBlockBuf) EntryCount() int {
 	return d.nEntries
 }
 
-func (d *rowBlockBuf) CurKey() *common.InternalKey {
-	return common.DeserializeKey(d.curKey)
+func (d *rowBlockBuf) CurKey() *nogodb_common.InternalKey {
+	return nogodb_common.DeserializeKey(d.curKey)
 }
 
 // WriteEntry write the key-value into the buffer block
-func (d *rowBlockBuf) WriteEntry(key common.InternalKey, value []byte) error {
+func (d *rowBlockBuf) WriteEntry(key nogodb_common.InternalKey, value []byte) error {
 	d.prevKey = make([]byte, len(d.curKey))
 	copy(d.prevKey, d.curKey)
 

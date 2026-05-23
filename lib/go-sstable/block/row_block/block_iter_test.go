@@ -5,7 +5,6 @@ import (
 
 	nogodb_common "github.com/datnguyenzzz/nogodb/lib/common"
 	"github.com/datnguyenzzz/nogodb/lib/go-bytesbufferpool/predictable_size"
-	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -172,14 +171,14 @@ func TestDataBlockIterator_readEntry(t *testing.T) {
 			cmp := nogodb_common.NewComparer()
 
 			for _, entry := range tc.testEntries {
-				lz := common.NewBlankInternalLazyValue(common.ValueFromBuffer)
+				lz := nogodb_common.NewBlankInternalLazyValue(nogodb_common.ValueFromBuffer)
 				lz.ReserveBuffer(bp, len(blockData))
 				_ = lz.SetBufferValue(blockData)
 				iter := NewBlockIterator(predictable_size.NewPredictablePool(), cmp, &lz)
 				iter.offset = entry.offset
 
 				iter.readEntry()
-				actualKey := common.DeserializeKey(iter.key)
+				actualKey := nogodb_common.DeserializeKey(iter.key)
 				assert.Equal(t, entry.expectedKey, string(actualKey.UserKey), "key should match at offset %d", entry.offset)
 				assert.Equal(t, entry.expectedValue, string(iter.value), "value should match at offset %d", entry.offset)
 				assert.Greater(t, iter.nextOffset, iter.offset, "nextOffset should be greater than current offset")
@@ -320,7 +319,7 @@ func TestDataBlockIterator_First(t *testing.T) {
 
 			// 2. Create iterator and test First()
 			cmp := nogodb_common.NewComparer()
-			lz := common.NewBlankInternalLazyValue(common.ValueFromBuffer)
+			lz := nogodb_common.NewBlankInternalLazyValue(nogodb_common.ValueFromBuffer)
 			lz.ReserveBuffer(bp, len(blockData))
 			_ = lz.SetBufferValue(blockData)
 			iter := NewBlockIterator(predictable_size.NewPredictablePool(), cmp, &lz)
@@ -335,7 +334,7 @@ func TestDataBlockIterator_First(t *testing.T) {
 			assert.LessOrEqual(t, iter.nextOffset, iter.trailerOffset, "nextOffset should not exceed trailer offset")
 
 			// Verify iterator's internal key and value are set
-			actualIterKey := common.DeserializeKey(iter.key)
+			actualIterKey := nogodb_common.DeserializeKey(iter.key)
 			assert.Equal(t, tc.expectedFirstKey, string(actualIterKey.UserKey), "iterator's internal key should match first key")
 			assert.Equal(t, tc.expectedFirstValue, string(iter.value), "iterator's internal value should match first value")
 		})
@@ -502,7 +501,7 @@ func TestBlockIterator_Next(t *testing.T) {
 
 			// 2. Create iterator and test sequential Next() calls
 			cmp := nogodb_common.NewComparer()
-			lz := common.NewBlankInternalLazyValue(common.ValueFromBuffer)
+			lz := nogodb_common.NewBlankInternalLazyValue(nogodb_common.ValueFromBuffer)
 			lz.ReserveBuffer(bp, len(blockData))
 			_ = lz.SetBufferValue(blockData)
 			iter := NewBlockIterator(predictable_size.NewPredictablePool(), cmp, &lz)
@@ -525,7 +524,7 @@ func TestBlockIterator_Next(t *testing.T) {
 				assert.Equal(t, expected.expectedValue, string(nextKV.V.Value()), "Next() should return correct value for entry %d", i)
 
 				// Verify iterator internal state
-				actualIterKey := common.DeserializeKey(iter.key)
+				actualIterKey := nogodb_common.DeserializeKey(iter.key)
 				assert.Equal(t, expected.expectedKey, string(actualIterKey.UserKey), "iterator's internal key should match for entry %d", i)
 				assert.Equal(t, expected.expectedValue, string(iter.value), "iterator's internal value should match for entry %d", i)
 
@@ -701,7 +700,7 @@ func TestDataBlockIterator_Last(t *testing.T) {
 
 			// 2. Create iterator and test Last()
 			cmp := nogodb_common.NewComparer()
-			lz := common.NewBlankInternalLazyValue(common.ValueFromBuffer)
+			lz := nogodb_common.NewBlankInternalLazyValue(nogodb_common.ValueFromBuffer)
 			lz.ReserveBuffer(bp, len(blockData))
 			_ = lz.SetBufferValue(blockData)
 			iter := NewBlockIterator(predictable_size.NewPredictablePool(), cmp, &lz)
@@ -714,7 +713,7 @@ func TestDataBlockIterator_Last(t *testing.T) {
 			assert.Equal(t, iter.trailerOffset, iter.nextOffset, "nextOffset should equal trailerOffset after Last()")
 
 			// Verify iterator's internal key and value are set to last entry
-			actualIterKey := common.DeserializeKey(iter.key)
+			actualIterKey := nogodb_common.DeserializeKey(iter.key)
 			assert.Equal(t, tc.expectedLastKey, string(actualIterKey.UserKey), "iterator's internal key should match last key")
 			assert.Equal(t, tc.expectedLastValue, string(iter.value), "iterator's internal value should match last value")
 
@@ -883,7 +882,7 @@ func TestDataBlockIterator_Prev(t *testing.T) {
 
 			// 2. Create iterator and position it correctly
 			cmp := nogodb_common.NewComparer()
-			lz := common.NewBlankInternalLazyValue(common.ValueFromBuffer)
+			lz := nogodb_common.NewBlankInternalLazyValue(nogodb_common.ValueFromBuffer)
 			lz.ReserveBuffer(bp, len(blockData))
 			_ = lz.SetBufferValue(blockData)
 			iter := NewBlockIterator(predictable_size.NewPredictablePool(), cmp, &lz)
@@ -905,7 +904,7 @@ func TestDataBlockIterator_Prev(t *testing.T) {
 				assert.Equal(t, tc.expectedPrevValue, string(prevKV.V.Value()), "Prev() should return correct value")
 
 				// Verify iterator's internal state
-				actualIterKey := common.DeserializeKey(iter.key)
+				actualIterKey := nogodb_common.DeserializeKey(iter.key)
 				assert.Equal(t, tc.expectedPrevKey, string(actualIterKey.UserKey), "iterator's internal key should match")
 				assert.Equal(t, tc.expectedPrevValue, string(iter.value), "iterator's internal value should match")
 			}
@@ -1139,7 +1138,7 @@ func TestDataBlockIterator_SeekGTE(t *testing.T) {
 
 			// 2. Create iterator and test SeekGTE
 			cmp := nogodb_common.NewComparer()
-			lz := common.NewBlankInternalLazyValue(common.ValueFromBuffer)
+			lz := nogodb_common.NewBlankInternalLazyValue(nogodb_common.ValueFromBuffer)
 			lz.ReserveBuffer(bp, len(blockData))
 			_ = lz.SetBufferValue(blockData)
 			iter := NewBlockIterator(predictable_size.NewPredictablePool(), cmp, &lz)
@@ -1157,7 +1156,7 @@ func TestDataBlockIterator_SeekGTE(t *testing.T) {
 				assert.Equal(t, tc.expectedFoundValue, string(seekKV.V.Value()), "SeekGTE() should return correct value")
 
 				// Verify iterator's internal state matches
-				actualIterKey := common.DeserializeKey(iter.key)
+				actualIterKey := nogodb_common.DeserializeKey(iter.key)
 				assert.Equal(t, tc.expectedFoundKey, string(actualIterKey.UserKey), "iterator's internal key should match found key")
 				assert.Equal(t, tc.expectedFoundValue, string(iter.value), "iterator's internal value should match found value")
 
@@ -1304,7 +1303,7 @@ func TestBlockIterator_Close(t *testing.T) {
 
 			// 2. Create iterator
 			cmp := nogodb_common.NewComparer()
-			lz := common.NewBlankInternalLazyValue(common.ValueFromBuffer)
+			lz := nogodb_common.NewBlankInternalLazyValue(nogodb_common.ValueFromBuffer)
 			lz.ReserveBuffer(bp, len(blockData))
 			_ = lz.SetBufferValue(blockData)
 			iter := NewBlockIterator(predictable_size.NewPredictablePool(), cmp, &lz)
@@ -1681,7 +1680,7 @@ func TestDataBlockIterator_SeekLTE(t *testing.T) {
 
 			// 2. Create iterator and test SeekLT
 			cmp := nogodb_common.NewComparer()
-			lz := common.NewBlankInternalLazyValue(common.ValueFromBuffer)
+			lz := nogodb_common.NewBlankInternalLazyValue(nogodb_common.ValueFromBuffer)
 			lz.ReserveBuffer(bp, len(blockData))
 			_ = lz.SetBufferValue(blockData)
 			iter := NewBlockIterator(predictable_size.NewPredictablePool(), cmp, &lz)
@@ -1700,7 +1699,7 @@ func TestDataBlockIterator_SeekLTE(t *testing.T) {
 				assert.Equal(t, tc.expectedFoundValue, string(seekKV.V.Value()), "SeekLT() should return correct value")
 
 				// Verify iterator's internal state matches
-				actualIterKey := common.DeserializeKey(iter.key)
+				actualIterKey := nogodb_common.DeserializeKey(iter.key)
 				assert.Equal(t, tc.expectedFoundKey, string(actualIterKey.UserKey), "iterator's internal key should match found key")
 				assert.Equal(t, tc.expectedFoundValue, string(iter.value), "iterator's internal value should match found value")
 

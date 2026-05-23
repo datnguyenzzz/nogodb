@@ -3,16 +3,16 @@ package block
 import (
 	"sync"
 
+	nogodb_common "github.com/datnguyenzzz/nogodb/lib/common"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
-	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common/block"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/queue"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/storage"
 )
 
 type Task struct {
-	Physical      *block.PhysicalBlock
+	Physical      *common.PhysicalBlock
 	StorageWriter storage.ILayoutWriter
-	IndexKey      *common.InternalKey
+	IndexKey      *nogodb_common.InternalKey
 	IndexWriter   IIndexWriter
 }
 
@@ -34,7 +34,7 @@ func (t *Task) Execute() error {
 }
 
 func (t *Task) Release() {
-	t.Physical = &block.PhysicalBlock{}
+	t.Physical = &common.PhysicalBlock{}
 	t.StorageWriter = nil
 	taskPool.Put(t)
 }

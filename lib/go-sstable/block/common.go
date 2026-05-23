@@ -5,7 +5,7 @@ import (
 
 	nogodb_common "github.com/datnguyenzzz/nogodb/lib/common"
 	"github.com/datnguyenzzz/nogodb/lib/common/compression"
-	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common/block"
+	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
 )
 
 // CompressToPb compress the raw bytes by using the given compressor
@@ -13,8 +13,8 @@ func CompressToPb(
 	compressor compression.ICompression,
 	checksumer nogodb_common.IChecksum,
 	rawData []byte,
-) *block.PhysicalBlock {
-	pb := &block.PhysicalBlock{}
+) *common.PhysicalBlock {
+	pb := &common.PhysicalBlock{}
 	compressed := compressor.Compress(nil, rawData)
 	checksum := checksumer.Checksum(compressed, byte(compressor.GetType()))
 	pb.SetData(compressed)

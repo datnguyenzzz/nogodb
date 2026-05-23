@@ -57,7 +57,7 @@ type DataBlockWriter struct {
 
 	layoutEncoder layoutcodex.LayoutEncoder
 
-	currKey *common.InternalKey
+	currKey *nogodb_common.InternalKey
 	rows    uint32
 
 	lastPrefix []byte
@@ -78,7 +78,7 @@ func (d *DataBlockWriter) Reset() {
 }
 
 // Add adds a key-value pair to the sstable.
-func (d *DataBlockWriter) Add(key common.InternalKey, value []byte) {
+func (d *DataBlockWriter) Add(key nogodb_common.InternalKey, value []byte) {
 	d.rows += 1
 	d.currKey = &key
 
@@ -101,7 +101,7 @@ func (d *DataBlockWriter) Rows() uint32 {
 	return d.rows
 }
 
-func (d *DataBlockWriter) CurrKey() *common.InternalKey {
+func (d *DataBlockWriter) CurrKey() *nogodb_common.InternalKey {
 	return d.currKey
 }
 

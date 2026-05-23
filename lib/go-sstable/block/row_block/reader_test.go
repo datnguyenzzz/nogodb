@@ -12,7 +12,6 @@ import (
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/block"
 	rowBlockMocks "github.com/datnguyenzzz/nogodb/lib/go-sstable/block/row_block/mocks"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
-	commonBlock "github.com/datnguyenzzz/nogodb/lib/go-sstable/common/block"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/options"
 	storageMocks "github.com/datnguyenzzz/nogodb/lib/go-sstable/storage/mocks"
 	"github.com/stretchr/testify/assert"
@@ -66,7 +65,7 @@ func Test_Read(t *testing.T) {
 			}
 
 			// Create mockery-generated mock
-			mockStorageReader := storageMocks.NewILayoutReader(t)
+			mockStorageReader := storageMocks.NewMockILayoutReader(t)
 
 			// Setup mock expectations
 			if tc.readerError != nil {
@@ -99,10 +98,10 @@ func Test_Read(t *testing.T) {
 			}
 			r.Init(predictable_size.NewPredictablePool(), mockStorageReader, cacheOpts)
 
-			val, err := r.Read(&commonBlock.BlockHandle{
+			val, err := r.Read(&common.BlockHandle{
 				Offset: 0,
 				Length: uint64(len(stored)),
-			}, commonBlock.BlockKindData)
+			}, nogodb_common.BlockKindData)
 
 			if tc.corrupted {
 				assert.ErrorIs(t, err, common.MismatchedChecksumError)
@@ -111,7 +110,7 @@ func Test_Read(t *testing.T) {
 			} else {
 				assert.NoError(t, err)
 
-				assert.Equal(t, val.ValueSource, common.ValueFromBuffer)
+				assert.Equal(t, val.ValueSource, nogodb_common.ValueFromBuffer)
 				assert.Equal(t, original, val.Value())
 			}
 
@@ -187,11 +186,11 @@ func Test_ReadThroughCache(t *testing.T) {
 			}
 
 			// Create mocks
-			mockStorageReader := storageMocks.NewILayoutReader(t)
-			mockBlockCache := &rowBlockMocks.IBlockCacheWrapper{}
+			mockStorageReader := storageMocks.NewMockILayoutReader(t)
+			mockBlockCache := &rowBlockMocks.MockIBlockCacheWrapper{}
 			mockBlockCache.Test(t)
 
-			bh := &commonBlock.BlockHandle{
+			bh := &common.BlockHandle{
 				Offset: 0,
 				Length: uint64(len(stored)),
 			}
@@ -199,7 +198,7 @@ func Test_ReadThroughCache(t *testing.T) {
 			// Setup cache mock expectations
 			if tc.cacheHit {
 				mockFetcher := NewLazyValueMock(original)
-				mockVal := common.NewBlankInternalLazyValue(common.ValueFromCache)
+				mockVal := nogodb_common.NewBlankInternalLazyValue(nogodb_common.ValueFromCache)
 				err := mockVal.SetCacheFetcher(&lazyValueWrapper{mockFetcher})
 				assert.NoError(t, err)
 
@@ -245,14 +244,14 @@ func Test_ReadThroughCache(t *testing.T) {
 			}
 
 			// Execute ReadThroughCache
-			val, err := r.ReadThroughCache(bh, commonBlock.BlockKindData)
+			val, err := r.ReadThroughCache(bh, nogodb_common.BlockKindData)
 
 			// Verify results
 			if tc.cacheHit {
 				assert.NoError(t, err)
 				assert.NotNil(t, val)
 				assert.Equal(t, original, val.Value())
-				assert.Equal(t, common.ValueFromCache, val.ValueSource)
+				assert.Equal(t, nogodb_common.ValueFromCache, val.ValueSource)
 			} else if tc.storageReadError != nil {
 				assert.ErrorIs(t, err, tc.storageReadError)
 				assert.Nil(t, val)
@@ -266,7 +265,7 @@ func Test_ReadThroughCache(t *testing.T) {
 				assert.NoError(t, err)
 				assert.NotNil(t, val)
 				assert.Equal(t, original, val.Value())
-				assert.Equal(t, common.ValueFromBuffer, val.ValueSource)
+				assert.Equal(t, nogodb_common.ValueFromBuffer, val.ValueSource)
 			}
 
 			// Cleanup

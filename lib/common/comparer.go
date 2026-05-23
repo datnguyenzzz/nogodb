@@ -32,11 +32,18 @@ type IComparer interface {
 	// Use case: Uses to separate the actual user key and MVCC id
 	// in the internalKey.UserKey
 	Split(b []byte) int
+
+	// Name of the comparer will be persisted within the Manifest
+	Name() string
 }
 
 // TODO(high): Implement separated comparer for the MVVC key
 
 type DefaultComparer struct{}
+
+func (c DefaultComparer) Name() string {
+	return "DefaultComparer"
+}
 
 func (c DefaultComparer) Separator(a, b []byte) []byte {
 	var prefixLen int

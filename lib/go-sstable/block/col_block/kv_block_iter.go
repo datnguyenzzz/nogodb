@@ -18,32 +18,32 @@ type KVBlockIter struct {
 	closed  bool
 }
 
-func (i *KVBlockIter) SeekGTE(key []byte) *common.InternalKV {
+func (i *KVBlockIter) SeekGTE(key []byte) *nogodb_common.InternalKV {
 	panic("KVBlockIter can't do this")
 }
 
-func (i *KVBlockIter) SeekPrefixGTE(prefix, key []byte) *common.InternalKV {
+func (i *KVBlockIter) SeekPrefixGTE(prefix, key []byte) *nogodb_common.InternalKV {
 	panic("KVBlockIter can't do this")
 }
 
-func (i *KVBlockIter) SeekLTE(key []byte) *common.InternalKV {
+func (i *KVBlockIter) SeekLTE(key []byte) *nogodb_common.InternalKV {
 	panic("KVBlockIter can't do this")
 }
 
 // First moves the iterator the first key/value pair.
-func (i *KVBlockIter) First() *common.InternalKV {
+func (i *KVBlockIter) First() *nogodb_common.InternalKV {
 	i.currRow = 0
 	return i.toKv()
 }
 
 // Last moves the iterator the last key/value pair.
-func (i *KVBlockIter) Last() *common.InternalKV {
+func (i *KVBlockIter) Last() *nogodb_common.InternalKV {
 	i.currRow = i.keys.Rows() - 1
 	return i.toKv()
 }
 
 // Next moves the iterator to the next key/value pair
-func (i *KVBlockIter) Next() *common.InternalKV {
+func (i *KVBlockIter) Next() *nogodb_common.InternalKV {
 	if i.currRow == i.keys.Rows()-1 {
 		return nil
 	}
@@ -53,7 +53,7 @@ func (i *KVBlockIter) Next() *common.InternalKV {
 }
 
 // Prev moves the iterator to the previous key/value pair.
-func (i *KVBlockIter) Prev() *common.InternalKV {
+func (i *KVBlockIter) Prev() *nogodb_common.InternalKV {
 	if i.currRow == 0 {
 		return nil
 	}
@@ -75,14 +75,14 @@ func (i *KVBlockIter) IsClosed() bool {
 }
 
 // toKv converts the current row to the InternalKV
-func (i *KVBlockIter) toKv() *common.InternalKV {
-	iKv := &common.InternalKV{
-		K: common.InternalKey{},
+func (i *KVBlockIter) toKv() *nogodb_common.InternalKV {
+	iKv := &nogodb_common.InternalKV{
+		K: nogodb_common.InternalKey{},
 	}
 	// Meta block always write full common.internalKey
-	iKv.K = *common.DeserializeKey(i.keys.Get(i.currRow))
+	iKv.K = *nogodb_common.DeserializeKey(i.keys.Get(i.currRow))
 	buf := i.values.Get(i.currRow)
-	v := common.NewBlankInternalLazyValue(common.ValueFromBuffer)
+	v := nogodb_common.NewBlankInternalLazyValue(nogodb_common.ValueFromBuffer)
 	v.ReserveBuffer(i.bp, len(buf))
 	if err := v.SetBufferValue(buf[:]); err != nil {
 		zap.L().Error("failed to set value", zap.Error(err))
@@ -94,7 +94,7 @@ func (i *KVBlockIter) toKv() *common.InternalKV {
 func NewKVBlockIter(
 	bp *predictable_size.PredictablePool,
 	cp nogodb_common.IComparer,
-	data *common.InternalLazyValue,
+	data *nogodb_common.InternalLazyValue,
 ) *KVBlockIter {
 	kv := &KVBlockIter{
 		bp: bp,

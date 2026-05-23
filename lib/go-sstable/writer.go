@@ -1,6 +1,7 @@
 package go_sstable
 
 import (
+	nogodb_common "github.com/datnguyenzzz/nogodb/lib/common"
 	go_fs "github.com/datnguyenzzz/nogodb/lib/go-fs"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/block/col_block"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/block/row_block"
@@ -14,11 +15,11 @@ type Writer struct {
 }
 
 func (w *Writer) Set(key, value []byte) error {
-	return w.rw.Add(common.MakeKey(key, 0, common.KeyKindSet), value)
+	return w.rw.Add(nogodb_common.MakeKey(key, 0, nogodb_common.KeyKindSet), value)
 }
 
 func (w *Writer) Delete(key []byte) error {
-	return w.rw.Add(common.MakeKey(key, 0, common.KeyKindDelete), nil)
+	return w.rw.Add(nogodb_common.MakeKey(key, 0, nogodb_common.KeyKindDelete), nil)
 }
 
 // Close finishes writing the table and closes the underlying file that the

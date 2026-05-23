@@ -3,9 +3,6 @@ package common
 import (
 	"cmp"
 	"encoding/binary"
-
-	nogodb_common "github.com/datnguyenzzz/nogodb/lib/common"
-	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common/block"
 )
 
 // KeyKind enumerates the kind of key: a deletion tombstone, a set
@@ -62,7 +59,7 @@ func (k *InternalKey) SerializeTo(buf []byte) {
 	binary.LittleEndian.PutUint64(buf[i:], uint64(k.Trailer))
 }
 
-func (k *InternalKey) Separator(comparer nogodb_common.IComparer, other *InternalKey) *InternalKey {
+func (k *InternalKey) Separator(comparer IComparer, other *InternalKey) *InternalKey {
 	sep := comparer.Separator(k.UserKey, other.UserKey)
 	if len(sep) <= len(k.UserKey) && comparer.Compare(k.UserKey, sep) < 0 {
 		nk := MakeKey(sep, SeqNumMax, KeyKindSeparator)
@@ -71,7 +68,7 @@ func (k *InternalKey) Separator(comparer nogodb_common.IComparer, other *Interna
 	return k
 }
 
-func (k *InternalKey) Compare(comparer nogodb_common.IComparer, other *InternalKey) int {
+func (k *InternalKey) Compare(comparer IComparer, other *InternalKey) int {
 	if c := comparer.Compare(k.UserKey, other.UserKey); c != 0 {
 		return c
 	}
@@ -80,7 +77,7 @@ func (k *InternalKey) Compare(comparer nogodb_common.IComparer, other *InternalK
 	return cmp.Compare(other.Trailer, k.Trailer)
 }
 
-func (k *InternalKey) Successor(comparer nogodb_common.IComparer) *InternalKey {
+func (k *InternalKey) Successor(comparer IComparer) *InternalKey {
 	succ := comparer.Successor(k.UserKey)
 	if len(succ) <= len(k.UserKey) && comparer.Compare(k.UserKey, succ) < 0 {
 		nk := MakeKey(succ, SeqNumMax, KeyKindSeparator)
@@ -111,15 +108,15 @@ func MakeKey(userKey []byte, num SeqNum, kind KeyKind) InternalKey {
 	}
 }
 
-func MakeMetaIndexKey(blkKind block.BlockKind) InternalKey {
+func MakeMetaIndexKey(blkKind BlockKind) InternalKey {
 	return InternalKey{
 		UserKey: []byte{byte(blkKind)},
 		Trailer: InternalKeyTrailer(blkKind),
 	}
 }
 
-func (k *InternalKey) ReadMetaIndexKey() block.BlockKind {
-	return block.BlockKind(k.Trailer)
+func (k *InternalKey) ReadMetaIndexKey() BlockKind {
+	return BlockKind(k.Trailer)
 }
 
 func (k *InternalKey) SeqNum() SeqNum {

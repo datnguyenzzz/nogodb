@@ -1,4 +1,4 @@
-package record_test
+package record
 
 import (
 	"bytes"
@@ -7,8 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/datnguyenzzz/nogodb/tree/master/lib/common"
-	"github.com/datnguyenzzz/nogodb/tree/master/lib/common/record"
+	"github.com/datnguyenzzz/nogodb/lib/common"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -23,7 +22,7 @@ func testWriter(
 
 	var logNum int
 
-	wr := record.NewWriter(buf, common.DiskfileNum(logNum))
+	wr := NewWriter(buf, common.DiskfileNum(logNum))
 
 	for {
 		s, ok := gen()
@@ -42,7 +41,7 @@ func testWriter(
 
 	reset()
 
-	r := record.NewReader(buf, common.DiskfileNum(logNum))
+	r := NewReader(buf, common.DiskfileNum(logNum))
 	for {
 		s, ok := gen()
 		if !ok {
@@ -71,9 +70,9 @@ func Test_Happycase(t *testing.T) {
 }
 
 func Test_HappyCase_Near_Edge(t *testing.T) {
-	for i := record.BlockSize - 11; i < record.BlockSize+11; i++ {
+	for i := BlockSize - 11; i < BlockSize+11; i++ {
 		s0 := strings.Repeat("a", i)
-		for j := record.BlockSize - 11; j < record.BlockSize+11; j++ {
+		for j := BlockSize - 11; j < BlockSize+11; j++ {
 			s1 := strings.Repeat("b", i)
 
 			testLiterals(t, []string{s0, s1})
@@ -85,7 +84,7 @@ func Test_HappyCase_Near_Edge(t *testing.T) {
 
 func Test_Flush(t *testing.T) {
 	buf := new(bytes.Buffer)
-	wr := record.NewWriter(buf, common.DiskfileNum(1))
+	wr := NewWriter(buf, common.DiskfileNum(1))
 
 	// write 2 tiny records, they should be still in the buffer
 	w0, _ := wr.Next()
@@ -119,7 +118,7 @@ func Test_Flush(t *testing.T) {
 	require.Equal(t, 50_058, buf.Len())
 
 	expecteds := []int64{1, 2, 10_000, 40_000}
-	rr := record.NewReader(buf, common.DiskfileNum(1))
+	rr := NewReader(buf, common.DiskfileNum(1))
 	for _, expected := range expecteds {
 		r, _ := rr.Next()
 		n, err := io.Copy(io.Discard, r)
@@ -150,7 +149,7 @@ func testLiterals(t *testing.T, s []string) {
 func Benchmark_Record_write(b *testing.B) {
 	for _, size := range []int{8, 16, 32, 64, 256, 1028, 4096, 65_536} {
 		b.Run(fmt.Sprintf("size=%d", size), func(b *testing.B) {
-			wr := record.NewWriter(io.Discard, common.DiskfileNum(1))
+			wr := NewWriter(io.Discard, common.DiskfileNum(1))
 			defer wr.Close()
 
 			buf := make([]byte, size)

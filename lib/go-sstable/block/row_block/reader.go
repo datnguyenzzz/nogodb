@@ -10,7 +10,6 @@ import (
 	go_block_cache "github.com/datnguyenzzz/nogodb/lib/go-block-cache"
 	"github.com/datnguyenzzz/nogodb/lib/go-bytesbufferpool/predictable_size"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
-	block_common "github.com/datnguyenzzz/nogodb/lib/go-sstable/common/block"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/options"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/storage"
 	"go.uber.org/zap"
@@ -41,17 +40,17 @@ func (l *lazyValueWrapper) Release() {
 
 //go:generate mockery --name=IBlockCacheWrapper --case=underscore --disable-version-string
 type IBlockCacheWrapper interface {
-	Get(bh *block_common.BlockHandle) (*common.InternalLazyValue, error)
-	Set(bh *block_common.BlockHandle, val *common.InternalLazyValue) error
+	Get(bh *common.BlockHandle) (*nogodb_common.InternalLazyValue, error)
+	Set(bh *common.BlockHandle, val *nogodb_common.InternalLazyValue) error
 	Close()
 }
 
-func (w *blockCacheWrapper) Get(bh *block_common.BlockHandle) (*common.InternalLazyValue, error) {
+func (w *blockCacheWrapper) Get(bh *common.BlockHandle) (*nogodb_common.InternalLazyValue, error) {
 	lazyValue, exist := w.c.Get(w.fileNum, bh.Offset)
 	if !exist {
 		return nil, cacheMiss
 	}
-	val := common.NewBlankInternalLazyValue(common.ValueFromCache)
+	val := nogodb_common.NewBlankInternalLazyValue(nogodb_common.ValueFromCache)
 	if err := val.SetCacheFetcher(&lazyValueWrapper{lazyValue}); err != nil {
 		return nil, err
 	}
@@ -59,7 +58,7 @@ func (w *blockCacheWrapper) Get(bh *block_common.BlockHandle) (*common.InternalL
 	return &val, nil
 }
 
-func (w *blockCacheWrapper) Set(bh *block_common.BlockHandle, val *common.InternalLazyValue) error {
+func (w *blockCacheWrapper) Set(bh *common.BlockHandle, val *nogodb_common.InternalLazyValue) error {
 	v := make([]byte, len(val.Value()))
 	copy(v, val.Value())
 	ok := w.c.Set(w.fileNum, bh.Offset, v)
@@ -76,9 +75,9 @@ func (w *blockCacheWrapper) Close() {
 //go:generate mockery --name=IBlockReader --case=underscore --disable-version-string
 type IBlockReader interface {
 	// Read perform read directly from the source without caching
-	Read(bh *block_common.BlockHandle, kind block_common.BlockKind) (*common.InternalLazyValue, error)
+	Read(bh *common.BlockHandle, kind nogodb_common.BlockKind) (*nogodb_common.InternalLazyValue, error)
 	// ReadThroughCache perform read through cache method
-	ReadThroughCache(bh *block_common.BlockHandle, kind block_common.BlockKind) (*common.InternalLazyValue, error)
+	ReadThroughCache(bh *common.BlockHandle, kind nogodb_common.BlockKind) (*nogodb_common.InternalLazyValue, error)
 	Init(bpool *predictable_size.PredictablePool, fr storage.ILayoutReader, cacheOpts *options.CacheOptions)
 	Release()
 }
@@ -116,9 +115,9 @@ func (r *RowBlockReader) Release() {
 }
 
 func (r *RowBlockReader) ReadThroughCache(
-	bh *block_common.BlockHandle,
-	kind block_common.BlockKind,
-) (*common.InternalLazyValue, error) {
+	bh *common.BlockHandle,
+	kind nogodb_common.BlockKind,
+) (*nogodb_common.InternalLazyValue, error) {
 	if r.blockCache == nil {
 		zap.L().Warn("ReadThroughCache, Block cache is not enabled, fall back!")
 		return r.readFromStorage(bh, kind)
@@ -141,21 +140,21 @@ func (r *RowBlockReader) ReadThroughCache(
 }
 
 func (r *RowBlockReader) Read(
-	bh *block_common.BlockHandle,
-	kind block_common.BlockKind,
-) (*common.InternalLazyValue, error) {
+	bh *common.BlockHandle,
+	kind nogodb_common.BlockKind,
+) (*nogodb_common.InternalLazyValue, error) {
 	return r.readFromStorage(bh, kind)
 }
 
 func (r *RowBlockReader) readFromStorage(
-	bh *block_common.BlockHandle,
-	kind block_common.BlockKind,
-) (*common.InternalLazyValue, error) {
+	bh *common.BlockHandle,
+	kind nogodb_common.BlockKind,
+) (*nogodb_common.InternalLazyValue, error) {
 	if r.bpool == nil {
 		return nil, fmt.Errorf("blockData pool is nil")
 	}
 
-	compressedVal := &common.InternalLazyValue{}
+	compressedVal := &nogodb_common.InternalLazyValue{}
 	compressedVal.ReserveBuffer(r.bpool, int(bh.Length))
 	if err := r.storageReader.ReadAt(compressedVal.Value(), bh.Offset); err != nil {
 		compressedVal.Release()
@@ -176,7 +175,7 @@ func (r *RowBlockReader) readFromStorage(
 		return nil, err
 	}
 
-	decompressedVal := &common.InternalLazyValue{}
+	decompressedVal := &nogodb_common.InternalLazyValue{}
 	decompressedVal.ReserveBuffer(r.bpool, decompressedLen)
 
 	err = compressor.Decompress(decompressedVal.Value(), compressedVal.Value()[:compressedLength])
@@ -191,7 +190,7 @@ func (r *RowBlockReader) readFromStorage(
 }
 
 func (r *RowBlockReader) validateChecksum(checksumType nogodb_common.ChecksumType, blockData []byte) bool {
-	blockLengthWithoutTrailer := len(blockData) - block_common.TrailerLen
+	blockLengthWithoutTrailer := len(blockData) - common.TrailerLen
 	foundChecksum := binary.LittleEndian.Uint32(blockData[blockLengthWithoutTrailer+1:])
 
 	compressor := blockData[blockLengthWithoutTrailer]
@@ -215,10 +214,10 @@ func (r *RowBlockReader) validateChecksum(checksumType nogodb_common.ChecksumTyp
 // 5 bytes: 1-byte: [Compressor Type] + 4-bytes: [CRC checksum]
 // Reference: lib/go-sstable/row_block/common.go compressToPb()
 func (r *RowBlockReader) getCompressor(
-	bh *block_common.BlockHandle,
-	compressedVal *common.InternalLazyValue,
+	bh *common.BlockHandle,
+	compressedVal *nogodb_common.InternalLazyValue,
 ) (compressor compression.ICompression, compressedLength int) {
-	compressedLength = int(bh.Length - block_common.TrailerLen)
+	compressedLength = int(bh.Length - common.TrailerLen)
 	compressor = compression.NewCompressor(
 		compression.CompressionType(compressedVal.Value()[compressedLength]),
 	)

@@ -3,7 +3,6 @@ package common
 import (
 	"fmt"
 
-	nogodb_common "github.com/datnguyenzzz/nogodb/lib/common"
 	"github.com/datnguyenzzz/nogodb/lib/go-bytesbufferpool/predictable_size"
 )
 
@@ -73,7 +72,7 @@ type InternalKV struct {
 	V InternalLazyValue
 }
 
-func (kv *InternalKV) Compare(comparer nogodb_common.IComparer, another *InternalKV) int {
+func (kv *InternalKV) Compare(comparer IComparer, another *InternalKV) int {
 	if c := kv.K.Compare(comparer, &another.K); c != 0 {
 		return c
 	}
@@ -137,6 +136,6 @@ func (iv *InternalLazyValue) SetCacheFetcher(fetcher Fetcher) error {
 	return nil
 }
 
-func (iv *InternalLazyValue) Compare(comparer nogodb_common.IComparer, lv *InternalLazyValue) int {
+func (iv *InternalLazyValue) Compare(comparer IComparer, lv *InternalLazyValue) int {
 	return comparer.Compare(iv.Value(), lv.Value())
 }

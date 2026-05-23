@@ -12,7 +12,6 @@ import (
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/block/col_block"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/block/row_block"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
-	block_common "github.com/datnguyenzzz/nogodb/lib/go-sstable/common/block"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/filter"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/options"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/storage"
@@ -27,8 +26,8 @@ type indexedIterator struct {
 
 	reader    row_block.IBlockReader
 	bpool     *predictable_size.PredictablePool
-	index     *common.InternalKV
-	blockKind block_common.BlockKind
+	index     *nogodb_common.InternalKV
+	blockKind nogodb_common.BlockKind
 }
 
 func newIndexedIterator(
@@ -36,7 +35,7 @@ func newIndexedIterator(
 	ver common.TableVersion,
 	reader row_block.IBlockReader,
 	bpool *predictable_size.PredictablePool,
-	kind block_common.BlockKind,
+	kind nogodb_common.BlockKind,
 ) *indexedIterator {
 	return &indexedIterator{
 		cmp:              cmp,
@@ -49,7 +48,7 @@ func newIndexedIterator(
 	}
 }
 
-func (ii *indexedIterator) SetIndexAndLoad(index *common.InternalKV) error {
+func (ii *indexedIterator) SetIndexAndLoad(index *nogodb_common.InternalKV) error {
 	if ii.index != nil && ii.index.Compare(ii.cmp, index) != 0 {
 		if err := ii.Close(); err != nil {
 			return err
@@ -71,7 +70,7 @@ func (ii *indexedIterator) loadedIter() error {
 		return nil
 	}
 
-	bh := &block_common.BlockHandle{}
+	bh := &common.BlockHandle{}
 	if n := bh.DecodeFrom(ii.index.V.Value()); n <= 0 {
 		zap.L().Error("failed to fully decode the index")
 		return fmt.Errorf("%w: failed to fully decode the index", common.InternalServerError)
@@ -118,11 +117,11 @@ type DataIterator struct {
 
 	bpool *predictable_size.PredictablePool
 	// filter
-	filterBH *block_common.BlockHandle
+	filterBH *common.BlockHandle
 	filter   filter.IRead
 
 	// the 2nd level index iterator do
-	secondLevelIndexBH   *block_common.BlockHandle
+	secondLevelIndexBH   *common.BlockHandle
 	secondLevelIndexIter common.InternalIterator
 
 	// Iterators + indexes
@@ -144,7 +143,7 @@ var dataBlockIteratorPool = sync.Pool{
 // it did not fail bloom filter matching.
 //
 // key []byte is a full user key, aka internalKey.UserKey
-func (i *DataIterator) SeekPrefixGTE(prefix, key []byte) *common.InternalKV {
+func (i *DataIterator) SeekPrefixGTE(prefix, key []byte) *nogodb_common.InternalKV {
 	// Refer to the col_block.writer, we only write UserKey[:prefix]
 	// to the filter, without the MVCC suffix
 	prefix = prefix[:i.cmp.Split(prefix)]
@@ -156,7 +155,7 @@ func (i *DataIterator) SeekPrefixGTE(prefix, key []byte) *common.InternalKV {
 }
 
 // key []byte is a full user key, aka internalKey.UserKey
-func (i *DataIterator) SeekGTE(key []byte) *common.InternalKV {
+func (i *DataIterator) SeekGTE(key []byte) *nogodb_common.InternalKV {
 	// Important notes:
 	//  - Ensure the data (lazyValue) is released properly once the block is no longer used
 	new2ndIndex := i.secondLevelIndexIter.SeekGTE(key)
@@ -186,12 +185,12 @@ func (i *DataIterator) SeekGTE(key []byte) *common.InternalKV {
 }
 
 // key []byte is a full user key, aka internalKey.UserKey
-func (i *DataIterator) SeekLTE(key []byte) *common.InternalKV {
+func (i *DataIterator) SeekLTE(key []byte) *nogodb_common.InternalKV {
 	// TODO implement me
 	panic("implement me")
 }
 
-func (i *DataIterator) First() *common.InternalKV {
+func (i *DataIterator) First() *nogodb_common.InternalKV {
 	first2ndIndex := i.secondLevelIndexIter.First()
 	if first2ndIndex == nil {
 		panic("impossible, the first must be found on the 2nd level index")
@@ -216,12 +215,12 @@ func (i *DataIterator) First() *common.InternalKV {
 	return i.dataIndexedIter.First()
 }
 
-func (i *DataIterator) Last() *common.InternalKV {
+func (i *DataIterator) Last() *nogodb_common.InternalKV {
 	// TODO implement me
 	panic("implement me")
 }
 
-func (i *DataIterator) Next() *common.InternalKV {
+func (i *DataIterator) Next() *nogodb_common.InternalKV {
 	if i.firstLevelIndexedIter == nil || i.dataIndexedIter == nil {
 		zap.L().Error("the firstLevelIndexedIter and dataIndexedIter is nil. First will be returned")
 		return i.First()
@@ -264,7 +263,7 @@ func (i *DataIterator) Next() *common.InternalKV {
 	return i.dataIndexedIter.First()
 }
 
-func (i *DataIterator) Prev() *common.InternalKV {
+func (i *DataIterator) Prev() *nogodb_common.InternalKV {
 	// TODO implement me
 	panic("implement me")
 }
@@ -295,24 +294,24 @@ func (i *DataIterator) IsClosed() bool {
 func (i *DataIterator) readMetaIndexBlock(footer *block.Footer) error {
 	// TODO(low): Should we cache the metaIndex block ?
 	// Read and decode the meta index block
-	metaIndexBuf, err := i.blockReader.Read(footer.GetMetaIndex(), block_common.BlockKindMetaIntex)
+	metaIndexBuf, err := i.blockReader.Read(footer.GetMetaIndex(), nogodb_common.BlockKindMetaIntex)
 	if err != nil {
 		zap.L().Error("failed to read metaIndexBlock", zap.Error(err))
 		return err
 	}
-	blkIter := getBlockIter(i.ver, block_common.BlockKindMetaIntex, i.bpool, i.cmp, metaIndexBuf)
+	blkIter := getBlockIter(i.ver, nogodb_common.BlockKindMetaIntex, i.bpool, i.cmp, metaIndexBuf)
 	for iter := blkIter.First(); iter != nil; iter = blkIter.Next() {
 		val := iter.V.Value()
-		bh := &block_common.BlockHandle{}
+		bh := &common.BlockHandle{}
 		if sz := bh.DecodeFrom(val); sz <= 0 {
 			zap.L().Error("failed to decode block, corrupted size", zap.Any("block", i))
 			return fmt.Errorf("failed to decode block, corrupted size. %w", common.InternalServerError)
 		}
 
 		switch iter.K.ReadMetaIndexKey() {
-		case block_common.BlockKindIndex:
+		case nogodb_common.BlockKindIndex:
 			i.secondLevelIndexBH = bh
-		case block_common.BlockKindFilter:
+		case nogodb_common.BlockKindFilter:
 			i.filterBH = bh
 		default:
 		}
@@ -327,17 +326,17 @@ func (i *DataIterator) init2ndLevelIndexBlockIterator() error {
 		return fmt.Errorf("%w: the secondLevelIndex block handle is nil", common.InternalServerError)
 	}
 	// TODO(low): Should we cache the 2nd level index block ?
-	secondLevelIndexBuf, err := i.blockReader.Read(i.secondLevelIndexBH, block_common.BlockKindIndex)
+	secondLevelIndexBuf, err := i.blockReader.Read(i.secondLevelIndexBH, nogodb_common.BlockKindIndex)
 	if err != nil {
 		zap.L().Error("failed to read secondLevelIndexBlock", zap.Error(err))
 		return err
 	}
-	i.secondLevelIndexIter = getBlockIter(i.ver, block_common.BlockKindIndex, i.bpool, i.cmp, secondLevelIndexBuf)
+	i.secondLevelIndexIter = getBlockIter(i.ver, nogodb_common.BlockKindIndex, i.bpool, i.cmp, secondLevelIndexBuf)
 	return nil
 }
 
 func (i *DataIterator) readFilter() error {
-	filterBlock, err := i.blockReader.ReadThroughCache(i.filterBH, block_common.BlockKindFilter)
+	filterBlock, err := i.blockReader.ReadThroughCache(i.filterBH, nogodb_common.BlockKindFilter)
 	if err != nil {
 		zap.L().Error("failed to read filter", zap.Error(err))
 		return err
@@ -349,21 +348,21 @@ func (i *DataIterator) readFilter() error {
 
 func getBlockIter(
 	ver common.TableVersion,
-	blockKind block_common.BlockKind,
+	blockKind nogodb_common.BlockKind,
 	bp *predictable_size.PredictablePool,
 	cp nogodb_common.IComparer,
-	data *common.InternalLazyValue,
+	data *nogodb_common.InternalLazyValue,
 ) common.InternalIterator {
 	if ver == common.TableV1 {
 		return row_block.NewBlockIterator(bp, cp, data)
 	}
 
 	switch blockKind {
-	case block_common.BlockKindData:
+	case nogodb_common.BlockKindData:
 		return col_block.NewDataBlockIter(bp, cp, data)
-	case block_common.BlockKindIndex:
+	case nogodb_common.BlockKindIndex:
 		return col_block.NewIndexBlockIter(bp, cp, data)
-	case block_common.BlockKindMetaIntex:
+	case nogodb_common.BlockKindMetaIntex:
 		return col_block.NewKVBlockIter(bp, cp, data)
 	default:
 		panic(fmt.Sprintf("can not create iterator for block kind: %v", blockKind))
@@ -396,8 +395,8 @@ func NewIterator(
 
 	iter.ver = footer.Version
 	iter.blockReader.Init(iter.bpool, layoutReader, opts.CacheOpts)
-	iter.firstLevelIndexedIter = newIndexedIterator(cmp, iter.ver, iter.blockReader, iter.bpool, block_common.BlockKindIndex)
-	iter.dataIndexedIter = newIndexedIterator(cmp, iter.ver, iter.blockReader, iter.bpool, block_common.BlockKindData)
+	iter.firstLevelIndexedIter = newIndexedIterator(cmp, iter.ver, iter.blockReader, iter.bpool, nogodb_common.BlockKindIndex)
+	iter.dataIndexedIter = newIndexedIterator(cmp, iter.ver, iter.blockReader, iter.bpool, nogodb_common.BlockKindData)
 
 	if err = iter.readMetaIndexBlock(footer); err != nil {
 		return nil, err

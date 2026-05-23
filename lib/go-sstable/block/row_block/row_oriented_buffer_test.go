@@ -3,6 +3,7 @@ package row_block
 import (
 	"testing"
 
+	nogodb_common "github.com/datnguyenzzz/nogodb/lib/common"
 	"github.com/datnguyenzzz/nogodb/lib/go-bytesbufferpool/predictable_size"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
 	"github.com/stretchr/testify/assert"
@@ -174,8 +175,8 @@ func Test_WriteEntry_Then_Finish(t *testing.T) {
 	}
 }
 
-func makeDummyKey(userKey string) common.InternalKey {
-	return common.MakeKey([]byte(userKey), 0, common.KeyKindUnknown)
+func makeDummyKey(userKey string) nogodb_common.InternalKey {
+	return nogodb_common.MakeKey([]byte(userKey), 0, nogodb_common.KeyKindUnknown)
 }
 
 // MockFlushDecider implements common.IFlushDecider for testing

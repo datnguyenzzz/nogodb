@@ -26,7 +26,7 @@
   - https://github.com/facebook/rocksdb/wiki/Track-WAL-in-MANIFEST
   - https://github.com/facebook/rocksdb/wiki/Write-Ahead-Log-%28WAL%29
 - [ ] P0 - Implement Fluid LSM tree and Lazy Leveling Merging for compaction. Reference: https://nivdayan.github.io/dostoevsky.pdf
-- [ ] P1 - Open DB from the leftover state, replay from WALs, ...
+- [ ] P0 - Open DB from the leftover state, replay from WALs, stable versions, ...
 
 ## H2 - 2025
 

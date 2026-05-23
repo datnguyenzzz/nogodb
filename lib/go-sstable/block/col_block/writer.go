@@ -8,7 +8,6 @@ import (
 	go_fs "github.com/datnguyenzzz/nogodb/lib/go-fs"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/block"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
-	blockCommon "github.com/datnguyenzzz/nogodb/lib/go-sstable/common/block"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/filter"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/options"
 	"github.com/datnguyenzzz/nogodb/lib/go-sstable/queue"
@@ -48,7 +47,7 @@ type ColBlockWriter struct {
 }
 
 // Add adds a key-value pair to the sstable.
-func (c *ColBlockWriter) Add(key common.InternalKey, value []byte) error {
+func (c *ColBlockWriter) Add(key nogodb_common.InternalKey, value []byte) error {
 	if err := c.validate(key); err != nil {
 		return err
 	}
@@ -101,9 +100,9 @@ func (c *ColBlockWriter) Close() error {
 				return err
 			}
 
-			encodedBH := make([]byte, blockCommon.MaxBlockHandleBytes)
+			encodedBH := make([]byte, common.MaxBlockHandleBytes)
 			n := bh.EncodeInto(encodedBH)
-			filterMetaKey := common.MakeMetaIndexKey(blockCommon.BlockKindFilter)
+			filterMetaKey := nogodb_common.MakeMetaIndexKey(nogodb_common.BlockKindFilter)
 			sz := filterMetaKey.Size()
 			if cap(sharedBuf) < sz {
 				block.GrowSize(&sharedBuf, sz)
@@ -120,9 +119,9 @@ func (c *ColBlockWriter) Close() error {
 			return err
 		}
 
-		encodedBH := make([]byte, blockCommon.MaxBlockHandleBytes)
+		encodedBH := make([]byte, common.MaxBlockHandleBytes)
 		n := indexBh.EncodeInto(encodedBH)
-		indexMetaKey := common.MakeMetaIndexKey(blockCommon.BlockKindIndex)
+		indexMetaKey := nogodb_common.MakeMetaIndexKey(nogodb_common.BlockKindIndex)
 		sz := indexMetaKey.Size()
 		if cap(sharedBuf) < sz {
 			block.GrowSize(&sharedBuf, sz)
@@ -131,7 +130,7 @@ func (c *ColBlockWriter) Close() error {
 		c.metaIndexBlock.Add(sharedBuf, encodedBH[:n])
 	}
 	// Build and Flush meta index block to the stable storage
-	var metaBh blockCommon.BlockHandle
+	var metaBh common.BlockHandle
 	{
 		metaSize := int(c.metaIndexBlock.Size())
 		block.GrowSize(&c.uncompressed, metaSize)
@@ -166,7 +165,7 @@ func (c *ColBlockWriter) Close() error {
 	return nil
 }
 
-func (c *ColBlockWriter) validate(key common.InternalKey) error {
+func (c *ColBlockWriter) validate(key nogodb_common.InternalKey) error {
 	if c.dataBlock.Rows() == 0 {
 		return nil
 	}
@@ -183,10 +182,10 @@ func (c *ColBlockWriter) validate(key common.InternalKey) error {
 // doFlushWithoutLastKey flush the data block except the [currKey]
 func (c *ColBlockWriter) doFlushWithoutLastKey(
 	size int,
-	prevKey *common.InternalKey,
-	currKey *common.InternalKey,
+	prevKey *nogodb_common.InternalKey,
+	currKey *nogodb_common.InternalKey,
 ) error {
-	indexKey := &common.InternalKey{
+	indexKey := &nogodb_common.InternalKey{
 		UserKey: c.comparer.Separator(prevKey.UserKey, currKey.UserKey),
 	}
 	currRows := c.dataBlock.Rows()
@@ -219,7 +218,7 @@ func (c *ColBlockWriter) doFlushWithoutLastKey(
 func (c *ColBlockWriter) doFlushAll() error {
 	currRows := c.dataBlock.Rows()
 	size := int(c.dataBlock.Size())
-	indexKey := &common.InternalKey{
+	indexKey := &nogodb_common.InternalKey{
 		UserKey: c.comparer.Successor(c.dataBlock.CurrKey().UserKey),
 	}
 

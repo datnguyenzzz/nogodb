@@ -85,6 +85,8 @@ type Storage interface {
 
 	Remove(objType nogodb_common.ObjectType, num nogodb_common.DiskfileNum) error
 
+	Sync(objType nogodb_common.ObjectType, num nogodb_common.DiskfileNum) error
+
 	List(objType nogodb_common.ObjectType) []FileDesc
 
 	Close() error

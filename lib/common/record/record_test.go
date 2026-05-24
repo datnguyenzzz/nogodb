@@ -7,7 +7,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/datnguyenzzz/nogodb/lib/common"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -20,9 +19,7 @@ func testWriter(
 	buf := new(bytes.Buffer)
 	reset()
 
-	var logNum int
-
-	wr := NewWriter(buf, common.DiskfileNum(logNum))
+	wr := NewWriter(buf)
 
 	for {
 		s, ok := gen()
@@ -41,7 +38,7 @@ func testWriter(
 
 	reset()
 
-	r := NewReader(buf, common.DiskfileNum(logNum))
+	r := NewReader(buf)
 	for {
 		s, ok := gen()
 		if !ok {
@@ -84,7 +81,7 @@ func Test_HappyCase_Near_Edge(t *testing.T) {
 
 func Test_Flush(t *testing.T) {
 	buf := new(bytes.Buffer)
-	wr := NewWriter(buf, common.DiskfileNum(1))
+	wr := NewWriter(buf)
 
 	// write 2 tiny records, they should be still in the buffer
 	w0, _ := wr.Next()
@@ -94,31 +91,31 @@ func Test_Flush(t *testing.T) {
 
 	require.Equal(t, 0, buf.Len())
 
-	// flush 2 records, should be len(buf) = 11 * 2 + 1 + 2
+	// flush 2 records, should be len(buf) = 7 * 2 + 1 + 2
 	require.NoError(t, wr.Flush())
-	require.Equal(t, 25, buf.Len())
+	require.Equal(t, 17, buf.Len())
 
 	// write 1 more, but still not large enough to fill the current block
 	// so it still must be in the buffer
 	w2, _ := wr.Next()
 	w2.Write([]byte(strings.Repeat("a", 10_000)))
-	require.Equal(t, 25, buf.Len())
+	require.Equal(t, 17, buf.Len())
 
-	// flush 1 record, should be len(buf) = 11 + 25 + 10_000
+	// flush 1 record, should be len(buf) = 7 + 25 + 10_000
 	require.NoError(t, wr.Flush())
-	require.Equal(t, 10_036, buf.Len())
+	require.Equal(t, 10024, buf.Len())
 
 	// write a big one that complete the current block
 	w3, _ := wr.Next()
 	w3.Write([]byte(strings.Repeat("a", 40_000)))
 	require.Equal(t, 32*1024, buf.Len())
 
-	// flush should get up to: 10_036 + 2*11 + 40_000
+	// flush should get up to: 10024 + 2*7 + 40_000
 	require.NoError(t, wr.Flush())
-	require.Equal(t, 50_058, buf.Len())
+	require.Equal(t, 50038, buf.Len())
 
 	expecteds := []int64{1, 2, 10_000, 40_000}
-	rr := NewReader(buf, common.DiskfileNum(1))
+	rr := NewReader(buf)
 	for _, expected := range expecteds {
 		r, _ := rr.Next()
 		n, err := io.Copy(io.Discard, r)
@@ -149,7 +146,7 @@ func testLiterals(t *testing.T, s []string) {
 func Benchmark_Record_write(b *testing.B) {
 	for _, size := range []int{8, 16, 32, 64, 256, 1028, 4096, 65_536} {
 		b.Run(fmt.Sprintf("size=%d", size), func(b *testing.B) {
-			wr := NewWriter(io.Discard, common.DiskfileNum(1))
+			wr := NewWriter(io.Discard)
 			defer wr.Close()
 
 			buf := make([]byte, size)

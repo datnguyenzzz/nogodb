@@ -253,4 +253,4 @@ func NewRowBlockWriter(w go_fs.Writable, opts options.BlockWriteOpt, version com
 	}
 }
 
-var _ common.InternalWriter = (*RowBlockWriter)(nil)
+var _ nogodb_common.InternalWriter = (*RowBlockWriter)(nil)

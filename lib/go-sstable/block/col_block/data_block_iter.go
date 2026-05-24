@@ -12,7 +12,6 @@ import (
 	prefixbytescodex "github.com/datnguyenzzz/nogodb/lib/go-sstable/block/col_block/codex/prefix_bytes_codex"
 	rawbytescodex "github.com/datnguyenzzz/nogodb/lib/go-sstable/block/col_block/codex/raw_bytes_codex"
 	uintcodex "github.com/datnguyenzzz/nogodb/lib/go-sstable/block/col_block/codex/uint_codex"
-	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
 	"go.uber.org/zap"
 )
 
@@ -235,4 +234,4 @@ func NewDataBlockIter(
 	return d
 }
 
-var _ common.InternalIterator = (*DataBlockIter)(nil)
+var _ nogodb_common.InternalIterator = (*DataBlockIter)(nil)

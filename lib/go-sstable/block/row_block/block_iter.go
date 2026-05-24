@@ -5,7 +5,6 @@ import (
 
 	nogodb_common "github.com/datnguyenzzz/nogodb/lib/common"
 	"github.com/datnguyenzzz/nogodb/lib/go-bytesbufferpool/predictable_size"
-	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
 	"go.uber.org/zap"
 )
 
@@ -259,4 +258,4 @@ func NewBlockIterator(
 	return i
 }
 
-var _ common.InternalIterator = (*BlockIterator)(nil)
+var _ nogodb_common.InternalIterator = (*BlockIterator)(nil)

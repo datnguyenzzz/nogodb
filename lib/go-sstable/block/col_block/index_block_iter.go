@@ -189,4 +189,4 @@ func NewIndexBlockIter(
 	return d
 }
 
-var _ common.InternalIterator = (*IndexBlockIter)(nil)
+var _ nogodb_common.InternalIterator = (*IndexBlockIter)(nil)

@@ -32,15 +32,12 @@ const (
 
 const (
 	BlockSize  = 32 * 1024
-	headerSize = 11
+	headerSize = 7
 )
 
 type Reader struct {
 	r          io.Reader
 	checksumer nogodb_common.IChecksum
-	// logNum is the low 32-bits of the log's file number. May be zero when used
-	// with log files that do not have a file number (e.g. the MANIFEST).
-	logNum uint32
 	// blockNum is the block number (0-indexed) currently held in buf
 	blockNum int64
 	// seq is the sequence number of the current record
@@ -81,12 +78,6 @@ func (r *Reader) nextChunk(wantFirst bool) error {
 			if checksum == 0 && length == 0 && chunkEncoding == invalidChunkEncoding {
 				r.invalidOffset = uint64(r.blockNum)*BlockSize + uint64(r.begin)
 				return ErrZeroedChunk
-			}
-
-			logNum := binary.LittleEndian.Uint32(r.buf[r.end+7 : r.end+11])
-			if logNum != r.logNum {
-				r.invalidOffset = uint64(r.blockNum)*BlockSize + uint64(r.begin)
-				return ErrInvalidChunk
 			}
 
 			r.begin = r.end + headerSize
@@ -146,11 +137,10 @@ func (r *Reader) nextChunk(wantFirst bool) error {
 
 // NewReader returns a new reader. The log number in those records must
 // match the specified logNum
-func NewReader(r io.Reader, logNum nogodb_common.DiskfileNum) *Reader {
+func NewReader(r io.Reader) *Reader {
 	return &Reader{
 		r:          r,
 		checksumer: nogodb_common.NewChecksumer(nogodb_common.CRC32Checksum),
-		logNum:     uint32(logNum),
 		blockNum:   -1,
 	}
 }
@@ -168,6 +158,14 @@ func (r *Reader) Next() (io.Reader, error) {
 	}
 
 	return &bufferedReader{r, r.seq}, nil
+}
+
+func (r *Reader) Offset() int64 {
+	if r.blockNum < 0 {
+		return 0
+	}
+
+	return r.blockNum*BlockSize + int64(r.end)
 }
 
 type bufferedReader struct {

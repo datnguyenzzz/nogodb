@@ -20,7 +20,7 @@ import (
 
 // indexedIterator iter is the iteration of the data, received from the given index
 type indexedIterator struct {
-	common.InternalIterator
+	nogodb_common.InternalIterator
 	cmp nogodb_common.IComparer
 	ver common.TableVersion
 
@@ -122,7 +122,7 @@ type DataIterator struct {
 
 	// the 2nd level index iterator do
 	secondLevelIndexBH   *common.BlockHandle
-	secondLevelIndexIter common.InternalIterator
+	secondLevelIndexIter nogodb_common.InternalIterator
 
 	// Iterators + indexes
 
@@ -352,7 +352,7 @@ func getBlockIter(
 	bp *predictable_size.PredictablePool,
 	cp nogodb_common.IComparer,
 	data *nogodb_common.InternalLazyValue,
-) common.InternalIterator {
+) nogodb_common.InternalIterator {
 	if ver == common.TableV1 {
 		return row_block.NewBlockIterator(bp, cp, data)
 	}
@@ -413,4 +413,4 @@ func NewIterator(
 	return iter, nil
 }
 
-var _ common.InternalIterator = (*DataIterator)(nil)
+var _ nogodb_common.InternalIterator = (*DataIterator)(nil)

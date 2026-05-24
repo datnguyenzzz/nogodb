@@ -1,7 +1,5 @@
 package go_sstable
 
-import "github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
-
 // IWriter represent an interface of writer for downstream client to the SSTable
 // The data written layout is controlled internally, which caller of this function
 // shouldn't worry much about it
@@ -14,8 +12,4 @@ type IWriter interface {
 	Close() error
 	// TODO(med): support merge operation (read-modify-write loop)
 	// TODO(med): support range query (delete, ...)
-}
-
-type IIterator interface {
-	common.InternalIterator
 }

@@ -43,15 +43,12 @@ type Writer struct {
 	first bool
 	// pending is whether a chunk is buffered but not yet written.
 	pending bool
-	// logNum is the low 32-bits of the log's file number. May be zero when used
-	// with log files that do not have a file number (e.g. the MANIFEST).
-	logNum uint32
 
 	err error
 	buf [BlockSize]byte
 }
 
-func NewWriter(w io.Writer, logNum nogodb_common.DiskfileNum) *Writer {
+func NewWriter(w io.Writer) *Writer {
 	f, _ := w.(flusher)
 
 	var o int64
@@ -69,7 +66,6 @@ func NewWriter(w io.Writer, logNum nogodb_common.DiskfileNum) *Writer {
 		checksumer:       nogodb_common.NewChecksumer(nogodb_common.CRC32Checksum),
 		baseOffset:       o,
 		lastRecordOffset: -1,
-		logNum:           uint32(logNum),
 	}
 }
 
@@ -92,7 +88,6 @@ func (w *Writer) fillHeader(isLast bool) {
 		}
 	}
 
-	binary.LittleEndian.PutUint32(w.buf[w.begin+7:w.begin+11], w.logNum)
 	binary.LittleEndian.PutUint32(w.buf[w.begin:w.begin+4], w.checksumer.Checksum(w.buf[w.begin+6:w.end], auxilaryByte))
 	binary.LittleEndian.PutUint16(w.buf[w.begin+4:w.begin+6], uint16(w.end-w.begin-headerSize))
 }

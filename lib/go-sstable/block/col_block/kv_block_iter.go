@@ -5,7 +5,6 @@ import (
 	"github.com/datnguyenzzz/nogodb/lib/go-bytesbufferpool/predictable_size"
 	layoutcodex "github.com/datnguyenzzz/nogodb/lib/go-sstable/block/col_block/codex/layout_codex"
 	rawbytescodex "github.com/datnguyenzzz/nogodb/lib/go-sstable/block/col_block/codex/raw_bytes_codex"
-	"github.com/datnguyenzzz/nogodb/lib/go-sstable/common"
 	"go.uber.org/zap"
 )
 
@@ -125,4 +124,4 @@ func NewKVBlockIter(
 	return kv
 }
 
-var _ common.InternalIterator = (*KVBlockIter)(nil)
+var _ nogodb_common.InternalIterator = (*KVBlockIter)(nil)

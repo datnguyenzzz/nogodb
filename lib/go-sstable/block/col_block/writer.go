@@ -286,4 +286,4 @@ func NewColBlockWriter(
 	}
 }
 
-var _ common.InternalWriter = (*ColBlockWriter)(nil)
+var _ nogodb_common.InternalWriter = (*ColBlockWriter)(nil)

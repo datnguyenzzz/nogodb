@@ -11,7 +11,7 @@ import (
 
 type Writer struct {
 	datablockOpts *options.BlockWriteOpt
-	rw            common.InternalWriter
+	rw            nogodb_common.InternalWriter
 }
 
 func (w *Writer) Set(key, value []byte) error {

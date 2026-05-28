@@ -99,6 +99,8 @@ func (wr *WALReader) nextFile() error {
 
 // Close the reader.
 func (wr *WALReader) Close() error {
+	wr.currReader = nil
+	wr.recordBuf.Reset()
 	return nil
 }
 

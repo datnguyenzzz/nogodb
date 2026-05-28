@@ -1,6 +1,8 @@
 package common
 
-import "bytes"
+import (
+	"bytes"
+)
 
 // IComparer defines a total ordering over the space of []byte keys: a 'less than' relationship.
 type IComparer interface {
@@ -35,6 +37,19 @@ type IComparer interface {
 
 	// Name of the comparer will be persisted within the Manifest
 	Name() string
+
+	// AbbreviatedKey returns a fixed length prefix of a user key such that
+	//
+	//	AbbreviatedKey(a) < AbbreviatedKey(b) implies a < b, and
+	//	AbbreviatedKey(a) > AbbreviatedKey(b) implies a > b.
+	//
+	// If AbbreviatedKey(a) == AbbreviatedKey(b), an additional comparison is
+	// required to determine if the two keys are actually equal.
+	//
+	// This helps optimize indexed batch comparisons for cache locality. If a Split
+	// function is specified, AbbreviatedKey usually returns the first eight bytes
+	// of the user key prefix in the order that gives the correct ordering.
+	AbbreviatedKey(key []byte) []byte
 }
 
 // TODO(high): Implement separated comparer for the MVVC key
@@ -86,6 +101,15 @@ func (c DefaultComparer) Compare(a, b []byte) int {
 
 func (c DefaultComparer) Split(b []byte) int {
 	return len(b)
+}
+
+func (c DefaultComparer) AbbreviatedKey(key []byte) []byte {
+	if len(key) >= 8 {
+		return key[:8]
+	}
+	newKey := make([]byte, 8)
+	copy(newKey, key)
+	return newKey
 }
 
 func NewComparer() *DefaultComparer {

@@ -1,4 +1,9 @@
+//go:build !race
+
 package go_adaptive_radix_tree
+
+// NOTE: golang race detector won't be able to recognize correctness of the optimistic locking
+// and will report races if tests are executed with -race flag
 
 import (
 	"bytes"

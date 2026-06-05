@@ -73,7 +73,7 @@ func (vs *VersionSet) NewDB(
 	vs.versions.pushBack(blankVersion)
 
 	var err error
-	if err = vs.createManifest(vs.getNextFileNum()); err != nil {
+	if err = vs.createManifest(vs.GetNextFileNum()); err != nil {
 		return err
 	}
 	if err = vs.manifestWriter.Flush(); err != nil {
@@ -147,6 +147,10 @@ func (vs *VersionSet) GetLogSeqNum() uint64 {
 	return atomic.LoadUint64((*uint64)(&vs.logSeqNum))
 }
 
+func (vs *VersionSet) GetVisibleSeqNum() uint64 {
+	return atomic.LoadUint64((*uint64)(&vs.visibleSeqNum))
+}
+
 func (vs *VersionSet) SetVisibleSeqNum(n uint64) {
 	atomic.StoreUint64((*uint64)(&vs.visibleSeqNum), n)
 }
@@ -155,7 +159,7 @@ func (vs *VersionSet) currentVersion() *version {
 	return vs.versions.back()
 }
 
-func (vs *VersionSet) getNextFileNum() nogodb_common.DiskfileNum {
+func (vs *VersionSet) GetNextFileNum() nogodb_common.DiskfileNum {
 	return nogodb_common.DiskfileNum(atomic.AddInt64((*int64)(&vs.nextFileNum), 1) - 1)
 }
 

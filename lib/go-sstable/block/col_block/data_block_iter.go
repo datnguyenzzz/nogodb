@@ -234,4 +234,4 @@ func NewDataBlockIter(
 	return d
 }
 
-var _ nogodb_common.InternalIterator = (*DataBlockIter)(nil)
+var _ nogodb_common.InternalIterator[nogodb_common.InternalKV] = (*DataBlockIter)(nil)

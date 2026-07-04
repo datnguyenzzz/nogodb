@@ -258,4 +258,4 @@ func NewBlockIterator(
 	return i
 }
 
-var _ nogodb_common.InternalIterator = (*BlockIterator)(nil)
+var _ nogodb_common.InternalIterator[nogodb_common.InternalKV] = (*BlockIterator)(nil)

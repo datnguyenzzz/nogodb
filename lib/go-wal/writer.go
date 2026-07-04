@@ -29,7 +29,7 @@ type WAL struct {
 	}
 }
 
-func NewWalWriter(dir string, opts ...OptionFn) (*WAL, error) {
+func NewWalManager(dir string, opts ...OptionFn) (*WAL, error) {
 	w := &WAL{
 		fileNum: -1,
 	}

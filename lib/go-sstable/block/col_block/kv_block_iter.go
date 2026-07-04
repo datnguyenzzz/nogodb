@@ -124,4 +124,4 @@ func NewKVBlockIter(
 	return kv
 }
 
-var _ nogodb_common.InternalIterator = (*KVBlockIter)(nil)
+var _ nogodb_common.InternalIterator[nogodb_common.InternalKV] = (*KVBlockIter)(nil)

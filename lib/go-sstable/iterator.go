@@ -15,7 +15,7 @@ func NewSingularIterator(
 	bpool *predictable_size.PredictablePool, // shared buffer pool across iterator
 	r go_fs.Readable,
 	optFuncs ...options.IteratorOptsFunc,
-) (nogodb_common.InternalIterator, error) {
+) (nogodb_common.InternalIterator[nogodb_common.InternalKV], error) {
 	o := &options.IteratorOpts{
 		Comparer: nogodb_common.NewComparer(),
 	} // default is no cache

@@ -39,3 +39,9 @@ func WithBlockSizeThreshold(blockSizeThreshold float32) WriteOptFn {
 		w.datablockOpts.BlockSizeThreshold = blockSizeThreshold
 	}
 }
+
+func WithCompression(compressor compression.CompressionType) WriteOptFn {
+	return func(w *Writer) {
+		w.datablockOpts.DefaultCompression = compressor
+	}
+}

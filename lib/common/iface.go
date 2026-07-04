@@ -20,34 +20,34 @@ type InternalWriter interface {
 //
 // InternalSeeker defines an interface for seeking within an sstable. Implementations may vary
 // depending on the TableFormat being read.
-type InternalSeeker interface {
+type InternalSeeker[T any] interface {
 	// SeekGTE moves the iterator to the first key/value pair whose key ≥ to the given key.
-	SeekGTE(key []byte) *InternalKV
+	SeekGTE(key []byte) *T
 
 	// SeekPrefixGTE moves the iterator to the first key/value pair whose key >= to the given key.
 	// that has the defined prefix for faster looking up
-	SeekPrefixGTE(prefix, key []byte) *InternalKV
+	SeekPrefixGTE(prefix, key []byte) *T
 
 	// SeekLTE moves the iterator to the last key/value pair whose key ≤ to the given key.
-	SeekLTE(key []byte) *InternalKV
+	SeekLTE(key []byte) *T
 }
 
 // InternalIterator iterates over a DB's key/value pairs in key order. Implementations may vary
 // depending on the TableFormat being written.
-type InternalIterator interface {
-	InternalSeeker
+type InternalIterator[T any] interface {
+	InternalSeeker[T]
 
 	// First moves the iterator the first key/value pair.
-	First() *InternalKV
+	First() *T
 
 	// Last moves the iterator the last key/value pair.
-	Last() *InternalKV
+	Last() *T
 
 	// Next moves the iterator to the next key/value pair
-	Next() *InternalKV
+	Next() *T
 
 	// Prev moves the iterator to the previous key/value pair.
-	Prev() *InternalKV
+	Prev() *T
 
 	// Close closes the iterator and returns any accumulated error. Exhausting
 	// all the key/value pairs in a table is not considered to be an error.

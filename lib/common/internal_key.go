@@ -20,7 +20,11 @@ const (
 
 // SeqNum is a sequence number defining precedence among identical keys. A key
 // with a higher sequence number takes precedence over a key with an equal user
-// key of a lower sequence number.
+// key of a lower sequence number. Basically this is an auto increment number
+// will be assigned to every user key when it is written to the DB
+//
+// See db/batch.go about the batches, and db/commit.go to understand how batches
+// and SeqNum are committed to the log
 type SeqNum uint64
 
 const (

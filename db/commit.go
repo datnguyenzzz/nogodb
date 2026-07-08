@@ -60,6 +60,8 @@ func (c *commit) Commit(b *Batch) error {
 	b.SetSeqNumToHeader(uint64(c.nextSeqNum))
 	b.SetCountToHeader()
 
+	c.nextSeqNum += nogodb_common.SeqNum(b.Count())
+
 	if err := c.writeToWal(b); err != nil {
 		return err
 	}

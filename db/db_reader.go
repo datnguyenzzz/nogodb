@@ -1,14 +1,13 @@
 package db
 
 import (
-	"context"
 	"io"
 )
 
-func (d *DB) Close(ctx context.Context) error {
+func (d *DB) Close() error {
 	panic("unimplemented")
 }
 
-func (d *DB) Get(ctx context.Context, key []byte) (value []byte, closer io.Closer, err error) {
+func (d *DB) Get(key []byte) (value []byte, closer io.Closer, err error) {
 	panic("unimplemented")
 }

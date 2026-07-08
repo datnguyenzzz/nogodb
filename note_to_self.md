@@ -21,15 +21,16 @@
 - [ ] P2: Write Github workflow to schedule a microbenchmark task to each components
 - [ ] P0 - **ongoing**: Design the DB public APIs and skeleton the main flow
   - [x] Implement [record format](https://github.com/facebook/rocksdb/wiki/Write-Ahead-Log-File-Format#record-format) to a common `lib`
-- [ ] P0 - (Re)implement WAL
+- [x] P0 - (Re)implement WAL
   - https://github.com/facebook/rocksdb/wiki/Track-WAL-in-MANIFEST
   - https://github.com/facebook/rocksdb/wiki/Write-Ahead-Log-%28WAL%29
   - [ ] P1 - Recycable WAL files
 - [ ] P0
-  - [ ] Implement Fluid LSM tree and Lazy Leveling Merging for compaction. Reference: https://nivdayan.github.io/dostoevsky.pdf
+  - [ ] Implement Tier + Leveled hybrid compaction. Reference: https://nivdayan.github.io/dostoevsky.pdf
   - [ ] To read, Fragmented LSM: https://www.cs.utexas.edu/~vijay/papers/sosp17-pebblesdb.pdf
 
 - [ ] P0 - Open DB from the leftover state, replay from WALs, stable versions, ...
+- [ ] P0 - Emit metrics for monitoring
 
 ## H2 - 2025
 

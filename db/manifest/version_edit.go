@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"encoding/binary"
 	"io"
+
+	nogodb_common "github.com/datnguyenzzz/nogodb/lib/common"
 )
 
 // Tags for the versionEdit disk format
@@ -12,12 +14,24 @@ const (
 	tagNextFileNumber
 )
 
-// versionEdit holds the state for an delta edit to a Version
-type versionEdit struct {
-	comparerName string
-	nextFileNum  int64
+// VersionEdit holds the state for an delta edit to a Version
+type VersionEdit struct {
+	ComparerName string
 
-	newTables []newTableEntry
+	// The next file number. A single counter is used to assign file numbers
+	// for the WAL, MANIFEST, sstable files
+	NextFileNum int64
+
+	NewTables []NewTableEntry
+
+	// MinUnflushedLogNum is the smallest WAL log file number corresponding to
+	// mutations that have not been flushed to an sstable.
+	MinUnflushedLogNum nogodb_common.DiskfileNum
+
+	// LastSeqNum is an upper bound on the sequence numbers that have been
+	// assigned in flushed WALs. Unflushed WALs (that will be replayed during
+	// recovery) may contain sequence numbers greater than this value.
+	LastSeqNum nogodb_common.SeqNum
 }
 
 type versionEditEncoder struct {
@@ -35,23 +49,23 @@ func (e versionEditEncoder) writeUvarint(u uint64) {
 	e.Write(buf[:n])
 }
 
-func (ve *versionEdit) Encode(w io.Writer) error {
+func (ve *VersionEdit) Encode(w io.Writer) error {
 	enc := versionEditEncoder{new(bytes.Buffer)}
 
-	if len(ve.comparerName) > 0 {
+	if len(ve.ComparerName) > 0 {
 		enc.writeUvarint(tagComparator)
-		enc.writeString(ve.comparerName)
+		enc.writeString(ve.ComparerName)
 	}
 
-	if ve.nextFileNum > 0 {
+	if ve.NextFileNum > 0 {
 		enc.writeUvarint(tagNextFileNumber)
-		enc.writeUvarint(uint64(ve.nextFileNum))
+		enc.writeUvarint(uint64(ve.NextFileNum))
 	}
 
-	for _, table := range ve.newTables {
-		enc.writeUvarint(uint64(table.level))
-		enc.writeUvarint(table.meta.TableNum)
-		enc.writeUvarint(table.meta.Size)
+	for _, table := range ve.NewTables {
+		enc.writeUvarint(uint64(table.Level))
+		enc.writeUvarint(uint64(table.Meta.TableNum))
+		enc.writeUvarint(table.Meta.Size)
 	}
 
 	_, err := w.Write(enc.Bytes())

@@ -16,6 +16,18 @@ type DBOption struct {
 		// latency spikes if the OS automatically decides to write out a large chunk
 		// of dirty filesystem buffers.
 		BytesPerSync int64 // Default: 512 KiB
+
+		// BlockRestartInterval is the number of keys between restart points
+		// for delta encoding of keys.
+		BlockRestartInterval int // Default: 16
+
+		// BlockSize is the target uncompressed size in bytes of each table block.
+		BlockSize int // Default: 4096
+
+		// BlockSizeThreshold finishes a block if the block size is larger than the
+		// specified percentage of the target block size and adding the next entry
+		// would cause the block to be larger than the target block size.
+		BlockSizeThreshold int // Default: 90
 	}
 
 	// Cache is used to cache uncompressed blocks from sstables.
@@ -102,6 +114,18 @@ func (o *DBOption) SetDefault() {
 
 	if o.SST.BytesPerSync == 0 {
 		o.SST.BytesPerSync = 512 * 1024
+	}
+
+	if o.SST.BlockRestartInterval == 0 {
+		o.SST.BlockRestartInterval = 16
+	}
+
+	if o.SST.BlockSize == 0 {
+		o.SST.BlockSize = 2 << 12
+	}
+
+	if o.SST.BlockSizeThreshold == 0 {
+		o.SST.BlockSizeThreshold = 90
 	}
 
 	if len(o.WAL.Dir) == 0 {

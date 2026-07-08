@@ -13,41 +13,44 @@ const NumLevels = 7
 // Version is a collection of SStable metadata for on-disk tables at various
 // levels. Memtables are written to level-0 tables, and compactions migrate
 // data from level N to level N+1.
-type version struct {
-	cmp  nogodb_common.IComparer
+type Version struct {
+	Cmp  nogodb_common.IComparer
 	refs atomic.Uint32
 	// levels contains metadata for all of the tables within a level of the LSM.
-	levels     [NumLevels]*levelMetadata
-	list       *versionList
-	prev, next *version
+	Levels     [NumLevels]*levelMetadata
+	list       *VersionList
+	prev, next *Version
 }
 
-func newVersion(
+func NewVersion(
 	comparer nogodb_common.IComparer,
-) *version {
-	v := &version{
-		cmp: comparer,
+) *Version {
+	v := &Version{
+		Cmp: comparer,
 	}
 	for i := range NumLevels {
-		v.levels[i] = NewLevelMetadata(i)
+		v.Levels[i] = NewLevelMetadata(i)
 	}
 	return v
 }
 
 // The versions are ordered from oldest to newest.
-type versionList struct {
+type VersionList struct {
 	mu   *sync.Mutex
-	root version
+	root Version
 }
 
-func (l *versionList) init(mu *sync.Mutex) {
+func (l *VersionList) Init(mu *sync.Mutex) {
 	l.mu = mu
 	l.root.next = &l.root
 	l.root.prev = &l.root
 }
 
 // pushBack adds a _new_ version to the back of the list
-func (l *versionList) pushBack(v *version) {
+func (l *VersionList) PushBack(v *Version) {
+	if v.refs.Load() > 0 {
+		panic("VersionSet tries appending a referenced version")
+	}
 	if v.list != nil || v.next != nil || v.prev != nil {
 		panic("versionList.pushBack tried adding an old version ")
 	}
@@ -60,6 +63,6 @@ func (l *versionList) pushBack(v *version) {
 	v.list = l
 }
 
-func (l *versionList) back() *version {
+func (l *VersionList) Back() *Version {
 	return l.root.prev
 }

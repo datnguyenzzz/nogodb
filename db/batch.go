@@ -231,7 +231,7 @@ func (b *Batch) reset() {
 	}
 	b.applied.Store(false)
 	if b.index != nil {
-		b.index = nogodb_art.NewTree[any](context.TODO())
+		b.index = nogodb_art.NewTree[any](context.Background())
 	}
 	if cap(b.buf) > maxRetainSize {
 		b.buf = nil

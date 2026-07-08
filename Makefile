@@ -11,10 +11,19 @@ golangci-lint: install-golangci-lint
 test:
 	@for dir in $$(find lib -maxdepth 2 -name go.mod -exec dirname {} \;); do \
 		echo "Testing $$dir..."; \
-		(cd $$dir && go test -v ./...) || exit 1; \
+		(cd $$dir && go clean -testcache && go test -v ./...) || exit 1; \
 	done
 
-	cd db && go test -v ./...
+	cd db && go clean -testcache && go test -v ./...
+
+
+test-race:
+	@for dir in $$(find lib -maxdepth 2 -name go.mod -exec dirname {} \;); do \
+		echo "Testing $$dir..."; \
+		(cd $$dir && go clean -testcache && go test -v -race ./...) || exit 1; \
+	done
+
+	cd db && go clean -testcache && go test -v -race ./...
 
 install-golangci-lint:
 	which golangci-lint && (golangci-lint --version | grep -q $(GOLANGCI_LINT_VERSION)) || curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(shell go env GOPATH)/bin v$(GOLANGCI_LINT_VERSION)

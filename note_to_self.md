@@ -1,5 +1,19 @@
 # Project tracker 
 
+## H2 - 2026 
+
+On-working: Motivation, I would like to learn Rust :)  
+- [ ] Write a query engine from Rust 
+
+Park: 
+- [ ] P0 - **ongoing**: Design the DB public APIs and skeleton the main flow
+  - [x] Implement [record format](https://github.com/facebook/rocksdb/wiki/Write-Ahead-Log-File-Format#record-format) to a common `lib`
+- [ ] P0
+  - [ ] Implement Size-Tier compaction. Reference for the improvement: 
+    - [ ] https://nivdayan.github.io/dostoevsky.pdf
+- [ ] P0 - Open DB from the leftover state, replay from WALs, stable versions, ...
+- [ ] P0 - Emit metrics for monitoring
+
 ## H1 - 2026
 
 - Implement go-fs with the basic file operations

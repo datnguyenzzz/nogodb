@@ -1,4 +1,8 @@
+mod sql_parser;
+mod client;
+
 use clap::Parser;
+use crate::client::Client;
 
 #[derive(Parser, Debug)]
 #[command(name="nogodb cli", version, about)]
@@ -15,7 +19,14 @@ struct Args {
 
 impl Args {
     fn run(&self) {
-        println!("Query to be run: {}", self.statement)
+        let client = Client::init();
+        // Learning: execute(self.statement) will fail to compile here
+        // `String` in Rust is heap allocated. &self has an ownership of `statement` 
+        // When we are doing ...(self.statement), it means we are trying to take ownership from &self
+        // which is prohibited. There are 2 options:
+        //. 1. Use the reference &str
+        //. 2. Clone self.statement.clone()
+        client.execute(&self.statement);
     }
 }
 

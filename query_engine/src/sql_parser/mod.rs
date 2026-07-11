@@ -1,12 +1,5 @@
-/// A SQL parser 
-pub struct Parser {}
+pub mod parser;
+pub mod tokenizer;
+pub mod keywords;
 
-impl Parser {
-    pub fn new() -> Self {
-        Self {}
-    }
-
-    pub fn parse_sql(&self, sql: &str) {
-        println!("Parsing SQL query: {}", sql)
-    }
-}
+pub use parser::Parser;

@@ -5,3 +5,5 @@ The queye engine provides support for the SQL query language, and is the main `n
 | Client -> Session -> Lexer -> Parser -> Planner -> Optimizer -> Executor -|--|->  Storage   |  
 +---------------------------------------------------------------------------+  +--------------+  
 ```
+
+NogoDB Query Engine supports ANSI SQL dialect: https://ronsavage.github.io/SQL/sql-2003-2.bnf.html

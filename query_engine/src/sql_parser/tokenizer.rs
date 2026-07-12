@@ -21,12 +21,18 @@ impl fmt::Display for TokenizerError{
 
 impl core::error::Error for TokenizerError{}
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Location {
     /// Line number, starting from 1.
     pub line: u32,
     /// Line column, starting from 1.
     pub column: u32,
+}
+
+impl Location {
+    fn to_span(self, end: Self) -> Span {
+        Span { start: self, end }
+    }
 }
 
 impl fmt::Display for Location {
@@ -306,9 +312,11 @@ impl <'a> Tokenizer <'a>{
 
         let mut loc = cursor.loc();
         while let Some(token) = self.next(&mut cursor)? {
-            
+            let span = loc.to_span(cursor.loc());
+            tokens.push(TokenWithSpan { token, span });
+            loc = cursor.loc();
         }
 
-        Ok(Vec::new())
+        Ok(tokens)
     }
 }

@@ -8,8 +8,8 @@ name = "query_engine"
 path = "src/lib.rs"
 
 [[bin]]
-name = "nogodb"
-path = "src/main.rs"
+name = "nogodb_cli"
+path = "src/bin/cli.rs"
 
 [dependencies]
 clap = { version = "4.6.1", features = ["derive"] }

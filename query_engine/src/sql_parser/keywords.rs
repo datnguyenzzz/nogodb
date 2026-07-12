@@ -1,6 +1,6 @@
 /// https://en.wikipedia.org/wiki/List_of_SQL_reserved_words
 macro_rules! define_keywords {
-    // learning: 
+    // learning:
     //   < $(...),* >: repeat the pattern inside zero or more times, separated by commas.
     ($(
         $keyword:ident
@@ -30,81 +30,18 @@ macro_rules! define_keywords {
 }
 
 define_keywords!(
-    ABS,
-    ALTER,
-    ANALYZE,
-    AND,
-    AS,
-    ASC,
-    BETWEEN,
-    BIGDECIMAL,
-    BIGINT,
-    BOOLEAN,
-    CASE,
-    CAST,
-    CHAR,
-    COALESCE,
-    COLLATE,
-    COUNT,
-    CREATE,
-    DATE,
-    DEFAULT,
-    DOUBLE,
-    DROP,
-    ELSE,
-    ELSEIF,
-    EMPTY,
-    FLOAT,
-    FLOAT32,
-    FLOAT4,
-    FLOAT64,
-    FLOAT8,
-    FLOOR,
-    GROUP,
-    GROUPING,
-    HASH,
-    HASHES,
-    HAVING,
-    ID,
-    IF,
-    INNER,
-    INSERT,
-    INT,
-    INT128,
-    INT16,
-    INT2,
-    INT256,
-    INT32,
-    INT4,
-    INT64,
-    INT8,
-    INTEGER,
-    INTERSECT,
-    JOIN,
-    LEFT,
-    LIKE,
-    LIMIT,
-    MOD,
-    NOT,
-    NOTNULL,
-    OFFSET,
-    OUTER,
-    QUERY,
-    REGEXP,
-    UINT128,
-    UINT16,
-    UINT256,
-    UINT32,
-    UINT64,
-    UINT8,
-    VARCHAR,
-    WHERE
+    ABS, ALTER, ANALYZE, AND, AS, ASC, BETWEEN, BIGDECIMAL, BIGINT, BOOLEAN, CASE, CAST, CHAR,
+    COALESCE, COLLATE, COUNT, CREATE, DATE, DEFAULT, DOUBLE, DROP, ELSE, ELSEIF, EMPTY, FLOAT,
+    FLOAT32, FLOAT4, FLOAT64, FLOAT8, FLOOR, GROUP, GROUPING, HASH, HASHES, HAVING, ID, IF, INNER,
+    INSERT, INT, INT128, INT16, INT2, INT256, INT32, INT4, INT64, INT8, INTEGER, INTERSECT, JOIN,
+    LEFT, LIKE, LIMIT, MOD, NOT, NOTNULL, OFFSET, OUTER, QUERY, REGEXP, UINT128, UINT16, UINT256,
+    UINT32, UINT64, UINT8, VARCHAR, WHERE
 );
 
 /// A keyword (like SELECT) or an optionally quoted SQL identifier
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Word {
-    /// If the word matched one of the known keywords, this will have one of 
+    /// If the word matched one of the known keywords, this will have one of
     /// the values from keywords::Keyword, otherwise empty
     pub keyword: Keyword,
     pub value: String,
@@ -197,8 +134,8 @@ pub enum Token {
 
 impl Token {
     pub fn make_word(word: &str, quote: Option<char>) -> Self {
-        Token::Word(Word { 
-            keyword: search_keyword(word), 
+        Token::Word(Word {
+            keyword: search_keyword(word),
             value: word.to_string(),
             quote,
         })

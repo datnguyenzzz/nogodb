@@ -1,6 +1,5 @@
 use core::{fmt, iter::Peekable};
 use std::str::Chars;
-use crate::sql_parser::keywords::Whitespace::MultiLineComment;
 
 use super::keywords::{Token, Whitespace};
 
@@ -13,13 +12,13 @@ pub struct TokenizerError {
     pub location: Location,
 }
 
-impl fmt::Display for TokenizerError{
+impl fmt::Display for TokenizerError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}{}", self.message, self.location)
     }
 }
 
-impl core::error::Error for TokenizerError{}
+impl core::error::Error for TokenizerError {}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Location {
@@ -38,7 +37,7 @@ impl Location {
 impl fmt::Display for Location {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if self.line == 0 {
-            return Ok(())
+            return Ok(());
         }
 
         write!(f, "at Line: {}, Column: {}", self.line, self.column)
@@ -62,12 +61,12 @@ pub struct TokenWithSpan {
 }
 
 struct Cursor<'a> {
-    line: u32, 
+    line: u32,
     col: u32,
-    iter: Peekable<Chars<'a>>
+    iter: Peekable<Chars<'a>>,
 }
 
-impl <'a>Cursor<'a> {
+impl<'a> Cursor<'a> {
     fn next(&mut self) -> Option<char> {
         match self.iter.next() {
             None => None,
@@ -89,15 +88,22 @@ impl <'a>Cursor<'a> {
     }
 
     fn loc(&self) -> Location {
-        Location { line: self.line, column: self.col }
+        Location {
+            line: self.line,
+            column: self.col,
+        }
     }
 }
 
-/// learning: 'a is lifetime, Tokenizer borrows &str from other
-/// Any Tokenizer is created must not outlive the string slice 
-/// it borrowed, and it borrows &str for some lifetime 'a
+// learning: 'a is lifetime, Tokenizer borrows &str from other Any Tokenizer
+// is created must not outlive the string slice it borrowed, and it borrows
+// &str for some lifetime 'a
+// In Rust, the compiler guarantees that references will never
+// be dangling references: If you have a reference to some data, the compiler
+// will ensure that the data will not go out of scope before the reference to
+// the data does.
 pub struct Tokenizer<'a> {
-    query: &'a str, 
+    query: &'a str,
 }
 
 fn is_identifier_start(ch: char) -> bool {
@@ -112,23 +118,37 @@ fn is_delimited_identifier_start(ch: char) -> bool {
     ch == '"' || ch == '`'
 }
 
-impl <'a> Tokenizer <'a>{
+impl<'a> Tokenizer<'a> {
     pub fn new(query: &'a str) -> Self {
         Self { query }
     }
 
-    fn tokenizer_error<R>(&self, loc: Location, msg: impl Into<String>) -> Result<R, TokenizerError> {
-        Err(TokenizerError { message: msg.into(), location: loc })
+    fn tokenizer_error<R>(
+        &self,
+        loc: Location,
+        msg: impl Into<String>,
+    ) -> Result<R, TokenizerError> {
+        Err(TokenizerError {
+            message: msg.into(),
+            location: loc,
+        })
     }
 
-    fn consume_and_next(&self, cursor: &mut Cursor, t: Token) -> Result<Option<Token>, TokenizerError> {
+    fn consume_and_next(
+        &self,
+        cursor: &mut Cursor,
+        t: Token,
+    ) -> Result<Option<Token>, TokenizerError> {
         cursor.next();
         Ok(Some(t))
     }
 
     /// peek_and_take_while peeks and takes the current cursor
     /// while the predicate still return True
-    fn peek_and_take_while(&self, cursor: &mut Cursor, mut predicate: impl FnMut(char) -> bool,
+    fn peek_and_take_while(
+        &self,
+        cursor: &mut Cursor,
+        mut predicate: impl FnMut(char) -> bool,
     ) -> String {
         let mut s = String::new();
         while let Some(&ch) = cursor.peek() {
@@ -139,18 +159,21 @@ impl <'a> Tokenizer <'a>{
             s.push(ch);
             cursor.next();
         }
-        s 
+        s
     }
 
     /// next_multi_line_comment tokenize multi-line comment, e.g /* .... */
     /// and returns Token::MultiLineComment
-    fn next_multi_line_comment(&self, cursor: &mut Cursor) -> Result<Option<Token>, TokenizerError> {
+    fn next_multi_line_comment(
+        &self,
+        cursor: &mut Cursor,
+    ) -> Result<Option<Token>, TokenizerError> {
         let mut s = String::new();
         loop {
             match cursor.next() {
                 Some('*') if matches!(cursor.peek(), Some('/')) => {
                     cursor.next();
-                    break Ok(Some(Token::Whitespace(MultiLineComment(s))));
+                    break Ok(Some(Token::Whitespace(Whitespace::MultiLineComment(s))));
                 }
                 Some(ch) => {
                     s.push(ch);
@@ -159,19 +182,16 @@ impl <'a> Tokenizer <'a>{
                     break self.tokenizer_error(
                         cursor.loc(),
                         "Unexpected EOF while in a multi-line comment",
-                    )
+                    );
                 }
             }
         }
     }
 
     fn take_word(&self, cursor: &mut Cursor) -> String {
-        return self.peek_and_take_while(
-            cursor, 
-            |ch: char| { is_identifier_part(ch) },
-        );
+        self.peek_and_take_while(cursor, |ch: char| is_identifier_part(ch))
     }
-    
+
     /// next get the next token or None
     fn next(&self, cursor: &mut Cursor) -> Result<Option<Token>, TokenizerError> {
         match cursor.next() {
@@ -181,7 +201,9 @@ impl <'a> Tokenizer <'a>{
                 ' ' => self.consume_and_next(cursor, Token::Whitespace(Whitespace::Space)),
                 '\t' => self.consume_and_next(cursor, Token::Whitespace(Whitespace::Tab)),
                 '\n' => self.consume_and_next(cursor, Token::Whitespace(Whitespace::Newline)),
-                ch if ch.is_whitespace() => self.consume_and_next(cursor, Token::Whitespace(Whitespace::Space)),
+                ch if ch.is_whitespace() => {
+                    self.consume_and_next(cursor, Token::Whitespace(Whitespace::Space))
+                }
                 // Punctuations
                 '(' => self.consume_and_next(cursor, Token::LParen),
                 ')' => self.consume_and_next(cursor, Token::RParen),
@@ -193,22 +215,22 @@ impl <'a> Tokenizer <'a>{
                     cursor.next();
                     match cursor.peek() {
                         Some('=') => self.consume_and_next(cursor, Token::DoubleEq),
-                        _ => Ok(Some(Token::Eq))
+                        _ => Ok(Some(Token::Eq)),
                     }
                 }
                 '<' => {
-                    cursor.next(); 
+                    cursor.next();
                     match cursor.peek() {
                         Some('>') => self.consume_and_next(cursor, Token::Neq),
                         Some('=') => self.consume_and_next(cursor, Token::LtEq),
-                        _ => Ok(Some(Token::Lt))
+                        _ => Ok(Some(Token::Lt)),
                     }
                 }
                 '>' => {
-                    cursor.next(); 
+                    cursor.next();
                     match cursor.peek() {
                         Some('=') => self.consume_and_next(cursor, Token::GtEq),
-                        _ => Ok(Some(Token::Gt))
+                        _ => Ok(Some(Token::Gt)),
                     }
                 }
                 '+' => self.consume_and_next(cursor, Token::Plus),
@@ -222,7 +244,7 @@ impl <'a> Tokenizer <'a>{
                             cursor.next();
                             self.next_multi_line_comment(cursor)
                         }
-                        _ => Ok(Some(Token::Div))
+                        _ => Ok(Some(Token::Div)),
                     }
                 }
                 '%' => self.consume_and_next(cursor, Token::Mod),
@@ -231,18 +253,13 @@ impl <'a> Tokenizer <'a>{
                     if matches!(cursor.peek(), Some('|')) {
                         Ok(Some(Token::StringConcat))
                     } else {
-                        self.tokenizer_error(
-                            cursor.loc(), 
-                            "Unrecognised token",
-                        )
+                        self.tokenizer_error(cursor.loc(), "Unrecognised token")
                     }
                 }
                 // Single quoted string
                 '\'' => {
                     cursor.next();
-                    let is_not_single_quote = |ch: char| {
-                        matches!(ch, '\'')
-                    };
+                    let is_not_single_quote = |ch: char| matches!(ch, '\'');
 
                     let s = self.peek_and_take_while(cursor, is_not_single_quote);
                     cursor.next();
@@ -252,27 +269,21 @@ impl <'a> Tokenizer <'a>{
                 // Numbers
                 '0'..='9' => {
                     // TODO: support heximal, decimal string literal
-                    let mut s = self.peek_and_take_while(
-                        cursor, 
-                        |ch: char| { ch.is_ascii_digit() },
-                    );
+                    let mut s = self.peek_and_take_while(cursor, |ch: char| ch.is_ascii_digit());
 
                     if cursor.peek() == Some(&'.') {
                         s.push('.');
                         cursor.next();
                     }
 
-                    // consume the fractional digits 
-                    s += &self.peek_and_take_while(
-                        cursor, 
-                        |ch: char| { ch.is_ascii_digit() },
-                    );
+                    // consume the fractional digits
+                    s += &self.peek_and_take_while(cursor, |ch: char| ch.is_ascii_digit());
 
                     let is_long = if cursor.peek() == Some(&'L') {
                         cursor.next();
-                        true 
+                        true
                     } else {
-                        false 
+                        false
                     };
 
                     Ok(Some(Token::Number(s, is_long)))
@@ -290,23 +301,25 @@ impl <'a> Tokenizer <'a>{
                         cursor.next();
                         Ok(Some(Token::make_word(&s, Some(quote_start))))
                     } else {
-                        Err(TokenizerError { 
-                            message: format!("Expected close delimiter '{quote_start}' before EOF."), 
+                        Err(TokenizerError {
+                            message: format!(
+                                "Expected close delimiter '{quote_start}' before EOF."
+                            ),
                             location: cursor.loc(),
                         })
                     }
                 }
 
                 other => self.consume_and_next(cursor, Token::Char(other)),
-            }
+            },
         }
     }
 
     pub fn tokenize(&self) -> Result<Vec<TokenWithSpan>, TokenizerError> {
-        let mut tokens : Vec<TokenWithSpan> = vec![];
-        let mut cursor = Cursor{
+        let mut tokens: Vec<TokenWithSpan> = vec![];
+        let mut cursor = Cursor {
             line: 1,
-            col: 1, 
+            col: 1,
             iter: self.query.chars().peekable(),
         };
 

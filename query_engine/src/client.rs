@@ -1,4 +1,4 @@
-use crate::sql_parser::Parser;
+use crate::sql_parser::parser;
 
 pub struct Client {}
 
@@ -10,7 +10,6 @@ impl Client {
     /// TODO: update to execute(ENUM request). We'd like to support several request type
     /// not just SQL query execution
     pub fn execute(&self, statement: &str) {
-        let parser = Parser::default();
-        parser.parse_sql(statement);
+        parser::parse_sql(statement);
     }
 }

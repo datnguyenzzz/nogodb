@@ -1,3 +1,5 @@
+use core::fmt;
+
 /// https://en.wikipedia.org/wiki/List_of_SQL_reserved_words
 macro_rules! define_keywords {
     // learning:
@@ -48,6 +50,18 @@ pub struct Word {
     pub quote: Option<char>,
 }
 
+impl fmt::Display for Word {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.quote {
+            Some(s) if s == '"' || s == '`' => {
+                write!(f, "{}{}{}", s, self.value, s)
+            }
+            None => f.write_str(&self.value),
+            _ => panic!("Unexpected quote_style!"),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Whitespace {
     /// A single space character.
@@ -67,6 +81,18 @@ pub enum Whitespace {
 
     /// A multi-line comment (without the `/* ... */` delimiters).
     MultiLineComment(String),
+}
+
+impl fmt::Display for Whitespace {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Whitespace::Space => f.write_str(" "),
+            Whitespace::Newline => f.write_str("\n"),
+            Whitespace::Tab => f.write_str("\t"),
+            Whitespace::SingleLineComment { prefix, comment } => writeln!(f, "{prefix}{comment}"),
+            Whitespace::MultiLineComment(s) => write!(f, "/*{s}*/"),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -139,6 +165,42 @@ impl Token {
             value: word.to_string(),
             quote,
         })
+    }
+}
+
+impl fmt::Display for Token {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Token::EOF => f.write_str("EOF"),
+            Token::Word(w) => write!(f, "{w}"),
+            Token::Number(n, l) => write!(f, "{}{long}", n, long = if *l { "L" } else { "" }),
+            Token::Char(c) => write!(f, "{c}"),
+            Token::SingleQuotedString(s) => write!(f, "'{s}'"),
+            Token::DoubleQuotedString(s) => write!(f, "\"{s}\""),
+            Token::Comma => f.write_str(","),
+            Token::Whitespace(ws) => write!(f, "{ws}"),
+            Token::DoubleEq => f.write_str("=="),
+            Token::Eq => f.write_str("="),
+            Token::Neq => f.write_str("<>"),
+            Token::Lt => f.write_str("<"),
+            Token::Gt => f.write_str(">"),
+            Token::LtEq => f.write_str("<="),
+            Token::GtEq => f.write_str(">="),
+            Token::Plus => f.write_str("+"),
+            Token::Minus => f.write_str("-"),
+            Token::Mul => f.write_str("*"),
+            Token::Div => f.write_str("/"),
+            Token::StringConcat => f.write_str("||"),
+            Token::Mod => f.write_str("%"),
+            Token::LParen => f.write_str("("),
+            Token::RParen => f.write_str(")"),
+            Token::Period => f.write_str("."),
+            Token::Colon => f.write_str(":"),
+            Token::LBracket => f.write_str("["),
+            Token::RBracket => f.write_str("]"),
+            Token::LBrace => f.write_str("{"),
+            Token::RBrace => f.write_str("}"),
+        }
     }
 }
 

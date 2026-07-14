@@ -60,6 +60,24 @@ pub struct TokenWithSpan {
     pub span: Span,
 }
 
+impl PartialEq<Token> for TokenWithSpan {
+    fn eq(&self, other: &Token) -> bool {
+        &self.token == other
+    }
+}
+
+impl PartialEq<TokenWithSpan> for Token {
+    fn eq(&self, other: &TokenWithSpan) -> bool {
+        self == &other.token
+    }
+}
+
+impl fmt::Display for TokenWithSpan {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.token.fmt(f)
+    }
+}
+
 struct Cursor<'a> {
     line: u32,
     col: u32,

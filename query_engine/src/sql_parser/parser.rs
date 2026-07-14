@@ -1,13 +1,23 @@
+use crate::sql_parser::{
+    ast::Statement,
+    tokenizer::{Tokenizer, TokenizerError},
+};
 use log::debug;
 
-use super::tokenizer::Tokenizer;
+pub enum ParserError {
+    TokenizerError(String),
+    ParserError(String),
+}
 
-#[derive(Default)]
-pub struct Parser {}
-
-impl Parser {
-    pub fn parse_sql(&self, sql: &str) {
-        debug!("Parsing SQL query: {}", sql);
-        let tokenizer = Tokenizer::new(sql);
+impl From<TokenizerError> for ParserError {
+    fn from(e: TokenizerError) -> Self {
+        ParserError::TokenizerError(e.message)
     }
+}
+
+pub fn parse_sql(sql: &str) -> Result<Vec<Statement>, ParserError> {
+    debug!("Parsing SQL query: {}", sql);
+    let tokens = Tokenizer::new(sql).tokenize();
+
+    Err(ParserError::ParserError("unimplemented".to_string()))
 }

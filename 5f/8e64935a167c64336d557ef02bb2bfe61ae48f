@@ -1,0 +1,36 @@
+query_engine/src/sql_parser/ast/dml.rs
+  h_42387b1c6b634c 1-51
+query_engine/src/sql_parser/ast/operators.rs
+  h_42387b1c6b634c 1-90
+query_engine/src/sql_parser/ast/statements.rs
+  h_42387b1c6b634c 1-41
+query_engine/src/sql_parser/ast/data_type.rs
+  h_42387b1c6b634c 1-56
+query_engine/src/client.rs
+  h_42387b1c6b634c 1
+query_engine/src/sql_parser/ast/mod.rs
+  h_42387b1c6b634c 1-8
+query_engine/src/sql_parser/parser.rs
+  h_42387b1c6b634c 1-4,7-10,12-14,17-18,20-22
+query_engine/src/sql_parser/ast/ddl.rs
+  h_42387b1c6b634c 1-24
+query_engine/src/sql_parser/ast/query.rs
+  h_42387b1c6b634c 1-143
+query_engine/src/sql_parser/ast/expr.rs
+  h_42387b1c6b634c 1-111
+query_engine/src/sql_parser/keywords.rs
+  h_42387b1c6b634c 1-2,53-64,86-97,171-204
+query_engine/src/sql_parser/tokenizer.rs
+  h_42387b1c6b634c 63-80
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "5f8e64935a167c64336d557ef02bb2bfe61ae48f",
+  "prompts": {},
+  "humans": {
+    "h_42387b1c6b634c": {
+      "author": "datnguyenzzz <thanh.nguyen@deliveryhero.com>"
+    }
+  }
+}

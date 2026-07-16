@@ -156,6 +156,8 @@ pub enum Token {
     LBrace,
     /// Right brace `}`
     RBrace,
+    /// SemiColon `;` used as separator for COPY and payload
+    SemiColon,
 }
 
 impl Token {
@@ -200,6 +202,7 @@ impl fmt::Display for Token {
             Token::RBracket => f.write_str("]"),
             Token::LBrace => f.write_str("{"),
             Token::RBrace => f.write_str("}"),
+            Token::SemiColon => f.write_str(";"),
         }
     }
 }

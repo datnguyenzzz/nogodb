@@ -3,6 +3,15 @@ use std::str::Chars;
 
 use super::keywords::{Token, Whitespace};
 
+// A constant EOF token that can be referenced.
+pub const EOF_TOKEN: TokenWithSpan = TokenWithSpan {
+    token: Token::EOF,
+    span: Span {
+        start: Location { line: 0, column: 0 },
+        end: Location { line: 0, column: 0 },
+    },
+};
+
 /// An error reported by the tokenizer, with a human-readable `message` and a `location`.
 #[derive(Debug, PartialEq, Eq)]
 pub struct TokenizerError {

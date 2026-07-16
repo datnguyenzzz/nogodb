@@ -1,6 +1,7 @@
 use crate::sql_parser::{
     ast::Statement,
-    tokenizer::{Tokenizer, TokenizerError},
+    keywords::Token::{self, Whitespace},
+    tokenizer::{EOF_TOKEN, TokenWithSpan, Tokenizer, TokenizerError},
 };
 use log::debug;
 
@@ -15,9 +16,99 @@ impl From<TokenizerError> for ParserError {
     }
 }
 
-pub fn parse_sql(sql: &str) -> Result<Vec<Statement>, ParserError> {
-    debug!("Parsing SQL query: {}", sql);
-    let tokens = Tokenizer::new(sql).tokenize();
+pub struct Parser {
+    /// The index (0-indexed) of the first unprocessed token
+    index: usize,
+    /// The tokens
+    tokens: Vec<TokenWithSpan>,
+}
 
-    Err(ParserError::ParserError("unimplemented".to_string()))
+impl Default for Parser {
+    fn default() -> Self {
+        Parser {
+            index: 0,
+            tokens: Vec::new(),
+        }
+    }
+}
+
+impl Parser {
+    /// Peek the (self.index + n)-th non-whitespace token that has not yet been processed
+    fn peek_nth_tokens(&self, mut n: usize) -> &TokenWithSpan {
+        let mut index = self.index;
+        loop {
+            match self.tokens.get(index) {
+                Some(TokenWithSpan {
+                    token: Whitespace(_),
+                    span: _,
+                }) => continue,
+                non_whitespace => {
+                    if n == 0 {
+                        return non_whitespace.unwrap_or(&EOF_TOKEN);
+                    }
+                    n -= 1;
+                }
+            }
+            index += 1;
+        }
+    }
+
+    /// Advances the current token to the next non-whitespace token
+    fn advance_token(&mut self) {
+        loop {
+            match self.tokens.get(self.index) {
+                Some(TokenWithSpan {
+                    token: Whitespace(_),
+                    span: _,
+                }) => self.index += 1,
+                _ => break,
+            }
+        }
+    }
+
+    /// Check the next token if it matches an expected token, then advance
+    /// it if it does
+    fn check_then_consume(&mut self, expected: &Token) -> bool {
+        if self.peek_nth_tokens(0) == expected {
+            self.advance_token();
+            true
+        } else {
+            false
+        }
+    }
+
+    fn parse_statement(&self) -> Result<Statement, ParserError> {
+        Err(ParserError::TokenizerError("unimplemented".to_string()))
+    }
+
+    pub fn parse_sql(&mut self, sql: &str) -> Result<Vec<Statement>, ParserError> {
+        debug!("Parsing SQL query: {}", sql);
+        let tokens = Tokenizer::new(sql).tokenize()?;
+        // reset the parser state
+        self.index = 0;
+        self.tokens = tokens;
+
+        let mut stmts: Vec<Statement> = Vec::new();
+        let mut expecting_statement_delimiter = false;
+        loop {
+            // ignore empty statements
+            while self.check_then_consume(&Token::Colon) {
+                expecting_statement_delimiter = false;
+            }
+            match self.peek_nth_tokens(0).token {
+                Token::EOF => break,
+                _ => {}
+            }
+            if expecting_statement_delimiter {
+                return Err(ParserError::ParserError(
+                    "Expected end of statement, but it doesn't".to_string(),
+                ));
+            }
+
+            stmts.push(self.parse_statement()?);
+            expecting_statement_delimiter = true;
+        }
+
+        Ok(stmts)
+    }
 }

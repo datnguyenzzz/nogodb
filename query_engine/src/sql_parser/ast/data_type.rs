@@ -38,10 +38,16 @@ pub enum DataType {
     Float(ExactNumberInfo),
     /// Int with optional display width, e.g. INT or INT(11).
     Int(Option<u64>),
+    /// Big integer with optional display width, e.g. BIGINT or BIGINT(20).
+    BigInt(Option<u64>),
     /// Integer with optional display width, e.g. INTEGER or INTEGER(11).
     Integer(Option<u64>),
     /// Double
     Double(ExactNumberInfo),
+    /// Double Precision
+    DoublePrecision,
+    /// unsigned double precision
+    DoublePrecisionUnsigned,
     /// Boolean type.
     Boolean,
     /// Date type.

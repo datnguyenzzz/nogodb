@@ -42,3 +42,9 @@ pub enum Statement {
     /// ```
     ShowTables, // TODO: Support Transaction
 }
+
+impl From<CreateTable> for Statement {
+    fn from(value: CreateTable) -> Self {
+        Self::CreateTable(value)
+    }
+}

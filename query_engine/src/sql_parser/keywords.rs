@@ -1,5 +1,7 @@
 use core::fmt;
 
+use crate::sql_parser::{ast::expr::Ident, tokenizer::Span};
+
 /// https://en.wikipedia.org/wiki/List_of_SQL_reserved_words
 macro_rules! define_keywords {
     // learning:
@@ -28,17 +30,25 @@ macro_rules! define_keywords {
                 $(Keyword::$keyword),*
             ];
         }
+
+        impl fmt::Display for Keyword{
+            fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                match self {
+                    Keyword::NoKeyWord => write!(f, "NoKeyword"),
+                    $(Keyword::$keyword => write!(f, "{}", stringify!($keyword)),)*
+                }
+            }
+        }
     };
 }
 
 // TODO: Support CTEs, WITH...
 define_keywords!(
-    ABS, ALTER, ANALYZE, AND, AS, ASC, BETWEEN, BIGDECIMAL, BIGINT, BOOLEAN, CASE, CAST, CHAR,
-    COALESCE, COLLATE, COUNT, CREATE, DATE, DEFAULT, DELETE, DOUBLE, DROP, ELSE, ELSEIF, EMPTY,
-    FLOAT, FLOAT32, FLOAT4, FLOAT64, FLOAT8, FLOOR, GROUP, GROUPING, HASH, HASHES, HAVING, ID, IF,
-    INNER, INSERT, INT, INT128, INT16, INT2, INT256, INT32, INT4, INT64, INT8, INTEGER, INTERSECT,
-    JOIN, LEFT, LIKE, LIMIT, MOD, NOT, NOTNULL, OFFSET, OUTER, QUERY, REGEXP, SELECT, UINT128,
-    UINT16, UINT256, UINT32, UINT64, UINT8, UPDATE, VARCHAR, WHERE
+    ABS, ALTER, ANALYZE, AND, AS, ASC, BETWEEN, BIGINT, BOOLEAN, CASE, CAST, COALESCE, COLLATE,
+    COUNT, CREATE, DATE, DELETE, DOUBLE, DROP, ELSE, ELSEIF, EMPTY, FLOAT, FLOOR, GROUP, GROUPING,
+    HASH, HASHES, HAVING, ID, IF, INNER, INSERT, INT, INTERSECT, JOIN, LEFT, LIKE, LIMIT, MOD, NOT,
+    NOTNULL, OFFSET, OUTER, QUERY, PRECISION, REGEXP, SELECT, TABLE, UNSIGNED, UPDATE, VARCHAR,
+    WHERE
 );
 
 /// A keyword (like SELECT) or an optionally quoted SQL identifier
@@ -49,6 +59,37 @@ pub struct Word {
     pub keyword: Keyword,
     pub value: String,
     pub quote: Option<char>,
+}
+
+impl Word {
+    // learning: fn ...(self) means the caller take the ownership
+    // and consume the object, make it can not be reused.
+    // while fn ...(&self) only borrows it
+
+    /// Convert this word into an [`Ident`] identifier, consuming the `Word`.
+    ///
+    /// This avoids cloning the string value. If you need to keep the original
+    /// `Word`, use [`to_ident`](Self::to_ident) instead.
+    pub fn into_ident(self, span: Span) -> Ident {
+        Ident {
+            value: self.value,
+            quote_style: self.quote,
+            span,
+        }
+    }
+
+    /// Convert a reference to this word into an [`Ident`] by cloning the value.
+    ///
+    /// Use this method when you need to keep the original `Word` around.
+    /// If you can consume the `Word`, prefer [`into_ident`](Self::into_ident) instead
+    /// to avoid cloning.
+    pub fn to_ident(&self, span: Span) -> Ident {
+        Ident {
+            value: self.value.clone(),
+            quote_style: self.quote,
+            span,
+        }
+    }
 }
 
 impl fmt::Display for Word {
@@ -111,7 +152,7 @@ pub enum Token {
     SingleQuotedString(String),
     /// Double quoted string: i.e: "string"
     DoubleQuotedString(String),
-    /// Comma
+    /// Comma ","
     Comma,
     /// Whitespace (space, tab, etc)
     Whitespace(Whitespace),

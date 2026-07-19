@@ -30,10 +30,6 @@ pub enum DataType {
     Varchar(Option<u64>),
     /// Uuid type.
     Uuid,
-    /// Numeric type with optional precision and scale e.g. NUMERIC(10,2)
-    Numeric(ExactNumberInfo),
-    /// Decimal type with optional precision and scale, e.g. DECIMAL(10,2)
-    Decimal(ExactNumberInfo),
     /// Floating point with optional precision and scale, e.g. FLOAT, FLOAT(8), or FLOAT(8,2).
     Float(ExactNumberInfo),
     /// Int with optional display width, e.g. INT or INT(11).

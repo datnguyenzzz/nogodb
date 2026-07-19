@@ -10,6 +10,6 @@ impl Client {
     /// TODO: update to execute(ENUM request). We'd like to support several request type
     /// not just SQL query execution
     pub fn execute(&self, statement: &str) {
-        Parser::default().parse_sql(statement);
+        let _ = Parser::default().parse_sql(statement);
     }
 }

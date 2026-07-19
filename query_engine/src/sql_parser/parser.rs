@@ -1,5 +1,5 @@
 use core::fmt;
-use std::{fmt::format, str::FromStr};
+use std::str::FromStr;
 
 use crate::sql_parser::{
     ast::{
@@ -10,12 +10,13 @@ use crate::sql_parser::{
     },
     keywords::{
         Keyword,
-        Token::{self, RParen, Whitespace},
+        Token::{self, Whitespace},
     },
     tokenizer::{EOF_TOKEN, Location, TokenWithSpan, Tokenizer, TokenizerError},
 };
 use log::debug;
 
+#[derive(Debug)]
 pub enum ParserError {
     TokenizerError(String),
     ParserError(String),
@@ -79,31 +80,15 @@ impl Parser {
     /// Advances the current token to the next non-whitespace token
     fn advance_token(&mut self) {
         loop {
+            self.unprocessed_index += 1;
             match self.tokens.get(self.unprocessed_index) {
                 Some(TokenWithSpan {
                     token: Whitespace(_),
                     span: _,
-                }) => self.unprocessed_index += 1,
+                }) => continue,
                 _ => break,
             }
         }
-    }
-
-    /// Returns a reference to the current token
-    fn peek_current_token(&self) -> &TokenWithSpan {
-        return self
-            .tokens
-            .get(self.unprocessed_index.saturating_sub(1))
-            .unwrap_or(&EOF_TOKEN);
-    }
-
-    /// Advances to the next non-whitespace token and returns a copy.
-    ///
-    /// Please use [`Self::advance_token`] and [`Self::peek_current_token`] to
-    /// avoid the copy.
-    fn next_token(&mut self) -> TokenWithSpan {
-        self.advance_token();
-        self.peek_current_token().clone()
     }
 
     /// Check the next token if it matches an expected token, then advance
@@ -138,7 +123,8 @@ impl Parser {
 
     /// Parse a simple one-word identifier (possibly quoted, possibly a keyword)
     fn parse_ident(&mut self) -> Result<Ident, ParserError> {
-        let curr_token = self.next_token();
+        let curr_token = self.peek_nth_token(0).clone();
+        self.advance_token();
         match curr_token.token {
             Token::Word(w) => Ok(w.into_ident(curr_token.span)),
             _ => Err(ParserError::ParserError(format!(
@@ -150,7 +136,8 @@ impl Parser {
 
     /// Parse an unsigned literal integer/long
     fn parse_literal_uint(&mut self) -> Result<u64, ParserError> {
-        let token = self.next_token();
+        let token = self.peek_nth_token(0).clone();
+        self.advance_token();
         match token.token {
             Token::Number(s, _) => Self::cast::<u64>(s, token.span.start),
             _ => Err(ParserError::ParserError(format!(
@@ -168,7 +155,7 @@ impl Parser {
             let _ = self.check_then_consume(&Token::Plus);
         }
 
-        let current_token = self.peek_current_token();
+        let current_token = self.peek_nth_token(0);
         match &current_token.token {
             Token::Number(s, _) => {
                 let v = Self::cast::<i64>(s.clone(), current_token.span.start)?;
@@ -217,51 +204,69 @@ impl Parser {
 
     /// Parse a SQL datatype (in the context of a CREATE TABLE statement for example)
     fn parse_data_type(&mut self) -> Result<DataType, ParserError> {
-        self.advance_token();
-        match &self.peek_current_token().token {
+        match &self.peek_nth_token(0).token {
             Token::Word(w) => match w.keyword {
-                Keyword::BIGINT => match self.parse_precision_scale()? {
-                    ExactNumberInfo::PrecisionAndScale(_, _) => Err(ParserError::ParserError(
-                        format!("do not allow `scale` in the BIGINT precision"),
-                    )),
-                    ExactNumberInfo::Precision(p) => Ok(DataType::BigInt(Some(p))),
-                    ExactNumberInfo::None => Ok(DataType::BigInt(None)),
-                },
-                Keyword::BOOLEAN => Ok(DataType::Boolean),
-                Keyword::DATE => Ok(DataType::Date),
-                Keyword::DOUBLE => match self.parse_keyword(Keyword::PRECISION) {
-                    Ok(_) => {
-                        if let Ok(_) = self.parse_keyword(Keyword::UNSIGNED) {
-                            Ok(DataType::DoublePrecisionUnsigned)
-                        } else {
-                            Ok(DataType::DoublePrecision)
+                Keyword::BIGINT => {
+                    self.advance_token();
+                    match self.parse_precision_scale()? {
+                        ExactNumberInfo::PrecisionAndScale(_, _) => Err(ParserError::ParserError(
+                            format!("do not allow `scale` in the BIGINT precision"),
+                        )),
+                        ExactNumberInfo::Precision(p) => Ok(DataType::BigInt(Some(p))),
+                        ExactNumberInfo::None => Ok(DataType::BigInt(None)),
+                    }
+                }
+                Keyword::BOOLEAN => {
+                    self.advance_token();
+                    Ok(DataType::Boolean)
+                }
+                Keyword::DATE => {
+                    self.advance_token();
+                    Ok(DataType::Date)
+                }
+                Keyword::DOUBLE => {
+                    self.advance_token();
+                    match self.parse_keyword(Keyword::PRECISION) {
+                        Ok(_) => {
+                            if let Ok(_) = self.parse_keyword(Keyword::UNSIGNED) {
+                                Ok(DataType::DoublePrecisionUnsigned)
+                            } else {
+                                Ok(DataType::DoublePrecision)
+                            }
+                        }
+                        Err(_) => {
+                            let precision = self.parse_precision_scale()?;
+                            Ok(DataType::Double(precision))
                         }
                     }
-                    Err(_) => {
-                        let precision = self.parse_precision_scale()?;
-                        Ok(DataType::Double(precision))
-                    }
-                },
+                }
                 Keyword::FLOAT => {
+                    self.advance_token();
                     let precision = self.parse_precision_scale()?;
                     Ok(DataType::Float(precision))
                 }
-                Keyword::INT => match self.parse_precision_scale()? {
-                    ExactNumberInfo::PrecisionAndScale(_, _) => Err(ParserError::ParserError(
-                        format!("do not allow `scale` in the INT precision"),
-                    )),
-                    ExactNumberInfo::Precision(p) => Ok(DataType::Int(Some(p))),
-                    ExactNumberInfo::None => Ok(DataType::Int(None)),
-                },
-                Keyword::VARCHAR => Ok(DataType::Varchar(self.parse_character_length()?)),
+                Keyword::INT => {
+                    self.advance_token();
+                    match self.parse_precision_scale()? {
+                        ExactNumberInfo::PrecisionAndScale(_, _) => Err(ParserError::ParserError(
+                            format!("do not allow `scale` in the INT precision"),
+                        )),
+                        ExactNumberInfo::Precision(p) => Ok(DataType::Int(Some(p))),
+                        ExactNumberInfo::None => Ok(DataType::Int(None)),
+                    }
+                }
+                Keyword::VARCHAR => {
+                    self.advance_token();
+                    Ok(DataType::Varchar(self.parse_character_length()?))
+                }
                 _ => Err(ParserError::ParserError(format!(
                     "Unrecognised data type keyword, got {}",
                     w.keyword
                 ))),
             },
-            _ => Err(ParserError::ParserError(format!(
+            t => Err(ParserError::ParserError(format!(
                 "Expected data type token, but {}",
-                self.peek_current_token()
+                t,
             ))),
         }
     }
@@ -281,7 +286,7 @@ impl Parser {
         let mut columns: Vec<ColumnDef> = vec![];
 
         loop {
-            match &self.peek_current_token().token {
+            match &self.peek_nth_token(0).token {
                 Token::Word(_) => columns.push(self.parse_column_def()?),
                 Token::RParen => {
                     self.advance_token();
@@ -290,10 +295,10 @@ impl Parser {
                 Token::Comma => {
                     self.advance_token();
                 }
-                _ => {
+                t => {
                     return Err(ParserError::ParserError(format!(
                         "Expected column, got {}",
-                        self.peek_current_token()
+                        t,
                     )));
                 }
             }
@@ -326,11 +331,12 @@ impl Parser {
 
     /// Parse `CREATE <something>`` statement
     fn parse_create(&mut self) -> Result<Statement, ParserError> {
+        self.advance_token();
         if let Ok(_) = self.parse_keyword(Keyword::TABLE) {
             self.parse_create_table().map(Into::into)
         } else {
             Err(ParserError::ParserError(format!(
-                "Unrecognised object for creating, but got {}",
+                "Unrecognised object for creating, got {}",
                 self.peek_nth_token(0),
             )))
         }
@@ -340,10 +346,7 @@ impl Parser {
         let next_token = self.peek_nth_token(0);
         match &next_token.token {
             Token::Word(w) => match w.keyword {
-                Keyword::CREATE => {
-                    self.advance_token();
-                    self.parse_create()
-                }
+                Keyword::CREATE => self.parse_create(),
                 Keyword::DELETE => panic!("implement me"),
                 Keyword::INSERT => panic!("implement me"),
                 Keyword::UPDATE => panic!("implement me"),

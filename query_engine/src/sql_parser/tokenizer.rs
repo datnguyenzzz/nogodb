@@ -221,9 +221,9 @@ impl<'a> Tokenizer<'a> {
 
     /// next get the next token or None
     fn next(&self, cursor: &mut Cursor) -> Result<Option<Token>, TokenizerError> {
-        match cursor.next() {
+        match cursor.peek() {
             None => Ok(None),
-            Some(ch) => match ch {
+            Some(&ch) => match ch {
                 // Whitespaces
                 ' ' => self.consume_and_next(cursor, Token::Whitespace(Whitespace::Space)),
                 '\t' => self.consume_and_next(cursor, Token::Whitespace(Whitespace::Tab)),

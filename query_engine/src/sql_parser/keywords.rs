@@ -47,7 +47,7 @@ define_keywords!(
     ABS, ALTER, ANALYZE, AND, AS, ASC, BETWEEN, BIGINT, BOOLEAN, CASE, CAST, COALESCE, COLLATE,
     COUNT, CREATE, DATE, DELETE, DOUBLE, DROP, ELSE, ELSEIF, EMPTY, FLOAT, FLOOR, GROUP, GROUPING,
     HASH, HASHES, HAVING, ID, IF, INNER, INSERT, INT, INTERSECT, JOIN, LEFT, LIKE, LIMIT, MOD, NOT,
-    NOTNULL, OFFSET, OUTER, QUERY, PRECISION, REGEXP, SELECT, TABLE, UNSIGNED, UPDATE, VARCHAR,
+    NOTNULL, OFFSET, OUTER, PRECISION, QUERY, REGEXP, SELECT, TABLE, UNSIGNED, UPDATE, VARCHAR,
     WHERE
 );
 
@@ -264,4 +264,61 @@ pub fn search_keyword(word: &str) -> Keyword {
             probe.len().cmp(&word.len())
         })
         .map_or_else(|_| Keyword::NoKeyWord, |i| Keyword::ALL_KEYWORDS[i])
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// `Keyword::ALL` is the array that `search_keyword` binary-searches.
+    /// Binary search only works on ascending-sorted data, so this must hold.
+    #[test]
+    fn all_is_sorted_ascending() {
+        let all = Keyword::ALL;
+        for window in all.windows(2) {
+            assert!(
+                window[0] <= window[1],
+                "Keyword::ALL is not sorted ascending: {:?} comes before {:?} but should not",
+                window[0],
+                window[1],
+            );
+        }
+    }
+
+    /// `Keyword::ALL_KEYWORDS` is indexed positionally alongside `Keyword::ALL`
+    /// (see `search_keyword`). It must therefore follow the same order.
+    #[test]
+    fn all_keywords_matches_all_order() {
+        let all = Keyword::ALL;
+        let all_kw = Keyword::ALL_KEYWORDS;
+
+        assert_eq!(
+            all.len(),
+            all_kw.len(),
+            "ALL and ALL_KEYWORDS have different lengths",
+        );
+
+        for (i, (name, kw)) in all.iter().zip(all_kw.iter()).enumerate() {
+            // Re-derive the variant name from the keyword value to compare.
+            // We can't compare identifiers directly without a name, so we
+            // check that `Display` matches the string entry at the same index.
+            assert_eq!(
+                format!("{}", kw),
+                *name,
+                "position {i}: ALL says {:?} but ALL_KEYWORDS displays as {:?}",
+                name,
+                kw,
+            );
+        }
+    }
+
+    /// Sanity check: the two arrays are non-empty (catches accidental macro regressions).
+    #[test]
+    fn arrays_are_non_empty() {
+        assert!(!Keyword::ALL.is_empty(), "Keyword::ALL is empty");
+        assert!(
+            !Keyword::ALL_KEYWORDS.is_empty(),
+            "Keyword::ALL_KEYWORDS is empty"
+        );
+    }
 }

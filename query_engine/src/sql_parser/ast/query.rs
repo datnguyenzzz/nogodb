@@ -47,7 +47,7 @@ pub enum TableFactor {
         /// Table name
         name: Ident,
         /// Optional alias for the table
-        alias: Ident,
+        alias: Option<Ident>,
     },
 }
 

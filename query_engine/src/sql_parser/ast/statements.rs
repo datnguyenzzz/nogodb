@@ -48,3 +48,9 @@ impl From<CreateTable> for Statement {
         Self::CreateTable(value)
     }
 }
+
+impl From<Delete> for Statement {
+    fn from(value: Delete) -> Self {
+        Self::Delete(value)
+    }
+}

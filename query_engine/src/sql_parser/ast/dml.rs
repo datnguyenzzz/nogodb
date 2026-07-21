@@ -1,17 +1,12 @@
-use crate::sql_parser::{
-    ast::{
-        expr::{Assignment, Expr, Ident},
-        query::{Query, TableWithJoins},
-    },
-    tokenizer::TokenWithSpan,
+use crate::sql_parser::ast::{
+    expr::{Assignment, Expr, Ident},
+    query::{Query, TableFactor, TableWithJoins},
 };
 
 /// INSERT statement
 /// https://ronsavage.github.io/SQL/sql-2003-2.bnf.html#insert%20statement
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Insert {
-    /// Token for the `INSERT` keyword
-    insert_token: TokenWithSpan,
     /// INTO - optional keyword
     into: bool,
     /// TABLE
@@ -26,8 +21,6 @@ pub struct Insert {
 /// https://ronsavage.github.io/SQL/sql-2003-2.bnf.html#update%20statement:%20searched
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Update {
-    /// Token for the `UPDATE` keyword
-    update_token: TokenWithSpan,
     /// TABLE
     table: Ident,
     /// Column assignments
@@ -43,10 +36,8 @@ pub struct Update {
 /// https://ronsavage.github.io/SQL/sql-2003-2.bnf.html#delete%20statement:%20searched
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Delete {
-    /// Token for the `DELETE` keyword
-    delete_token: TokenWithSpan,
     /// FROM
-    from: Vec<TableWithJoins>,
+    pub from: Vec<TableFactor>,
     /// WHERE
-    selection: Option<Expr>,
+    pub selection: Option<Expr>,
 }

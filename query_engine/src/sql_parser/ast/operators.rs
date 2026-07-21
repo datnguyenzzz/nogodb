@@ -69,8 +69,6 @@ impl Display for BinaryOperator {
 /// Unary operators
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub enum UnaryOperator {
-    /// Bitwise Not, e.g. `~9`
-    BitwiseNot,
     /// Plus, e.g. `+9`
     Plus,
     /// Minus, e.g. `-9`
@@ -82,7 +80,6 @@ pub enum UnaryOperator {
 impl Display for UnaryOperator {
     fn fmt(&self, f: &mut Formatter) -> Result {
         f.write_str(match self {
-            UnaryOperator::BitwiseNot => "~",
             UnaryOperator::Minus => "-",
             UnaryOperator::Not => "NOT",
             UnaryOperator::Plus => "+",

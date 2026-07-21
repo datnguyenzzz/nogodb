@@ -2,6 +2,7 @@ use std::hash::Hash;
 
 use crate::sql_parser::{
     ast::{
+        data_type::DataType,
         operators::{BinaryOperator, UnaryOperator},
         query::Select,
     },
@@ -36,11 +37,34 @@ impl Hash for Ident {
     }
 }
 
+/// Primitive SQL values such as number and string
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum Value {
+    /// Numeric literal
+    Number(String, bool),
+    /// 'string value'
+    SingleQuotedString(String),
+    /// Boolean value true or false
+    Boolean(bool),
+    /// `NULL` value
+    Null,
+}
+
+/// The syntax used for in a cast expression.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum CastKind {
+    /// The standard SQL cast syntax, e.g. `CAST(<expr> as <datatype>)`
+    Cast,
+    /// A cast that returns `NULL` on failure, e.g. `TRY_CAST(<expr> as <datatype>)`.
+    TryCast,
+}
+
 /// An SQL expression of any type
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Expr {
     /// Identifier e.g. table name or column name
     Identifier(Ident),
+    // TODO: support multi-part identifier, e.g. `table_alias.column` or `schema.table.col`
     /// `IS FALSE` operator
     IsFalse(Box<Expr>),
     /// `IS NOT FALSE` operator
@@ -73,9 +97,20 @@ pub enum Expr {
     },
     /// Nested expression e.g. `(foo > bar)` or `(1)`
     Nested(Box<Expr>),
+    /// A literal value, such as string, number, date or NULL
+    Value(Value),
     // TODO: Support sub-query
     /// An unqualified `*` wildcard token (e.g. `*`).
     Wildcard(TokenWithSpan),
+    /// `CAST` an expression to a different data type e.g. `CAST(foo AS VARCHAR(123))`
+    Cast {
+        /// The cast kind (e.g., `CAST`, `TRY_CAST`).
+        kind: CastKind,
+        /// Expression being cast.
+        expr: Box<Expr>,
+        /// Target data type.
+        data_type: DataType,
+    },
 }
 
 /// A item `T` enclosed in a pair of parentheses

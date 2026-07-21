@@ -3,16 +3,13 @@
 ## H2 - 2026 
 
 On-working: Motivation, I would like to learn Rust :)  
-- [ ] Write a query engine from Rust 
-
-Park: 
-- [ ] P0 - **ongoing**: Design the DB public APIs and skeleton the main flow
-  - [x] Implement [record format](https://github.com/facebook/rocksdb/wiki/Write-Ahead-Log-File-Format#record-format) to a common `lib`
-- [ ] P0
+- [ ] P0: Write a query engine from Rust 
+- [ ] P1: Design the DB public APIs and skeleton the main flow
+- [ ] P1:
   - [ ] Implement Size-Tier compaction. Reference for the improvement: 
     - [ ] https://nivdayan.github.io/dostoevsky.pdf
-- [ ] P0 - Open DB from the leftover state, replay from WALs, stable versions, ...
-- [ ] P0 - Emit metrics for monitoring
+- [ ] P2 - Open DB from the leftover state, replay from WALs, stable versions, ...
+- [ ] P2 - Emit metrics for monitoring
 
 ## H1 - 2026
 

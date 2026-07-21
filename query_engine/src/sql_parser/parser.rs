@@ -6,12 +6,16 @@ use crate::sql_parser::{
         Statement,
         data_type::{DataType, ExactNumberInfo},
         ddl::{ColumnDef, CreateTable},
-        expr::Ident,
+        dml::Delete,
+        expr::{CastKind, Expr, Ident},
+        operators::UnaryOperator,
+        query::TableFactor,
     },
     keywords::{
         Keyword,
-        Token::{self, Whitespace},
+        Token::{self, RParen, Whitespace},
     },
+    precedence::{self, Precedence, prec_unknown},
     tokenizer::{EOF_TOKEN, Location, TokenWithSpan, Tokenizer, TokenizerError},
 };
 use log::debug;
@@ -42,6 +46,12 @@ impl Default for Parser {
             tokens: Vec::new(),
         }
     }
+}
+
+macro_rules! p {
+    ($prec:ident) => {
+        precedence::prec_value(precedence::Precedence::$prec)
+    };
 }
 
 impl Parser {
@@ -321,17 +331,14 @@ impl Parser {
     //     FROM existing_table
     //     WHERE ....;
     fn parse_create_table(&mut self) -> Result<CreateTable, ParserError> {
-        let table_name = self.parse_ident()?;
-        let columns = self.parse_columns()?;
         Ok(CreateTable {
-            table_name: table_name,
-            columns: columns,
+            table_name: self.parse_ident()?,
+            columns: self.parse_columns()?,
         })
     }
 
     /// Parse `CREATE <something>`` statement
     fn parse_create(&mut self) -> Result<Statement, ParserError> {
-        self.advance_token();
         if let Ok(_) = self.parse_keyword(Keyword::TABLE) {
             self.parse_create_table().map(Into::into)
         } else {
@@ -342,12 +349,181 @@ impl Parser {
         }
     }
 
+    /// Get the precedence of the token
+    fn get_prec(&self) -> u8 {
+        match &self.peek_nth_token(0).token {
+            Token::Word(w) => match w.keyword {
+                Keyword::AND => p!(And),
+                Keyword::OR => p!(Or),
+                Keyword::XOR => p!(Xor),
+                Keyword::NOT => match &self.peek_nth_token(1).token {
+                    Token::Word(w) if w.keyword == Keyword::IN => p!(Between),
+                    Token::Word(w) if w.keyword == Keyword::BETWEEN => p!(Between),
+                    Token::Word(w) if w.keyword == Keyword::LIKE => p!(Like),
+                    Token::Word(w) if w.keyword == Keyword::REGEXP => p!(Like),
+                    _ => prec_unknown(),
+                },
+                Keyword::IN => p!(Between),
+                Keyword::BETWEEN => p!(Between),
+                Keyword::LIKE => p!(Like),
+                Keyword::REGEXP => p!(Like),
+                _ => prec_unknown(),
+            },
+            Token::Eq
+            | Token::Lt
+            | Token::LtEq
+            | Token::Neq
+            | Token::Gt
+            | Token::GtEq
+            | Token::DoubleEq => p!(Eq),
+            Token::Plus | Token::Minus => p!(PlusMinus),
+            Token::Mul | Token::Div | Token::Mod | Token::StringConcat => p!(MulDivMod),
+            Token::LBracket => p!(DoubleColon),
+
+            _ => prec_unknown(),
+        }
+    }
+
+    /// Parse a new expression.
+    /// Implementation of a Pratt operator precedence parser, https://en.wikipedia.org/wiki/Operator-precedence_parser
+    fn parse_expr(&mut self) -> Result<Expr, ParserError> {
+        self.parse_expr_by_prec(0)
+    }
+
+    fn parse_expr_by_prec(&mut self, min_prec: u8) -> Result<Expr, ParserError> {
+        // parse left prefix node
+        let mut lhs = self.parse_expr_prefix()?;
+
+        // infix parse loop: keep consuming while the operations bind tighter than min_prec
+
+        loop {
+            let prec = self.get_prec();
+            if min_prec >= prec {
+                break;
+            }
+
+            lhs = self.parse_expr_infix(lhs, prec + 1)?; // left associativity
+        }
+
+        Ok(lhs)
+    }
+
+    /// Parse an operator following an expression
+    fn parse_expr_infix(&mut self, lhs: Expr, prec: u8) -> Result<Expr, ParserError> {
+        panic!("[parse_expr_infix] implement me!")
+    }
+
+    /// Parse an expression prefix. Such as leading atom or unary op produces left node
+    fn parse_expr_prefix(&mut self) -> Result<Expr, ParserError> {
+        match &self.peek_nth_token(0).token {
+            Token::Word(w) => match w.keyword {
+                Keyword::CAST => self.parse_cast_expr(CastKind::Cast),
+                Keyword::TRY_CAST => self.parse_cast_expr(CastKind::TryCast),
+                Keyword::CEIL => self.parse_ceil_floor_expr(true),
+                Keyword::FLOOR => self.parse_ceil_floor_expr(false),
+                // TODO: Support parsing interval expression, e.g INTERVAL '1' DAY
+                Keyword::INTERVAL => panic!("not support INTERVAL yet"),
+                Keyword::NOT => self.parse_not_expr(),
+                _ => panic!(""),
+            },
+            tok @ Token::Plus | tok @ Token::Minus => {
+                let op = if tok == &Token::Plus {
+                    UnaryOperator::Plus
+                } else {
+                    UnaryOperator::Minus
+                };
+
+                Ok(Expr::UnaryOp {
+                    op,
+                    expr: Box::new(self.parse_expr_by_prec(p!(MulDivMod))?),
+                })
+            }
+            Token::Number(_, _) | Token::SingleQuotedString(_) | Token::DoubleQuotedString(_) => {
+                self.parse_value()
+            }
+            Token::LParen => {
+                self.advance_token();
+                let inner = self.parse_expr()?;
+                self.check_then_consume(&Token::RParen)?;
+                Ok(Expr::Nested(Box::new(inner)))
+            }
+            e => Err(ParserError::ParserError(format!(
+                "expected an expression, got {}",
+                e,
+            ))),
+        }
+    }
+
+    /// Parse a literal value (numbers, strings, date/time, booleans)
+    fn parse_value(&mut self) -> Result<Expr, ParserError> {
+        self.advance_token();
+        panic!("[parse_not_expr] implement me!")
+    }
+
+    /// Parse a `NOT` expression.
+    fn parse_not_expr(&mut self) -> Result<Expr, ParserError> {
+        self.advance_token();
+        panic!("[parse_not_expr] implement me!")
+    }
+
+    /// Parse a SQL CAST function e.g. `CAST(expr AS FLOAT)`
+    fn parse_cast_expr(&mut self, cast_kind: CastKind) -> Result<Expr, ParserError> {
+        self.advance_token();
+        panic!("[parse_cast_expr] implement me!")
+    }
+
+    /// Parse a `CEIL` or `FLOOR` expression.
+    fn parse_ceil_floor_expr(&mut self, is_ceil: bool) -> Result<Expr, ParserError> {
+        self.advance_token();
+        panic!("[parse_ceil_floor_expr] implement me!")
+    }
+
+    /// Parse `DELETE FROM <table>` statement
+    /// Syntax:
+    /// DELETE FROM table_name WHERE condition;
+    fn parse_delete_from_table(&mut self) -> Result<Delete, ParserError> {
+        let from = vec![TableFactor::Table {
+            name: self.parse_ident()?,
+            alias: None,
+        }];
+        let mut selection: Option<Expr> = None;
+        if let Ok(_) = self.parse_keyword(Keyword::WHERE) {
+            selection = Some(self.parse_expr()?);
+        }
+
+        Ok(Delete {
+            from: from,
+            selection: selection,
+        })
+    }
+
+    /// Parse `DELETE ...` statement
+    fn parse_delete(&mut self) -> Result<Statement, ParserError> {
+        self.advance_token();
+        match self.parse_keyword(Keyword::FROM) {
+            Ok(_) => {
+                self.advance_token();
+                self.parse_delete_from_table().map(Into::into)
+            }
+            Err(_) => Err(ParserError::ParserError(format!(
+                "Expected FROM in Delete statement, got {}",
+                self.peek_nth_token(0)
+            ))),
+        }
+    }
+
     fn parse_statement(&mut self) -> Result<Statement, ParserError> {
         let next_token = self.peek_nth_token(0);
         match &next_token.token {
             Token::Word(w) => match w.keyword {
-                Keyword::CREATE => self.parse_create(),
-                Keyword::DELETE => panic!("implement me"),
+                Keyword::CREATE => {
+                    self.advance_token();
+                    self.parse_create()
+                }
+                Keyword::DELETE => {
+                    self.advance_token();
+                    self.parse_delete()
+                }
                 Keyword::INSERT => panic!("implement me"),
                 Keyword::UPDATE => panic!("implement me"),
                 Keyword::SELECT => panic!("implement me"),

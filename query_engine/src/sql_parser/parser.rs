@@ -7,15 +7,15 @@ use crate::sql_parser::{
         data_type::{DataType, ExactNumberInfo},
         ddl::{ColumnDef, CreateTable},
         dml::Delete,
-        expr::{CastKind, Expr, Ident},
-        operators::UnaryOperator,
+        expr::{CastKind, Expr, Ident, Value},
+        operators::{BinaryOperator, UnaryOperator},
         query::TableFactor,
     },
     keywords::{
         Keyword,
-        Token::{self, RParen, Whitespace},
+        Token::{self, Whitespace},
     },
-    precedence::{self, Precedence, prec_unknown},
+    precedence::{self, prec_unknown},
     tokenizer::{EOF_TOKEN, Location, TokenWithSpan, Tokenizer, TokenizerError},
 };
 use log::debug;
@@ -118,7 +118,7 @@ impl Parser {
 
     /// If the current token is the `expected` keyword, consume it and returns
     /// true. Otherwise, no tokens are consumed and returns false.
-    fn parse_keyword(&mut self, expected: Keyword) -> Result<(), ParserError> {
+    fn check_then_consume_keyword(&mut self, expected: Keyword) -> Result<(), ParserError> {
         if matches!(&self.peek_nth_token(0).token, Token::Word(w) if w.keyword == expected) {
             self.advance_token();
             Ok(())
@@ -236,9 +236,9 @@ impl Parser {
                 }
                 Keyword::DOUBLE => {
                     self.advance_token();
-                    match self.parse_keyword(Keyword::PRECISION) {
+                    match self.check_then_consume_keyword(Keyword::PRECISION) {
                         Ok(_) => {
-                            if let Ok(_) = self.parse_keyword(Keyword::UNSIGNED) {
+                            if let Ok(_) = self.check_then_consume_keyword(Keyword::UNSIGNED) {
                                 Ok(DataType::DoublePrecisionUnsigned)
                             } else {
                                 Ok(DataType::DoublePrecision)
@@ -339,7 +339,7 @@ impl Parser {
 
     /// Parse `CREATE <something>`` statement
     fn parse_create(&mut self) -> Result<Statement, ParserError> {
-        if let Ok(_) = self.parse_keyword(Keyword::TABLE) {
+        if let Ok(_) = self.check_then_consume_keyword(Keyword::TABLE) {
             self.parse_create_table().map(Into::into)
         } else {
             Err(ParserError::ParserError(format!(
@@ -402,6 +402,7 @@ impl Parser {
                 break;
             }
 
+            self.advance_token();
             lhs = self.parse_expr_infix(lhs, prec + 1)?; // left associativity
         }
 
@@ -410,21 +411,75 @@ impl Parser {
 
     /// Parse an operator following an expression
     fn parse_expr_infix(&mut self, lhs: Expr, prec: u8) -> Result<Expr, ParserError> {
-        panic!("[parse_expr_infix] implement me!")
+        let span = &self.peek_nth_token(0).span;
+        let binary_op = match &self.peek_nth_token(0).token {
+            Token::DoubleEq => Some(BinaryOperator::Eq),
+            Token::Eq => Some(BinaryOperator::Eq),
+            Token::Neq => Some(BinaryOperator::NotEq),
+            Token::Gt => Some(BinaryOperator::Gt),
+            Token::GtEq => Some(BinaryOperator::GtEq),
+            Token::Lt => Some(BinaryOperator::Lt),
+            Token::LtEq => Some(BinaryOperator::LtEq),
+            Token::Plus => Some(BinaryOperator::Plus),
+            Token::Minus => Some(BinaryOperator::Minus),
+            Token::Mul => Some(BinaryOperator::Multiply),
+            Token::Mod => Some(BinaryOperator::Modulo),
+            Token::StringConcat => Some(BinaryOperator::StringConcat),
+            Token::Div => Some(BinaryOperator::Divide),
+            Token::Word(w) => match w.keyword {
+                Keyword::AND => Some(BinaryOperator::And),
+                Keyword::OR => Some(BinaryOperator::Or),
+                Keyword::XOR => Some(BinaryOperator::Xor),
+                _ => None,
+            },
+            _ => None,
+        };
+
+        match binary_op {
+            Some(op) => {
+                self.advance_token();
+                Ok(Expr::BinaryOp {
+                    left: Box::new(lhs),
+                    op,
+                    right: Box::new(self.parse_expr_by_prec(prec)?),
+                })
+            }
+            None => Err(ParserError::ParserError(format!(
+                "no infix expression at {}",
+                span.start,
+            ))),
+        }
     }
 
     /// Parse an expression prefix. Such as leading atom or unary op produces left node
     fn parse_expr_prefix(&mut self) -> Result<Expr, ParserError> {
         match &self.peek_nth_token(0).token {
             Token::Word(w) => match w.keyword {
-                Keyword::CAST => self.parse_cast_expr(CastKind::Cast),
-                Keyword::TRY_CAST => self.parse_cast_expr(CastKind::TryCast),
-                Keyword::CEIL => self.parse_ceil_floor_expr(true),
-                Keyword::FLOOR => self.parse_ceil_floor_expr(false),
+                Keyword::CAST => {
+                    self.advance_token();
+                    self.parse_cast_expr(CastKind::Cast)
+                }
+                Keyword::TRY_CAST => {
+                    self.advance_token();
+                    self.parse_cast_expr(CastKind::TryCast)
+                }
+                Keyword::CEIL => {
+                    self.advance_token();
+                    self.parse_ceil_floor_expr(true)
+                }
+                Keyword::FLOOR => {
+                    self.advance_token();
+                    self.parse_ceil_floor_expr(false)
+                }
                 // TODO: Support parsing interval expression, e.g INTERVAL '1' DAY
-                Keyword::INTERVAL => panic!("not support INTERVAL yet"),
-                Keyword::NOT => self.parse_not_expr(),
-                _ => panic!(""),
+                Keyword::NOT => {
+                    self.advance_token();
+                    self.parse_not_expr()
+                }
+                k => Err(ParserError::ParserError(format!(
+                    "not supported keyword as a prefix of an expression, got {}",
+                    k,
+                ))),
             },
             tok @ Token::Plus | tok @ Token::Minus => {
                 let op = if tok == &Token::Plus {
@@ -439,6 +494,7 @@ impl Parser {
                 })
             }
             Token::Number(_, _) | Token::SingleQuotedString(_) | Token::DoubleQuotedString(_) => {
+                self.advance_token();
                 self.parse_value()
             }
             Token::LParen => {
@@ -456,26 +512,74 @@ impl Parser {
 
     /// Parse a literal value (numbers, strings, date/time, booleans)
     fn parse_value(&mut self) -> Result<Expr, ParserError> {
-        self.advance_token();
-        panic!("[parse_not_expr] implement me!")
+        let to_expr = |v: Value| Ok(Expr::Value(v));
+        let span = &self.peek_nth_token(0).span;
+        match &self.peek_nth_token(0).token {
+            Token::Word(w) => match w.keyword {
+                Keyword::TRUE => to_expr(Value::Boolean(true)),
+                Keyword::FALSE => to_expr(Value::Boolean(false)),
+                Keyword::NULL => to_expr(Value::Null),
+                Keyword::NoKeyWord if w.quote.is_some() => match w.quote {
+                    Some('"') => to_expr(Value::DoubleQuotedString(w.value.clone())),
+                    Some('\'') => to_expr(Value::SingleQuotedString(w.value.clone())),
+                    _ => Err(ParserError::ParserError(format!(
+                        "unknown quote in a concrete value, got {}",
+                        w,
+                    ))),
+                },
+                e => Err(ParserError::ParserError(format!(
+                    "expected a concrete value, got {}",
+                    e,
+                ))),
+            },
+            Token::Number(n, l) => to_expr(Value::Number(Self::cast(n.clone(), span.start)?, *l)),
+            Token::SingleQuotedString(s) => to_expr(Value::SingleQuotedString(s.clone())),
+            Token::DoubleQuotedString(s) => to_expr(Value::DoubleQuotedString(s.clone())),
+
+            e => Err(ParserError::ParserError(format!(
+                "expected a concrete value, got {}",
+                e,
+            ))),
+        }
     }
 
     /// Parse a `NOT` expression.
     fn parse_not_expr(&mut self) -> Result<Expr, ParserError> {
-        self.advance_token();
-        panic!("[parse_not_expr] implement me!")
+        Ok(Expr::UnaryOp {
+            op: UnaryOperator::Not,
+            expr: Box::new(self.parse_expr_by_prec(p!(UnaryNot))?),
+        })
     }
 
     /// Parse a SQL CAST function e.g. `CAST(expr AS FLOAT)`
     fn parse_cast_expr(&mut self, cast_kind: CastKind) -> Result<Expr, ParserError> {
-        self.advance_token();
-        panic!("[parse_cast_expr] implement me!")
+        self.check_then_consume(&Token::LParen)?;
+        let expr = self.parse_expr()?;
+        self.check_then_consume_keyword(Keyword::AS)?;
+        let data_type = self.parse_data_type()?;
+        self.check_then_consume(&Token::RParen)?;
+
+        Ok(Expr::Cast {
+            kind: cast_kind,
+            expr: Box::new(expr),
+            data_type,
+        })
     }
 
-    /// Parse a `CEIL` or `FLOOR` expression.
+    /// Parse a CEIL/FLOOR(expr)
     fn parse_ceil_floor_expr(&mut self, is_ceil: bool) -> Result<Expr, ParserError> {
-        self.advance_token();
-        panic!("[parse_ceil_floor_expr] implement me!")
+        self.check_then_consume(&Token::LParen)?;
+        let expr = self.parse_expr()?;
+        self.check_then_consume(&Token::RParen)?;
+        if is_ceil {
+            Ok(Expr::Ceil {
+                expr: Box::new(expr),
+            })
+        } else {
+            Ok(Expr::Floor {
+                expr: Box::new(expr),
+            })
+        }
     }
 
     /// Parse `DELETE FROM <table>` statement
@@ -487,7 +591,7 @@ impl Parser {
             alias: None,
         }];
         let mut selection: Option<Expr> = None;
-        if let Ok(_) = self.parse_keyword(Keyword::WHERE) {
+        if let Ok(_) = self.check_then_consume_keyword(Keyword::WHERE) {
             selection = Some(self.parse_expr()?);
         }
 
@@ -500,7 +604,7 @@ impl Parser {
     /// Parse `DELETE ...` statement
     fn parse_delete(&mut self) -> Result<Statement, ParserError> {
         self.advance_token();
-        match self.parse_keyword(Keyword::FROM) {
+        match self.check_then_consume_keyword(Keyword::FROM) {
             Ok(_) => {
                 self.advance_token();
                 self.parse_delete_from_table().map(Into::into)

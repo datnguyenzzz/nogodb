@@ -44,6 +44,8 @@ pub enum Value {
     Number(String, bool),
     /// 'string value'
     SingleQuotedString(String),
+    /// Double quoted string literal, e.g. `"abc"`.
+    DoubleQuotedString(String),
     /// Boolean value true or false
     Boolean(bool),
     /// `NULL` value
@@ -110,6 +112,14 @@ pub enum Expr {
         expr: Box<Expr>,
         /// Target data type.
         data_type: DataType,
+    },
+    Ceil {
+        /// Expression to ceil.
+        expr: Box<Expr>,
+    },
+    Floor {
+        /// Expression to floor.
+        expr: Box<Expr>,
     },
 }
 

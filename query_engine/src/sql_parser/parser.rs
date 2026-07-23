@@ -402,7 +402,6 @@ impl Parser {
                 break;
             }
 
-            self.advance_token();
             lhs = self.parse_expr_infix(lhs, prec + 1)?; // left associativity
         }
 
@@ -455,6 +454,7 @@ impl Parser {
     fn parse_expr_prefix(&mut self) -> Result<Expr, ParserError> {
         match &self.peek_nth_token(0).token {
             Token::Word(w) => match w.keyword {
+                Keyword::TRUE | Keyword::FALSE => self.parse_value(),
                 Keyword::CAST => {
                     self.advance_token();
                     self.parse_cast_expr(CastKind::Cast)
@@ -476,10 +476,12 @@ impl Parser {
                     self.advance_token();
                     self.parse_not_expr()
                 }
-                k => Err(ParserError::ParserError(format!(
-                    "not supported keyword as a prefix of an expression, got {}",
-                    k,
-                ))),
+                _ => {
+                    let span = self.peek_nth_token(0).span.clone();
+                    let ident = w.to_ident(span);
+                    self.advance_token();
+                    Ok(Expr::Identifier(ident))
+                }
             },
             tok @ Token::Plus | tok @ Token::Minus => {
                 let op = if tok == &Token::Plus {
@@ -488,13 +490,13 @@ impl Parser {
                     UnaryOperator::Minus
                 };
 
+                self.advance_token();
                 Ok(Expr::UnaryOp {
                     op,
                     expr: Box::new(self.parse_expr_by_prec(p!(MulDivMod))?),
                 })
             }
             Token::Number(_, _) | Token::SingleQuotedString(_) | Token::DoubleQuotedString(_) => {
-                self.advance_token();
                 self.parse_value()
             }
             Token::LParen => {
@@ -513,8 +515,10 @@ impl Parser {
     /// Parse a literal value (numbers, strings, date/time, booleans)
     fn parse_value(&mut self) -> Result<Expr, ParserError> {
         let to_expr = |v: Value| Ok(Expr::Value(v));
-        let span = &self.peek_nth_token(0).span;
-        match &self.peek_nth_token(0).token {
+        let current_token = self.peek_nth_token(0).clone();
+        let span = current_token.span;
+        self.advance_token();
+        match current_token.token {
             Token::Word(w) => match w.keyword {
                 Keyword::TRUE => to_expr(Value::Boolean(true)),
                 Keyword::FALSE => to_expr(Value::Boolean(false)),
@@ -532,9 +536,9 @@ impl Parser {
                     e,
                 ))),
             },
-            Token::Number(n, l) => to_expr(Value::Number(Self::cast(n.clone(), span.start)?, *l)),
-            Token::SingleQuotedString(s) => to_expr(Value::SingleQuotedString(s.clone())),
-            Token::DoubleQuotedString(s) => to_expr(Value::DoubleQuotedString(s.clone())),
+            Token::Number(n, l) => to_expr(Value::Number(Self::cast(n, span.start)?, l)),
+            Token::SingleQuotedString(s) => to_expr(Value::SingleQuotedString(s)),
+            Token::DoubleQuotedString(s) => to_expr(Value::DoubleQuotedString(s)),
 
             e => Err(ParserError::ParserError(format!(
                 "expected a concrete value, got {}",
@@ -603,12 +607,8 @@ impl Parser {
 
     /// Parse `DELETE ...` statement
     fn parse_delete(&mut self) -> Result<Statement, ParserError> {
-        self.advance_token();
         match self.check_then_consume_keyword(Keyword::FROM) {
-            Ok(_) => {
-                self.advance_token();
-                self.parse_delete_from_table().map(Into::into)
-            }
+            Ok(_) => self.parse_delete_from_table().map(Into::into),
             Err(_) => Err(ParserError::ParserError(format!(
                 "Expected FROM in Delete statement, got {}",
                 self.peek_nth_token(0)
@@ -655,7 +655,7 @@ impl Parser {
         let mut expecting_statement_delimiter = false;
         loop {
             // ignore empty statements
-            while let Ok(_) = self.check_then_consume(&Token::Colon) {
+            while let Ok(_) = self.check_then_consume(&Token::SemiColon) {
                 expecting_statement_delimiter = false;
             }
             match self.peek_nth_token(0).token {

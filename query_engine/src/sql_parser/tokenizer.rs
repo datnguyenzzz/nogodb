@@ -237,6 +237,8 @@ impl<'a> Tokenizer<'a> {
                 '[' => self.consume_and_next(cursor, Token::LBracket),
                 ']' => self.consume_and_next(cursor, Token::RBracket),
                 ',' => self.consume_and_next(cursor, Token::Comma),
+                ';' => self.consume_and_next(cursor, Token::SemiColon),
+                ':' => self.consume_and_next(cursor, Token::Colon),
                 // Operators
                 '=' => {
                     cursor.next();
@@ -286,7 +288,7 @@ impl<'a> Tokenizer<'a> {
                 // Single quoted string
                 '\'' => {
                     cursor.next();
-                    let is_not_single_quote = |ch: char| matches!(ch, '\'');
+                    let is_not_single_quote = |ch: char| ch != '\'';
 
                     let s = self.peek_and_take_while(cursor, is_not_single_quote);
                     cursor.next();

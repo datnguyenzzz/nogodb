@@ -15,9 +15,7 @@ use query_engine::sql_parser::{
     tokenizer::{Location, Span},
 };
 
-// ---------------------------------------------------------------------------
 // Helpers
-// ---------------------------------------------------------------------------
 
 /// Build a quoted-style-less `Ident` with a zero span.
 ///
@@ -62,9 +60,7 @@ fn expect_create_table(stmt: Statement) -> CreateTable {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Tests
-// ---------------------------------------------------------------------------
 
 #[test]
 fn create_table_with_multiple_columns_no_constraints() {

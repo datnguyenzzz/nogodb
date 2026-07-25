@@ -6,10 +6,10 @@ use crate::sql_parser::{
         Statement,
         data_type::{DataType, ExactNumberInfo},
         ddl::{ColumnDef, CreateTable},
-        dml::Delete,
+        dml::{Delete, Insert},
         expr::{CastKind, Expr, Ident, Value},
         operators::{BinaryOperator, UnaryOperator},
-        query::TableFactor,
+        query::{Query, TableFactor},
     },
     keywords::{
         Keyword,
@@ -290,31 +290,12 @@ impl Parser {
     }
 
     /// Parse columns
-    // TODO: Support `constraint`
     fn parse_columns(&mut self) -> Result<Vec<ColumnDef>, ParserError> {
         self.check_then_consume(&Token::LParen)?;
-        let mut columns: Vec<ColumnDef> = vec![];
+        let column_def = self.parse_comma_separated(|p| p.parse_column_def())?;
+        self.check_then_consume(&Token::RParen)?;
 
-        loop {
-            match &self.peek_nth_token(0).token {
-                Token::Word(_) => columns.push(self.parse_column_def()?),
-                Token::RParen => {
-                    self.advance_token();
-                    break;
-                }
-                Token::Comma => {
-                    self.advance_token();
-                }
-                t => {
-                    return Err(ParserError::ParserError(format!(
-                        "Expected column, got {}",
-                        t,
-                    )));
-                }
-            }
-        }
-
-        Ok(columns)
+        Ok(column_def)
     }
 
     /// Parse `CREATE TABLE` statement
@@ -617,6 +598,55 @@ impl Parser {
         }
     }
 
+    /// Parse a comma-separated list of 1+ items, then apply the sub-parser
+    /// F into each item
+    fn parse_comma_separated<T, F>(&mut self, mut f: F) -> Result<Vec<T>, ParserError>
+    where
+        F: FnMut(&mut Parser) -> Result<T, ParserError>,
+    {
+        let mut values = vec![];
+        loop {
+            values.push(f(self)?);
+
+            if self.check_then_consume(&Token::Comma).is_err() {
+                break;
+            }
+        }
+        Ok(values)
+    }
+
+    /// Parse a query expression
+    fn parse_query(&mut self) -> Result<Box<Query>, ParserError> {
+        panic!("")
+    }
+
+    /// The SQL INSERT INTO <table> Statement
+    /// Syntax:
+    ///   INSERT INTO table_name [Optional(column1, column2, column3, ...)]
+    ///   VALUES (value1, value2, value3, ...);
+    fn parse_insert_into_table(&mut self) -> Result<Insert, ParserError> {
+        let table_name = self.parse_ident()?;
+        let columns = self.parse_comma_separated(|p| p.parse_ident())?;
+        self.check_then_consume_keyword(Keyword::VALUES)?;
+        let source = Some(self.parse_query()?);
+        Ok(Insert {
+            table: table_name,
+            columns: columns,
+            source: source,
+        })
+    }
+
+    /// Parse `INSERT <something>` statement
+    fn parse_insert(&mut self) -> Result<Statement, ParserError> {
+        match self.check_then_consume_keyword(Keyword::INTO) {
+            Ok(_) => self.parse_insert_into_table().map(Into::into),
+            Err(_) => Err(ParserError::ParserError(format!(
+                "Expected INTO in INSERT statement, got {}",
+                self.peek_nth_token(0)
+            ))),
+        }
+    }
+
     fn parse_statement(&mut self) -> Result<Statement, ParserError> {
         let next_token = self.peek_nth_token(0);
         match &next_token.token {
@@ -629,7 +659,10 @@ impl Parser {
                     self.advance_token();
                     self.parse_delete()
                 }
-                Keyword::INSERT => panic!("implement me"),
+                Keyword::INSERT => {
+                    self.advance_token();
+                    self.parse_insert()
+                }
                 Keyword::UPDATE => panic!("implement me"),
                 Keyword::SELECT => panic!("implement me"),
                 _ => Err(ParserError::ParserError(format!(

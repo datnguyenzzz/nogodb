@@ -7,14 +7,12 @@ use crate::sql_parser::ast::{
 /// https://ronsavage.github.io/SQL/sql-2003-2.bnf.html#insert%20statement
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Insert {
-    /// INTO - optional keyword
-    into: bool,
     /// TABLE
-    table: Ident,
+    pub table: Ident,
     /// COLUMNS
-    columns: Vec<Ident>,
+    pub columns: Vec<Ident>,
     /// A SQL query expression or VALUES(...) that specifies what to insert
-    source: Option<Box<Query>>,
+    pub source: Option<Box<Query>>,
 }
 
 /// UPDATE statement.

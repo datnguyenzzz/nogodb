@@ -54,3 +54,9 @@ impl From<Delete> for Statement {
         Self::Delete(value)
     }
 }
+
+impl From<Insert> for Statement {
+    fn from(value: Insert) -> Self {
+        Self::Insert(value)
+    }
+}

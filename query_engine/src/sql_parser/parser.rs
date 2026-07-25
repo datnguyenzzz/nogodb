@@ -71,7 +71,8 @@ impl Parser {
     fn peek_nth_token(&self, mut n: usize) -> &TokenWithSpan {
         let mut index = self.unprocessed_index;
         loop {
-            match self.tokens.get(index) {
+            index += 1;
+            match self.tokens.get(index - 1) {
                 Some(TokenWithSpan {
                     token: Whitespace(_),
                     span: _,
@@ -83,7 +84,6 @@ impl Parser {
                     n -= 1;
                 }
             }
-            index += 1;
         }
     }
 
@@ -455,6 +455,7 @@ impl Parser {
         match &self.peek_nth_token(0).token {
             Token::Word(w) => match w.keyword {
                 Keyword::TRUE | Keyword::FALSE => self.parse_value(),
+                Keyword::NULL => self.parse_value(),
                 Keyword::CAST => {
                     self.advance_token();
                     self.parse_cast_expr(CastKind::Cast)
@@ -650,6 +651,13 @@ impl Parser {
         // reset the parser state
         self.unprocessed_index = 0;
         self.tokens = tokens;
+
+        if matches!(
+            self.tokens.first().map(|t| &t.token),
+            Some(Token::Whitespace(_))
+        ) {
+            self.advance_token();
+        }
 
         let mut stmts: Vec<Statement> = Vec::new();
         let mut expecting_statement_delimiter = false;

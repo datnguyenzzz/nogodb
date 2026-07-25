@@ -280,6 +280,7 @@ impl<'a> Tokenizer<'a> {
                 '|' => {
                     cursor.next();
                     if matches!(cursor.peek(), Some('|')) {
+                        cursor.next();
                         Ok(Some(Token::StringConcat))
                     } else {
                         self.tokenizer_error(cursor.loc(), "Unrecognised token")
@@ -294,6 +295,16 @@ impl<'a> Tokenizer<'a> {
                     cursor.next();
 
                     Ok(Some(Token::SingleQuotedString(s)))
+                }
+                // Double quoted string
+                '"' => {
+                    cursor.next();
+                    let is_not_double_quote = |ch: char| ch != '"';
+
+                    let s = self.peek_and_take_while(cursor, is_not_double_quote);
+                    cursor.next();
+
+                    Ok(Some(Token::DoubleQuotedString(s)))
                 }
                 // Numbers
                 '0'..='9' => {

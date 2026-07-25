@@ -522,14 +522,13 @@ fn prec_compare_binds_looser_than_arith() {
 
 #[test]
 fn prec_not_binds_tighter_than_eq() {
-    // NOT a = b  =>  =(Not(a), b)  [UnaryNot=15 < Eq=20, so NOT applies to `a` only]
+    // NOT a = b  =>  =(Not(a=b))  [UnaryNot=15 < Eq=20]
     assert_eq!(
         parse_where_expr("DELETE FROM t WHERE NOT a = b;"),
-        binop(
-            unop(UnaryOperator::Not, id_expr("a")),
-            BinaryOperator::Eq,
-            id_expr("b"),
-        ),
+        unop(
+            UnaryOperator::Not,
+            binop(id_expr("a"), BinaryOperator::Eq, id_expr("b"))
+        )
     );
 }
 

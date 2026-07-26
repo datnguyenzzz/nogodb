@@ -10,6 +10,7 @@ use query_engine::sql_parser::{
         data_type::{DataType, ExactNumberInfo},
         ddl::{ColumnDef, CreateTable},
         expr::Ident,
+        query::TableFactor,
         statements::Statement,
     },
     tokenizer::{Location, Span},
@@ -27,6 +28,13 @@ fn ident(value: &str) -> Ident {
         value: value.to_string(),
         quote_style: None,
         span: zero_span(),
+    }
+}
+
+fn table_factor(value: &str, alias: Option<Ident>) -> TableFactor {
+    TableFactor::Table {
+        name: ident(value),
+        alias: alias,
     }
 }
 
@@ -89,7 +97,7 @@ fn create_table_with_multiple_columns_no_constraints() {
     let ct = expect_create_table(stmt);
 
     let expected = CreateTable {
-        table_name: ident("all_types"),
+        table_name: table_factor("all_types", None),
         columns: vec![
             ColumnDef {
                 name: ident("aaa"),
@@ -163,8 +171,11 @@ fn create_table_uses_quoted_identifier() {
     let stmt = parse_one("CREATE TABLE `orders` (`order_id` BIGINT)");
     let ct = expect_create_table(stmt);
 
-    assert_eq!(ct.table_name.value, "orders");
-    assert_eq!(ct.table_name.quote_style, Some('`'));
+    let table_name = match &ct.table_name {
+        TableFactor::Table { name, .. } => name,
+    };
+    assert_eq!(table_name.value, "orders");
+    assert_eq!(table_name.quote_style, Some('`'));
 
     assert_eq!(ct.columns.len(), 1);
     assert_eq!(ct.columns[0].name.value, "order_id");

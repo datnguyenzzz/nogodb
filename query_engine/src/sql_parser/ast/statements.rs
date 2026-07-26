@@ -61,3 +61,9 @@ impl From<Insert> for Statement {
         Self::Insert(value)
     }
 }
+
+impl From<Update> for Statement {
+    fn from(value: Update) -> Self {
+        Self::Update(value)
+    }
+}

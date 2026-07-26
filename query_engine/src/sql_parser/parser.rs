@@ -6,8 +6,8 @@ use crate::sql_parser::{
         Statement,
         data_type::{DataType, ExactNumberInfo},
         ddl::{ColumnDef, CreateTable},
-        dml::{Delete, Insert},
-        expr::{CastKind, Expr, Ident, Parens, SetExpr, Value},
+        dml::{Delete, Insert, Update},
+        expr::{Assignment, CastKind, Expr, Ident, Parens, SetExpr, Value},
         operators::{BinaryOperator, UnaryOperator},
         query::{Query, TableFactor},
     },
@@ -335,7 +335,10 @@ impl Parser {
     ///     );
     fn parse_create_table(&mut self) -> Result<CreateTable, ParserError> {
         Ok(CreateTable {
-            table_name: self.parse_ident()?,
+            table_name: TableFactor::Table {
+                name: self.parse_ident()?,
+                alias: None,
+            },
             columns: self.parse_columns()?,
         })
     }
@@ -666,7 +669,10 @@ impl Parser {
     ///   INSERT INTO table_name [Optional(column1, column2, column3, ...)]
     ///   VALUES (value1, value2, value3, ...);
     fn parse_insert_into_table(&mut self) -> Result<Insert, ParserError> {
-        let table_name = self.parse_ident()?;
+        let table_name = TableFactor::Table {
+            name: self.parse_ident()?,
+            alias: None,
+        };
         let mut columns = vec![];
         if self.check_then_consume(&Token::LParen).is_ok() {
             columns = self.parse_comma_separated(|p| p.parse_ident())?;
@@ -691,6 +697,41 @@ impl Parser {
         }
     }
 
+    /// Parse a `var = expr` assignment
+    fn parse_assignment(&mut self) -> Result<Assignment, ParserError> {
+        let lhs = self.parse_ident()?;
+        self.check_then_consume(&Token::Eq)?;
+        let rhs = self.parse_expr()?;
+        Ok(Assignment {
+            target: lhs,
+            value: rhs,
+        })
+    }
+
+    /// Parse an `UPDATE` statement
+    /// Syntax
+    ///   UPDATE table_name
+    ///   SET column1 = value1, column2 = value2, ...
+    ///   WHERE condition;
+    fn parse_update(&mut self) -> Result<Update, ParserError> {
+        let table_name = TableFactor::Table {
+            name: self.parse_ident()?,
+            alias: None,
+        };
+        self.check_then_consume_keyword(Keyword::SET)?;
+        let assignments = self.parse_comma_separated(|p| p.parse_assignment())?;
+        let mut conds = None;
+        if self.check_then_consume_keyword(Keyword::WHERE).is_ok() {
+            conds = Some(self.parse_expr()?);
+        }
+
+        Ok(Update {
+            table: table_name,
+            assignments: assignments,
+            selection: conds,
+        })
+    }
+
     fn parse_statement(&mut self) -> Result<Statement, ParserError> {
         let next_token = self.peek_nth_token(0);
         match &next_token.token {
@@ -707,7 +748,10 @@ impl Parser {
                     self.advance_token();
                     self.parse_insert()
                 }
-                Keyword::UPDATE => panic!("implement me"),
+                Keyword::UPDATE => {
+                    self.advance_token();
+                    self.parse_update().map(Into::into)
+                }
                 Keyword::SELECT => panic!("implement me"),
                 _ => Err(ParserError::ParserError(format!(
                     "expected a SQL statement, but got {}",

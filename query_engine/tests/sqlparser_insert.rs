@@ -12,7 +12,7 @@ use query_engine::sql_parser::{
     ast::{
         dml::Insert,
         expr::{Expr, Ident, Parens, SetExpr, Value},
-        query::Query,
+        query::{Query, TableFactor},
         statements::Statement,
     },
     tokenizer::{Location, Span},
@@ -32,6 +32,13 @@ fn id(name: &str) -> Ident {
         value: name.to_string(),
         quote_style: None,
         span: zero_span(),
+    }
+}
+
+fn table_factor(value: &str, alias: Option<Ident>) -> TableFactor {
+    TableFactor::Table {
+        name: id(value),
+        alias: alias,
     }
 }
 
@@ -65,7 +72,7 @@ fn values_query(exprs: Vec<Expr>) -> Box<Query> {
 
 fn insert_stmt(table: &str, columns: Vec<Ident>, values: Vec<Expr>) -> Statement {
     Statement::Insert(Insert {
-        table: id(table),
+        table: table_factor(table, None),
         columns,
         source: Some(values_query(values)),
     })
@@ -104,7 +111,10 @@ fn try_parse(sql: &str) -> Result<Vec<Statement>, String> {
 #[test]
 fn insert_into_table_with_values() {
     let i = parse_insert("INSERT INTO t VALUES (1);");
-    assert_eq!(i.table, id("t"));
+    let table_name = match &i.table {
+        TableFactor::Table { name, .. } => name.clone(),
+    };
+    assert_eq!(table_name, id("t"));
     assert_eq!(i.columns, vec![]);
     assert_eq!(i.source, Some(values_query(vec![num("1")])),);
 }
@@ -112,7 +122,10 @@ fn insert_into_table_with_values() {
 #[test]
 fn insert_into_table_with_columns_and_values() {
     let i = parse_insert("INSERT INTO t (a, b) VALUES (1, 2);");
-    assert_eq!(i.table, id("t"));
+    let table_name = match &i.table {
+        TableFactor::Table { name, .. } => name.clone(),
+    };
+    assert_eq!(table_name, id("t"));
     assert_eq!(i.columns, vec![id("a"), id("b")]);
     assert_eq!(i.source, Some(values_query(vec![num("1"), num("2")])),);
 }
@@ -120,7 +133,10 @@ fn insert_into_table_with_columns_and_values() {
 #[test]
 fn insert_lowercase_keywords() {
     let i = parse_insert("insert into t values (1);");
-    assert_eq!(i.table, id("t"));
+    let table_name = match &i.table {
+        TableFactor::Table { name, .. } => name.clone(),
+    };
+    assert_eq!(table_name, id("t"));
     assert_eq!(i.columns, vec![]);
     assert_eq!(i.source, Some(values_query(vec![num("1")])));
 }
@@ -128,7 +144,10 @@ fn insert_lowercase_keywords() {
 #[test]
 fn insert_mixed_case_keywords() {
     let i = parse_insert("InSeRt InTo t (a) VaLuEs (1);");
-    assert_eq!(i.table, id("t"));
+    let table_name = match &i.table {
+        TableFactor::Table { name, .. } => name.clone(),
+    };
+    assert_eq!(table_name, id("t"));
     assert_eq!(i.columns, vec![id("a")]);
     assert_eq!(i.source, Some(values_query(vec![num("1")])));
 }
@@ -136,7 +155,10 @@ fn insert_mixed_case_keywords() {
 #[test]
 fn insert_trailing_semicolon_consumed() {
     let i = parse_insert("INSERT INTO t VALUES (1);");
-    assert_eq!(i.table, id("t"));
+    let table_name = match &i.table {
+        TableFactor::Table { name, .. } => name.clone(),
+    };
+    assert_eq!(table_name, id("t"));
 }
 
 // B. Multiple columns / values
@@ -265,7 +287,10 @@ fn insert_followed_by_delete() {
 #[test]
 fn insert_whitespace_newlines_and_tabs() {
     let i = parse_insert("INSERT\n\tINTO\tt\n(\ta,\tb\t)\nVALUES\n\t(\t1,\t2\t)\n;");
-    assert_eq!(i.table, id("t"));
+    let table_name = match &i.table {
+        TableFactor::Table { name, .. } => name.clone(),
+    };
+    assert_eq!(table_name, id("t"));
     assert_eq!(i.columns, vec![id("a"), id("b")]);
     assert_eq!(i.source, Some(values_query(vec![num("1"), num("2")])),);
 }
@@ -280,7 +305,10 @@ fn insert_no_spaces_at_all() {
 #[test]
 fn insert_leading_and_trailing_whitespace() {
     let i = parse_insert("   INSERT INTO t VALUES (1)   ;   ");
-    assert_eq!(i.table, id("t"));
+    let table_name = match &i.table {
+        TableFactor::Table { name, .. } => name.clone(),
+    };
+    assert_eq!(table_name, id("t"));
     assert_eq!(i.source, Some(values_query(vec![num("1")])));
 }
 

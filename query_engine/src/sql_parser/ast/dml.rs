@@ -1,6 +1,6 @@
 use crate::sql_parser::ast::{
     expr::{Assignment, Expr, Ident},
-    query::{Query, TableFactor, TableWithJoins},
+    query::{Query, TableFactor},
 };
 
 /// INSERT statement
@@ -8,7 +8,7 @@ use crate::sql_parser::ast::{
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Insert {
     /// TABLE
-    pub table: Ident,
+    pub table: TableFactor,
     /// COLUMNS
     pub columns: Vec<Ident>,
     /// A SQL query expression or VALUES(...) that specifies what to insert
@@ -20,14 +20,11 @@ pub struct Insert {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Update {
     /// TABLE
-    table: Ident,
+    pub table: TableFactor,
     /// Column assignments
-    assignments: Vec<Assignment>,
-    /// Statement where the 'FROM' clause is after the 'SET' keyword
-    /// For Example: `UPDATE SET t1.name='aaa' FROM t1`
-    from: Vec<TableWithJoins>,
+    pub assignments: Vec<Assignment>,
     /// WHERE
-    selection: Option<Expr>,
+    pub selection: Option<Expr>,
 }
 
 /// DELETE statement.

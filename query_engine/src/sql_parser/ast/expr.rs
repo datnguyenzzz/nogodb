@@ -146,7 +146,7 @@ pub enum SetExpr {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Assignment {
     /// The left-hand side of the assignment, a single column
-    target: Ident,
+    pub target: Ident,
     /// The expression assigned to the target.
-    value: Expr,
+    pub value: Expr,
 }

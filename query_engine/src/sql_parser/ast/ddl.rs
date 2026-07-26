@@ -1,4 +1,4 @@
-use crate::sql_parser::ast::{data_type::DataType, expr::Ident};
+use crate::sql_parser::ast::{data_type::DataType, expr::Ident, query::TableFactor};
 
 /// SQL column definition
 /// https://ronsavage.github.io/SQL/sql-2003-2.bnf.html#table%20contents%20source
@@ -16,6 +16,6 @@ pub struct ColumnDef {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct CreateTable {
     /// Table name
-    pub table_name: Ident,
+    pub table_name: TableFactor,
     pub columns: Vec<ColumnDef>,
 }

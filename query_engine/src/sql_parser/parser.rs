@@ -672,7 +672,6 @@ impl Parser {
             columns = self.parse_comma_separated(|p| p.parse_ident())?;
             self.check_then_consume(&Token::RParen)?;
         }
-        self.check_then_consume_keyword(Keyword::VALUES)?;
         let source = Some(self.parse_query()?);
         Ok(Insert {
             table: table_name,

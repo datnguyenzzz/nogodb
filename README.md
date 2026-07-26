@@ -11,6 +11,14 @@ NogoDB is an OLAP database management system.
 
 I’m not sure what else to add to the description at the moment, as it’s still a work in progress. However, I believe the a brief quote above already gives you all a clear idea of what I’m building :) 
 
+NogoDB is built from 2 independent components, each owning one half of the storage and query stack:
+
+- Query Engine & SQL Interface (Rust). The user-facing half. A SQL parser, planner, and **vectorised** execution engine.
+
+- Object Storage (Go) The storage half. An **LSM-tree** engine with a **columnar on-disk format**.
+
+The Rust engine talks to the Go store through the same file-system abstraction shown in the diagram below — engine and store are decoupled, each replaceable on its own.
+
 # Architecture (Plan Ahead)
 ```mermaid
 graph TB

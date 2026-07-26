@@ -135,9 +135,9 @@ pub enum LimitClause {
 pub struct Query {
     /// TODO: Support CTE (WITH ...)
     /// SELECT or UNION / EXCEPT / INTERSECT
-    body: Box<SetExpr>,
+    pub body: Box<SetExpr>,
     /// ORDER BY
-    order_by: Option<Vec<OrderByExpr>>,
+    pub order_by: Option<Vec<OrderByExpr>>,
     /// `LIMIT ... OFFSET ... | LIMIT <offset>, <limit>`
-    limit_clause: Option<LimitClause>,
+    pub limit_clause: Option<LimitClause>,
 }

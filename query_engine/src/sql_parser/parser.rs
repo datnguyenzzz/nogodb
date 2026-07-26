@@ -7,7 +7,7 @@ use crate::sql_parser::{
         data_type::{DataType, ExactNumberInfo},
         ddl::{ColumnDef, CreateTable},
         dml::{Delete, Insert},
-        expr::{CastKind, Expr, Ident, Value},
+        expr::{CastKind, Expr, Ident, Parens, SetExpr, Value},
         operators::{BinaryOperator, UnaryOperator},
         query::{Query, TableFactor},
     },
@@ -101,6 +101,35 @@ impl Parser {
         }
     }
 
+    /// Peek the current token and advance past it. Use self.peek_nth_token()
+    /// then self.advance() if don't want to clone a token
+    fn peek_then_advance(&mut self) -> TokenWithSpan {
+        loop {
+            match self.tokens.get(self.unprocessed_index) {
+                Some(TokenWithSpan {
+                    token: Whitespace(_),
+                    span: _,
+                }) => self.unprocessed_index += 1,
+                Some(t) => {
+                    loop {
+                        self.unprocessed_index += 1;
+                        if let Some(tws) = self.tokens.get(self.unprocessed_index)
+                            && matches!(tws.token, Token::Whitespace(_))
+                        {
+                            continue;
+                        }
+
+                        break;
+                    }
+                    return t.clone();
+                }
+                None => {
+                    return EOF_TOKEN.clone();
+                }
+            }
+        }
+    }
+
     /// Check the next token if it matches an expected token, then advance
     /// it if it does
     fn check_then_consume(&mut self, expected: &Token) -> Result<(), ParserError> {
@@ -133,8 +162,7 @@ impl Parser {
 
     /// Parse a simple one-word identifier (possibly quoted, possibly a keyword)
     fn parse_ident(&mut self) -> Result<Ident, ParserError> {
-        let curr_token = self.peek_nth_token(0).clone();
-        self.advance_token();
+        let curr_token = self.peek_then_advance();
         match curr_token.token {
             Token::Word(w) => Ok(w.into_ident(curr_token.span)),
             _ => Err(ParserError::ParserError(format!(
@@ -146,8 +174,7 @@ impl Parser {
 
     /// Parse an unsigned literal integer/long
     fn parse_literal_uint(&mut self) -> Result<u64, ParserError> {
-        let token = self.peek_nth_token(0).clone();
-        self.advance_token();
+        let token = self.peek_then_advance();
         match token.token {
             Token::Number(s, _) => Self::cast::<u64>(s, token.span.start),
             _ => Err(ParserError::ParserError(format!(
@@ -306,11 +333,6 @@ impl Parser {
     ///         column3 datatype constraint,
     ///         ....
     ///     );
-    // TODO: Create a new table from an existing one
-    //     CREATE TABLE new_table AS
-    //     SELECT column1, column2,...
-    //     FROM existing_table
-    //     WHERE ....;
     fn parse_create_table(&mut self) -> Result<CreateTable, ParserError> {
         Ok(CreateTable {
             table_name: self.parse_ident()?,
@@ -320,7 +342,7 @@ impl Parser {
 
     /// Parse `CREATE <something>`` statement
     fn parse_create(&mut self) -> Result<Statement, ParserError> {
-        if let Ok(_) = self.check_then_consume_keyword(Keyword::TABLE) {
+        if self.check_then_consume_keyword(Keyword::TABLE).is_ok() {
             self.parse_create_table().map(Into::into)
         } else {
             Err(ParserError::ParserError(format!(
@@ -497,22 +519,13 @@ impl Parser {
     /// Parse a literal value (numbers, strings, date/time, booleans)
     fn parse_value(&mut self) -> Result<Expr, ParserError> {
         let to_expr = |v: Value| Ok(Expr::Value(v));
-        let current_token = self.peek_nth_token(0).clone();
+        let current_token = self.peek_then_advance();
         let span = current_token.span;
-        self.advance_token();
         match current_token.token {
             Token::Word(w) => match w.keyword {
                 Keyword::TRUE => to_expr(Value::Boolean(true)),
                 Keyword::FALSE => to_expr(Value::Boolean(false)),
                 Keyword::NULL => to_expr(Value::Null),
-                Keyword::NoKeyWord if w.quote.is_some() => match w.quote {
-                    Some('"') => to_expr(Value::DoubleQuotedString(w.value.clone())),
-                    Some('\'') => to_expr(Value::SingleQuotedString(w.value.clone())),
-                    _ => Err(ParserError::ParserError(format!(
-                        "unknown quote in a concrete value, got {}",
-                        w,
-                    ))),
-                },
                 e => Err(ParserError::ParserError(format!(
                     "expected a concrete value, got {}",
                     e,
@@ -615,9 +628,37 @@ impl Parser {
         Ok(values)
     }
 
+    /// Parse a "query body"
+    // TODO: Revise later when parsing SELECT statement
+    fn parse_query_body(&mut self) -> Result<Box<SetExpr>, ParserError> {
+        match &self.peek_nth_token(0).token {
+            Token::Word(w) => match w.keyword {
+                Keyword::VALUES => {
+                    self.advance_token();
+                    self.check_then_consume(&Token::LParen)?;
+                    let values = self.parse_comma_separated(|p| p.parse_expr())?;
+                    self.check_then_consume(&Token::RParen)?;
+                    Ok(Box::new(SetExpr::Values(Parens { content: values })))
+                }
+                kw => Err(ParserError::ParserError(format!(
+                    "unrecognised keyword in a query body, got {}",
+                    kw
+                ))),
+            },
+            t => Err(ParserError::ParserError(format!(
+                "unrecognised token in a query body, got {}",
+                t
+            ))),
+        }
+    }
+
     /// Parse a query expression
     fn parse_query(&mut self) -> Result<Box<Query>, ParserError> {
-        panic!("")
+        Ok(Box::new(Query {
+            body: self.parse_query_body()?,
+            order_by: None,     // TODO: Revise later when parsing SELECT statement
+            limit_clause: None, // TODO: Revise later when parsing SELECT statement
+        }))
     }
 
     /// The SQL INSERT INTO <table> Statement
@@ -626,7 +667,11 @@ impl Parser {
     ///   VALUES (value1, value2, value3, ...);
     fn parse_insert_into_table(&mut self) -> Result<Insert, ParserError> {
         let table_name = self.parse_ident()?;
-        let columns = self.parse_comma_separated(|p| p.parse_ident())?;
+        let mut columns = vec![];
+        if self.check_then_consume(&Token::LParen).is_ok() {
+            columns = self.parse_comma_separated(|p| p.parse_ident())?;
+            self.check_then_consume(&Token::RParen)?;
+        }
         self.check_then_consume_keyword(Keyword::VALUES)?;
         let source = Some(self.parse_query()?);
         Ok(Insert {

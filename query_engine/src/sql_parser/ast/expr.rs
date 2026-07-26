@@ -123,15 +123,11 @@ pub enum Expr {
     },
 }
 
-/// A item `T` enclosed in a pair of parentheses
+/// A item `T` enclosed in a pair of parentheses, i.e ( <something_1>, <something_2>, ... )
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Parens<T> {
-    /// the opening parenthesis token, i.e. `(`
-    pub opening_token: TokenWithSpan,
     /// content enclosed in parentheses
     pub content: T,
-    /// the closing parenthesis token, i.e. `)`
-    pub closing_token: TokenWithSpan,
 }
 
 /// Represent a query expression body

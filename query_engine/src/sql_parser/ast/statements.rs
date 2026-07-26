@@ -40,7 +40,8 @@ pub enum Statement {
     /// ```sql
     /// SHOW TABLES
     /// ```
-    ShowTables, // TODO: Support Transaction
+    ShowTables,
+    // TODO: Support Transaction
 }
 
 impl From<CreateTable> for Statement {

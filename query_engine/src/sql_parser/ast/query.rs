@@ -1,7 +1,4 @@
-use crate::sql_parser::{
-    ast::expr::{Expr, Ident, SetExpr},
-    tokenizer::TokenWithSpan,
-};
+use crate::sql_parser::ast::expr::{Expr, Ident, SetExpr};
 
 /// Represents how two tables are constrained in a join: `ON`
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -73,8 +70,8 @@ pub enum SelectItem {
         /// The alias for the expression.
         alias: Ident,
     },
-    /// An unqualified `*`
-    Wildcard(TokenWithSpan),
+    /// An `*`
+    Wildcard,
 }
 
 /// `SELECT` (without CTEs/`ORDER BY`), which may appear either as the
@@ -83,17 +80,15 @@ pub enum SelectItem {
 /// https://ronsavage.github.io/SQL/sql-2003-2.bnf.html#query%20specification
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Select {
-    /// Token for the `SELECT` keyword
-    select_token: TokenWithSpan,
     // TODO: support DISTINCT
     /// Projection expressions
-    projections: Vec<SelectItem>,
+    pub projections: Vec<SelectItem>,
     /// FROM
-    from: Vec<TableWithJoins>,
+    pub from: TableWithJoins,
     /// WHERE
-    selection: Option<Expr>,
+    pub selection: Option<Expr>,
     /// GROUP BY (<exprs>,...)
-    group_by: Vec<Expr>,
+    pub group_by: Option<Vec<Expr>>,
 }
 
 /// The sort order for an `ORDER BY` expression.

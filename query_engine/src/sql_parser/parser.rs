@@ -9,11 +9,12 @@ use crate::sql_parser::{
         dml::{Delete, Insert, Update},
         expr::{Assignment, CastKind, Expr, Ident, Parens, SetExpr, Value},
         operators::{BinaryOperator, UnaryOperator},
-        query::{Query, TableFactor},
+        query::{LimitClause, OrderByExpr, Query, Select, SelectItem, TableFactor, TableWithJoins},
     },
     keywords::{
         Keyword,
         Token::{self, Whitespace},
+        search_keyword,
     },
     precedence::{self, prec_unknown},
     tokenizer::{EOF_TOKEN, Location, TokenWithSpan, Tokenizer, TokenizerError},
@@ -631,11 +632,96 @@ impl Parser {
         Ok(values)
     }
 
-    /// Parse a "query body"
-    // TODO: Revise later when parsing SELECT statement
+    /// Parse an alias for a select list item and return it
+    fn parse_select_item_alias(&mut self) -> Result<Option<Ident>, ParserError> {
+        if self.check_then_consume_keyword(Keyword::AS).is_err() {
+            return Ok(None);
+        }
+
+        let curr = self.peek_then_advance();
+        match curr.token {
+            Token::Word(w) if search_keyword(&w.value) == Keyword::NoKeyWord => {
+                self.advance_token();
+                Ok(Some(w.into_ident(curr.span)))
+            }
+            e => Err(ParserError::ParserError(format!(
+                "expected an identifier after AS, got {}",
+                e
+            ))),
+        }
+    }
+
+    /// Parse a comma-delimited list of projections after SELECT
+    fn parse_select_item(&mut self) -> Result<SelectItem, ParserError> {
+        // SELECT * ....
+        if self.check_then_consume(&Token::Mul).is_ok() {
+            self.advance_token();
+            if matches!(self.peek_nth_token(0).token, Token::Comma) {
+                return Err(ParserError::ParserError(format!(
+                    "syntax error, SELECT * ,"
+                )));
+            }
+            return Ok(SelectItem::Wildcard);
+        }
+
+        match self.parse_expr()? {
+            Expr::Identifier(id) if id.value.to_lowercase() == "from" => {
+                Err(ParserError::ParserError(format!(
+                    "there is no select item, must be SELECT <something> FROM ..."
+                )))
+            }
+            expr => match self.parse_select_item_alias()? {
+                Some(alias) => Ok(SelectItem::NamedExpr { expr, alias }),
+                None => Ok(SelectItem::Expr(expr)),
+            },
+        }
+    }
+
+    /// Parse a table factor followed by any join clauses
+    fn parse_table_with_join(&mut self) -> Result<TableWithJoins, ParserError> {
+        panic!("implemement me")
+    }
+
+    /// Parse an optional `GROUP BY` clause, used in SELECT statement
+    fn parse_optional_group_by(&mut self) -> Result<Option<Vec<Expr>>, ParserError> {
+        panic!("implemement me")
+    }
+
+    /// Parse a restricted `SELECT` statement (no CTEs / `UNION` / `ORDER BY`)
+    fn parse_select(&mut self) -> Result<Select, ParserError> {
+        let projection = self.parse_comma_separated(|p| p.parse_select_item())?;
+        if projection.len() == 0 {
+            return Err(ParserError::ParserError(format!(
+                "select items can not be empty in SELECT statement",
+            )));
+        }
+        self.check_then_consume_keyword(Keyword::FROM)?;
+        let table = self.parse_table_with_join()?;
+        let mut selection = None;
+        if self.check_then_consume_keyword(Keyword::WHERE).is_ok() {
+            selection = Some(self.parse_expr()?);
+        }
+        let group_by = self.parse_optional_group_by()?;
+
+        Ok(Select {
+            projections: projection,
+            from: table,
+            selection,
+            group_by,
+        })
+    }
+
+    /// Parse a "query body". At the moment it has not supported set operation
+    /// of multiple query body yet, such as UNION, EXCEPT, ...
     fn parse_query_body(&mut self) -> Result<Box<SetExpr>, ParserError> {
         match &self.peek_nth_token(0).token {
             Token::Word(w) => match w.keyword {
+                Keyword::SELECT => {
+                    self.advance_token();
+                    Ok(Box::new(SetExpr::Select(
+                        self.parse_select().map(Box::new)?,
+                    )))
+                }
                 Keyword::VALUES => {
                     self.advance_token();
                     self.check_then_consume(&Token::LParen)?;
@@ -655,12 +741,26 @@ impl Parser {
         }
     }
 
-    /// Parse a query expression
+    /// Parse an optional `ORDER BY` clause
+    fn parse_optional_order_by(&mut self) -> Result<Option<Vec<OrderByExpr>>, ParserError> {
+        // panic!("implemement me")
+        Ok(None)
+    }
+
+    /// Parse an optional `LIMIT` clause
+    fn parse_optional_limit_clause(&mut self) -> Result<Option<LimitClause>, ParserError> {
+        // panic!("implemement me")
+        Ok(None)
+    }
+
+    /// Parse a query expression, i.e. a `SELECT` statement optionally
+    /// preceded with some `WITH` CTE declarations and optionally followed
+    /// by `ORDER BY`.
     fn parse_query(&mut self) -> Result<Box<Query>, ParserError> {
         Ok(Box::new(Query {
             body: self.parse_query_body()?,
-            order_by: None,     // TODO: Revise later when parsing SELECT statement
-            limit_clause: None, // TODO: Revise later when parsing SELECT statement
+            order_by: self.parse_optional_order_by()?,
+            limit_clause: self.parse_optional_limit_clause()?,
         }))
     }
 
@@ -752,7 +852,10 @@ impl Parser {
                     self.advance_token();
                     self.parse_update().map(Into::into)
                 }
-                Keyword::SELECT => panic!("implement me"),
+                Keyword::SELECT | Keyword::WITH => {
+                    self.advance_token();
+                    self.parse_query().map(Into::into)
+                }
                 _ => Err(ParserError::ParserError(format!(
                     "expected a SQL statement, but got {}",
                     next_token

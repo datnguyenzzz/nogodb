@@ -67,3 +67,9 @@ impl From<Update> for Statement {
         Self::Update(value)
     }
 }
+
+impl From<Box<Query>> for Statement {
+    fn from(value: Box<Query>) -> Self {
+        Self::Query(value)
+    }
+}

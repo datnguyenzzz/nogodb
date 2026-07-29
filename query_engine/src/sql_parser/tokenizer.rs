@@ -239,6 +239,7 @@ impl<'a> Tokenizer<'a> {
                 ',' => self.consume_and_next(cursor, Token::Comma),
                 ';' => self.consume_and_next(cursor, Token::SemiColon),
                 ':' => self.consume_and_next(cursor, Token::Colon),
+                '.' => self.consume_and_next(cursor, Token::Period),
                 // Operators
                 '=' => {
                     cursor.next();

@@ -66,6 +66,8 @@ pub enum CastKind {
 pub enum Expr {
     /// Identifier e.g. table name or column name
     Identifier(Ident),
+    /// Multi-part identifier, e.g. `table_alias.column` or `schema.table.col`
+    CompoundIdentifier(Vec<Ident>),
     // TODO: support multi-part identifier, e.g. `table_alias.column` or `schema.table.col`
     /// `IS FALSE` operator
     IsFalse(Box<Expr>),

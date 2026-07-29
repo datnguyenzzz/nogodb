@@ -17,12 +17,8 @@ pub enum JoinOperator {
     Inner(JoinConstraint),
     /// `LEFT JOIN` with an optional constraint.
     Left(JoinConstraint),
-    /// `LEFT OUTER JOIN` with an optional constraint.
-    LeftOuter(JoinConstraint),
     /// `RIGHT JOIN` with an optional constraint.
     Right(JoinConstraint),
-    /// `RIGHT OUTER JOIN` with an optional constraint.
-    RightOuter(JoinConstraint),
     /// `FULL OUTER JOIN` with an optional constraint.
     FullOuter(JoinConstraint),
     // TODO: Support CROSS Join
@@ -32,9 +28,9 @@ pub enum JoinOperator {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Join {
     /// The joined table factor (table reference or derived table).
-    relation: TableFactor,
+    pub relation: TableFactor,
     /// The join operator and its constraint (INNER/LEFT/RIGHT/CROSS/ASOF/etc.).
-    join_operator: JoinOperator,
+    pub join_operator: JoinOperator,
 }
 
 /// A table name or a parenthesized subquery with an optional alias
@@ -52,9 +48,9 @@ pub enum TableFactor {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TableWithJoins {
     /// The starting table factor (left side) of the join chain.
-    relation: TableFactor,
+    pub relation: TableFactor,
     // The sequence of joins applied to the relation.
-    joins: Vec<Join>,
+    pub joins: Option<Vec<Join>>,
 }
 
 /// One item of the comma-separated list following `SELECT`
@@ -89,6 +85,7 @@ pub struct Select {
     pub selection: Option<Expr>,
     /// GROUP BY (<exprs>,...)
     pub group_by: Option<Vec<Expr>>,
+    // TODO: Having
 }
 
 /// The sort order for an `ORDER BY` expression.

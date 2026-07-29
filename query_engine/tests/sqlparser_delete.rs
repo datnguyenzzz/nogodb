@@ -43,6 +43,10 @@ fn id_expr(name: &str) -> Expr {
     Expr::Identifier(id(name))
 }
 
+fn compound_expr(parts: &[&str]) -> Expr {
+    Expr::CompoundIdentifier(parts.iter().map(|p| id(p)).collect())
+}
+
 fn num(n: &str) -> Expr {
     Expr::Value(Value::Number(n.to_string(), false))
 }
@@ -1049,4 +1053,152 @@ fn ws_no_spaces_at_all() {
         d.selection,
         Some(binop(id_expr("a"), BinaryOperator::Eq, num("1"))),
     );
+}
+
+// J. Compound identifiers (a.b.c.d)
+
+#[test]
+fn compound_two_parts_still_identifier_or_compound() {
+    // Two-part: a.b — the parser stores this as CompoundIdentifier with len 2.
+    assert_eq!(
+        parse_where_expr("DELETE FROM t WHERE a.b;"),
+        compound_expr(&["a", "b"]),
+    );
+}
+
+#[test]
+fn compound_three_parts() {
+    // schema.table.column
+    assert_eq!(
+        parse_where_expr("DELETE FROM t WHERE a.b.c;"),
+        compound_expr(&["a", "b", "c"]),
+    );
+}
+
+#[test]
+fn compound_four_parts() {
+    // catalog.schema.table.column
+    assert_eq!(
+        parse_where_expr("DELETE FROM t WHERE a.b.c.d;"),
+        compound_expr(&["a", "b", "c", "d"]),
+    );
+}
+
+#[test]
+fn compound_in_comparison() {
+    // a.b = 1
+    assert_eq!(
+        parse_where_expr("DELETE FROM t WHERE a.b = 1;"),
+        binop(compound_expr(&["a", "b"]), BinaryOperator::Eq, num("1"),),
+    );
+}
+
+#[test]
+fn compound_three_parts_in_comparison() {
+    // schema.users.id = 1
+    assert_eq!(
+        parse_where_expr("DELETE FROM t WHERE schema.users.id = 1;"),
+        binop(
+            compound_expr(&["schema", "users", "id"]),
+            BinaryOperator::Eq,
+            num("1"),
+        ),
+    );
+}
+
+#[test]
+fn compound_both_sides_of_comparison() {
+    // a.b = c.d
+    assert_eq!(
+        parse_where_expr("DELETE FROM t WHERE a.b = c.d;"),
+        binop(
+            compound_expr(&["a", "b"]),
+            BinaryOperator::Eq,
+            compound_expr(&["c", "d"]),
+        ),
+    );
+}
+
+#[test]
+fn compound_in_arithmetic() {
+    // a.b + 1
+    assert_eq!(
+        parse_where_expr("DELETE FROM t WHERE a.b + 1;"),
+        binop(compound_expr(&["a", "b"]), BinaryOperator::Plus, num("1"),),
+    );
+}
+
+#[test]
+fn compound_in_cast() {
+    // CAST(a.b AS INT)
+    assert_eq!(
+        parse_where_expr("DELETE FROM t WHERE CAST(a.b AS INT);"),
+        Expr::Cast {
+            kind: query_engine::sql_parser::ast::expr::CastKind::Cast,
+            expr: Box::new(compound_expr(&["a", "b"])),
+            data_type: DataType::Int(None),
+        },
+    );
+}
+
+#[test]
+fn compound_in_ceil() {
+    assert_eq!(
+        parse_where_expr("DELETE FROM t WHERE CEIL(a.b);"),
+        Expr::Ceil {
+            expr: Box::new(compound_expr(&["a", "b"])),
+        },
+    );
+}
+
+#[test]
+fn compound_does_not_absorb_arithmetic() {
+    // `(a.b) + 1` — the `.` is parsed as compound identifier, NOT as a
+    // decimal point. The arithmetic runs on the whole compound.
+    assert_eq!(
+        parse_where_expr("DELETE FROM t WHERE a.b + 1;"),
+        binop(compound_expr(&["a", "b"]), BinaryOperator::Plus, num("1"),),
+    );
+}
+
+#[test]
+fn compound_in_realistic_delete() {
+    // DELETE FROM users WHERE users.active = TRUE
+    let d = parse_delete("DELETE FROM users WHERE users.active = TRUE;");
+    assert_eq!(d.from, vec![table("users")]);
+    assert_eq!(
+        d.selection,
+        Some(binop(
+            compound_expr(&["users", "active"]),
+            BinaryOperator::Eq,
+            boolean(true),
+        )),
+    );
+}
+
+#[test]
+fn compound_in_realistic_delete_with_schema() {
+    // DELETE FROM db.users WHERE db.users.id = 1
+    let d = parse_delete("DELETE FROM db WHERE db.users.id = 1;");
+    assert_eq!(d.from, vec![table("db")]); // parser parses table as plain ident
+    assert_eq!(
+        d.selection,
+        Some(binop(
+            compound_expr(&["db", "users", "id"]),
+            BinaryOperator::Eq,
+            num("1"),
+        )),
+    );
+}
+
+#[test]
+fn compound_no_trailing_period_at_eof() {
+    // `a.` (trailing period, no second ident) must fail: the parser
+    // demands another ident after every `.`.
+    assert!(try_parse("DELETE FROM t WHERE a.;").is_err());
+}
+
+#[test]
+fn compound_no_trailing_period_then_eof() {
+    assert!(try_parse("DELETE FROM t WHERE a.b.;").is_err());
 }

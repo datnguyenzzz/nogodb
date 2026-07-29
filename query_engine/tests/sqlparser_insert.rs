@@ -46,6 +46,10 @@ fn id_expr(name: &str) -> Expr {
     Expr::Identifier(id(name))
 }
 
+fn compound_expr(parts: &[&str]) -> Expr {
+    Expr::CompoundIdentifier(parts.iter().map(|p| id(p)).collect())
+}
+
 fn num(n: &str) -> Expr {
     Expr::Value(Value::Number(n.to_string(), false))
 }
@@ -376,4 +380,120 @@ fn err_insert_table_is_literal() {
 #[test]
 fn err_insert_garbage_input() {
     assert!(try_parse("INSERT INTO t !@#;").is_err());
+}
+
+// G. Compound identifiers in VALUES
+
+#[test]
+fn insert_value_is_compound_identifier() {
+    // VALUES (a.b) — the inserted value is a two-part identifier.
+    let i = parse_insert("INSERT INTO t (x) VALUES (a.b);");
+    assert_eq!(
+        i.source,
+        Some(values_query(vec![compound_expr(&["a", "b"])]))
+    );
+}
+
+#[test]
+fn insert_value_is_three_part_compound() {
+    let i = parse_insert("INSERT INTO t (x) VALUES (schema.users.id);");
+    assert_eq!(
+        i.source,
+        Some(values_query(vec![compound_expr(&[
+            "schema", "users", "id"
+        ])])),
+    );
+}
+
+#[test]
+fn insert_value_is_four_part_compound() {
+    let i = parse_insert("INSERT INTO t (x) VALUES (catalog.schema.users.id);");
+    assert_eq!(
+        i.source,
+        Some(values_query(vec![compound_expr(&[
+            "catalog", "schema", "users", "id",
+        ])])),
+    );
+}
+
+#[test]
+fn insert_mix_compound_and_literal() {
+    // (a.b, 1, 'foo')
+    let i = parse_insert("INSERT INTO t (a, b, c) VALUES (a.b, 1, 'foo');");
+    assert_eq!(
+        i.source,
+        Some(values_query(vec![
+            compound_expr(&["a", "b"]),
+            num("1"),
+            sq("foo"),
+        ])),
+    );
+}
+
+#[test]
+fn insert_compound_in_arithmetic() {
+    // VALUES (a.b + 1)
+    let i = parse_insert("INSERT INTO t (x) VALUES (a.b + 1);");
+    let expected = Expr::BinaryOp {
+        left: Box::new(compound_expr(&["a", "b"])),
+        op: query_engine::sql_parser::ast::operators::BinaryOperator::Plus,
+        right: Box::new(num("1")),
+    };
+    assert_eq!(i.source, Some(values_query(vec![expected])));
+}
+
+#[test]
+fn insert_compound_in_comparison() {
+    // VALUES (a.b = 1)
+    let i = parse_insert("INSERT INTO t (x) VALUES (a.b = 1);");
+    let expected = Expr::BinaryOp {
+        left: Box::new(compound_expr(&["a", "b"])),
+        op: query_engine::sql_parser::ast::operators::BinaryOperator::Eq,
+        right: Box::new(num("1")),
+    };
+    assert_eq!(i.source, Some(values_query(vec![expected])));
+}
+
+#[test]
+fn insert_compound_in_cast() {
+    let i = parse_insert("INSERT INTO t (x) VALUES (CAST(a.b AS INT));");
+    let expected = Expr::Cast {
+        kind: query_engine::sql_parser::ast::expr::CastKind::Cast,
+        expr: Box::new(compound_expr(&["a", "b"])),
+        data_type: query_engine::sql_parser::ast::data_type::DataType::Int(None),
+    };
+    assert_eq!(i.source, Some(values_query(vec![expected])));
+}
+
+#[test]
+fn insert_compound_in_ceil() {
+    let i = parse_insert("INSERT INTO t (x) VALUES (CEIL(a.b));");
+    let expected = Expr::Ceil {
+        expr: Box::new(compound_expr(&["a", "b"])),
+    };
+    assert_eq!(i.source, Some(values_query(vec![expected])));
+}
+
+#[test]
+fn insert_compound_both_sides_of_eq() {
+    // WHERE a.b = c.d (here as a value expression)
+    let i = parse_insert("INSERT INTO t (x) VALUES (a.b = c.d);");
+    let expected = Expr::BinaryOp {
+        left: Box::new(compound_expr(&["a", "b"])),
+        op: query_engine::sql_parser::ast::operators::BinaryOperator::Eq,
+        right: Box::new(compound_expr(&["c", "d"])),
+    };
+    assert_eq!(i.source, Some(values_query(vec![expected])));
+}
+
+#[test]
+fn insert_err_dangling_period_in_value() {
+    // VALUES (a.) — period must be followed by another ident.
+    assert!(try_parse("INSERT INTO t (x) VALUES (a.);").is_err());
+}
+
+#[test]
+fn insert_err_dangling_period_in_compound() {
+    // VALUES (a.b.c.) — trailing period fails.
+    assert!(try_parse("INSERT INTO t (x) VALUES (a.b.c.);").is_err());
 }

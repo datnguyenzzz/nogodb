@@ -9,7 +9,10 @@ use crate::sql_parser::{
         dml::{Delete, Insert, Update},
         expr::{Assignment, CastKind, Expr, Ident, Parens, SetExpr, Value},
         operators::{BinaryOperator, UnaryOperator},
-        query::{LimitClause, OrderByExpr, Query, Select, SelectItem, TableFactor, TableWithJoins},
+        query::{
+            Join, JoinConstraint, JoinOperator, LimitClause, OrderByExpr, Query, Select,
+            SelectItem, TableFactor, TableWithJoins,
+        },
     },
     keywords::{
         Keyword,
@@ -320,7 +323,7 @@ impl Parser {
     /// Parse columns
     fn parse_columns(&mut self) -> Result<Vec<ColumnDef>, ParserError> {
         self.check_then_consume(&Token::LParen)?;
-        let column_def = self.parse_comma_separated(|p| p.parse_column_def())?;
+        let column_def = self.parse_separated(&Token::Comma, |p| p.parse_column_def())?;
         self.check_then_consume(&Token::RParen)?;
 
         Ok(column_def)
@@ -485,10 +488,13 @@ impl Parser {
                     self.parse_not_expr()
                 }
                 _ => {
-                    let span = self.peek_nth_token(0).span.clone();
-                    let ident = w.to_ident(span);
-                    self.advance_token();
-                    Ok(Expr::Identifier(ident))
+                    // either Identifier or CompoundIdentifier
+                    let idents = self.parse_separated(&Token::Period, |p| p.parse_ident())?;
+                    if idents.len() == 1 {
+                        Ok(Expr::Identifier(idents[0].clone()))
+                    } else {
+                        Ok(Expr::CompoundIdentifier(idents))
+                    }
                 }
             },
             tok @ Token::Plus | tok @ Token::Minus => {
@@ -615,9 +621,9 @@ impl Parser {
         }
     }
 
-    /// Parse a comma-separated list of 1+ items, then apply the sub-parser
-    /// F into each item
-    fn parse_comma_separated<T, F>(&mut self, mut f: F) -> Result<Vec<T>, ParserError>
+    /// Parse a separated list of 1+ items by a given delimiter,
+    /// then apply the sub-parser F into each item
+    fn parse_separated<T, F>(&mut self, delimiter: &Token, mut f: F) -> Result<Vec<T>, ParserError>
     where
         F: FnMut(&mut Parser) -> Result<T, ParserError>,
     {
@@ -625,7 +631,7 @@ impl Parser {
         loop {
             values.push(f(self)?);
 
-            if self.check_then_consume(&Token::Comma).is_err() {
+            if self.check_then_consume(delimiter).is_err() {
                 break;
             }
         }
@@ -677,19 +683,93 @@ impl Parser {
         }
     }
 
+    fn parse_join_constraint(&mut self) -> Result<JoinConstraint, ParserError> {
+        self.check_then_consume_keyword(Keyword::ON)?;
+        Ok(JoinConstraint::On(self.parse_expr()?))
+    }
+
+    /// Parse Joins syntax <op>JOIN <table> ON <condition>
+    fn parse_joins(&mut self) -> Result<Option<Vec<Join>>, ParserError> {
+        let mut joins = vec![];
+        loop {
+            let join_op = match &self.peek_nth_token(0).token {
+                Token::Word(w) => match w.keyword {
+                    Keyword::JOIN => {
+                        self.advance_token();
+                        JoinOperator::Join
+                    }
+                    kw @ Keyword::LEFT | kw @ Keyword::RIGHT | kw @ Keyword::INNER => {
+                        self.advance_token();
+                        self.check_then_consume_keyword(Keyword::JOIN)?;
+                        match kw {
+                            Keyword::LEFT => JoinOperator::Left,
+                            Keyword::RIGHT => JoinOperator::Right,
+                            Keyword::INNER => JoinOperator::Inner,
+                            _ => break,
+                        }
+                    }
+                    Keyword::FULL => {
+                        self.advance_token();
+                        self.check_then_consume_keyword(Keyword::OUTER)?;
+                        self.check_then_consume_keyword(Keyword::JOIN)?;
+                        JoinOperator::FullOuter
+                    }
+                    _ => break,
+                },
+                _ => break,
+            };
+
+            joins.push(Join {
+                relation: TableFactor::Table {
+                    name: self.parse_ident()?,
+                    alias: None,
+                },
+                join_operator: join_op(self.parse_join_constraint()?),
+            })
+        }
+
+        if joins.len() == 0 {
+            Ok(None)
+        } else {
+            Ok(Some(joins))
+        }
+    }
+
     /// Parse a table factor followed by any join clauses
     fn parse_table_with_join(&mut self) -> Result<TableWithJoins, ParserError> {
-        panic!("implemement me")
+        Ok(TableWithJoins {
+            relation: TableFactor::Table {
+                name: self.parse_ident()?,
+                alias: None,
+            },
+            joins: self.parse_joins()?,
+        })
     }
 
     /// Parse an optional `GROUP BY` clause, used in SELECT statement
     fn parse_optional_group_by(&mut self) -> Result<Option<Vec<Expr>>, ParserError> {
-        panic!("implemement me")
+        if self.check_then_consume_keyword(Keyword::GROUP).is_err() {
+            return Ok(None);
+        }
+
+        if self.check_then_consume_keyword(Keyword::BY).is_err() {
+            return Ok(None);
+        }
+
+        let idents = self.parse_separated(&Token::Comma, |p| p.parse_expr())?;
+
+        if idents.len() == 0 {
+            return Err(ParserError::ParserError(format!(
+                "expect some columns after GROUP BY"
+            )));
+        }
+
+        Ok(Some(idents))
     }
 
     /// Parse a restricted `SELECT` statement (no CTEs / `UNION` / `ORDER BY`)
     fn parse_select(&mut self) -> Result<Select, ParserError> {
-        let projection = self.parse_comma_separated(|p| p.parse_select_item())?;
+        let projection = self.parse_separated(&Token::Comma, |p| p.parse_select_item())?;
         if projection.len() == 0 {
             return Err(ParserError::ParserError(format!(
                 "select items can not be empty in SELECT statement",
@@ -725,7 +805,7 @@ impl Parser {
                 Keyword::VALUES => {
                     self.advance_token();
                     self.check_then_consume(&Token::LParen)?;
-                    let values = self.parse_comma_separated(|p| p.parse_expr())?;
+                    let values = self.parse_separated(&Token::Comma, |p| p.parse_expr())?;
                     self.check_then_consume(&Token::RParen)?;
                     Ok(Box::new(SetExpr::Values(Parens { content: values })))
                 }
@@ -775,7 +855,7 @@ impl Parser {
         };
         let mut columns = vec![];
         if self.check_then_consume(&Token::LParen).is_ok() {
-            columns = self.parse_comma_separated(|p| p.parse_ident())?;
+            columns = self.parse_separated(&Token::Comma, |p| p.parse_ident())?;
             self.check_then_consume(&Token::RParen)?;
         }
         let source = Some(self.parse_query()?);
@@ -819,7 +899,7 @@ impl Parser {
             alias: None,
         };
         self.check_then_consume_keyword(Keyword::SET)?;
-        let assignments = self.parse_comma_separated(|p| p.parse_assignment())?;
+        let assignments = self.parse_separated(&Token::Comma, |p| p.parse_assignment())?;
         let mut conds = None;
         if self.check_then_consume_keyword(Keyword::WHERE).is_ok() {
             conds = Some(self.parse_expr()?);

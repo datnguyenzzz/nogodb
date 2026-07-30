@@ -647,7 +647,6 @@ impl Parser {
         let curr = self.peek_then_advance();
         match curr.token {
             Token::Word(w) if search_keyword(&w.value) == Keyword::NoKeyWord => {
-                self.advance_token();
                 Ok(Some(w.into_ident(curr.span)))
             }
             e => Err(ParserError::ParserError(format!(
@@ -661,7 +660,6 @@ impl Parser {
     fn parse_select_item(&mut self) -> Result<SelectItem, ParserError> {
         // SELECT * ....
         if self.check_then_consume(&Token::Mul).is_ok() {
-            self.advance_token();
             if matches!(self.peek_nth_token(0).token, Token::Comma) {
                 return Err(ParserError::ParserError(format!(
                     "syntax error, SELECT * ,"
@@ -950,10 +948,7 @@ impl Parser {
                     self.advance_token();
                     self.parse_update().map(Into::into)
                 }
-                Keyword::SELECT | Keyword::WITH => {
-                    self.advance_token();
-                    self.parse_query().map(Into::into)
-                }
+                Keyword::SELECT | Keyword::WITH => self.parse_query().map(Into::into),
                 _ => Err(ParserError::ParserError(format!(
                     "expected a SQL statement, but got {}",
                     next_token

@@ -101,23 +101,9 @@ pub enum OrderBySort {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct OrderByExpr {
     /// The expression to order by.
-    expr: Expr,
+    pub expr: Expr,
     /// Ordering options such as `ASC`/`DESC`.
-    sort: Option<OrderBySort>,
-}
-
-/// Represents the different syntactic forms of `LIMIT` clauses.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum LimitClause {
-    /// Standard SQL `LIMIT` syntax (optionally `BY` and `OFFSET`).
-    ///
-    /// `LIMIT <limit> [OFFSET <offset>]`
-    LimitOffset {
-        /// `LIMIT { <N> | ALL }` expression.
-        limit: Option<Expr>,
-        /// Optional `OFFSET` expression.
-        offset: Option<Expr>,
-    },
+    pub sort: Option<OrderBySort>,
 }
 
 /// A variant of `SELECT` query expression, optionally including `WITH`,
@@ -130,6 +116,4 @@ pub struct Query {
     pub body: Box<SetExpr>,
     /// ORDER BY
     pub order_by: Option<Vec<OrderByExpr>>,
-    /// `LIMIT ... OFFSET ... | LIMIT <offset>, <limit>`
-    pub limit_clause: Option<LimitClause>,
 }

@@ -10,7 +10,7 @@ use crate::sql_parser::{
         expr::{Assignment, CastKind, Expr, Ident, Parens, SetExpr, Value},
         operators::{BinaryOperator, UnaryOperator},
         query::{
-            Join, JoinConstraint, JoinOperator, LimitClause, OrderByExpr, Query, Select,
+            Join, JoinConstraint, JoinOperator, OrderByExpr, OrderBySort, Query, Select,
             SelectItem, TableFactor, TableWithJoins,
         },
     },
@@ -821,16 +821,35 @@ impl Parser {
         }
     }
 
-    /// Parse an optional `ORDER BY` clause
-    fn parse_optional_order_by(&mut self) -> Result<Option<Vec<OrderByExpr>>, ParserError> {
-        // panic!("implemement me")
-        Ok(None)
+    /// Parse a single `ORDER BY` expression
+    fn parse_order_by_expr(&mut self) -> Result<OrderByExpr, ParserError> {
+        let expr = self.parse_expr()?;
+        let sort = match &self.peek_nth_token(0).token {
+            Token::Word(w) => match w.keyword {
+                Keyword::ASC => Some(OrderBySort::Asc),
+                Keyword::DESC => Some(OrderBySort::Desc),
+                _ => None,
+            },
+            _ => None,
+        };
+
+        if sort.is_some() {
+            self.advance_token();
+        }
+
+        Ok(OrderByExpr { expr, sort })
     }
 
-    /// Parse an optional `LIMIT` clause
-    fn parse_optional_limit_clause(&mut self) -> Result<Option<LimitClause>, ParserError> {
-        // panic!("implemement me")
-        Ok(None)
+    /// Parse an optional `ORDER BY` clause
+    fn parse_optional_order_by(&mut self) -> Result<Option<Vec<OrderByExpr>>, ParserError> {
+        if self.check_then_consume_keyword(Keyword::ORDER).is_err() {
+            return Ok(None);
+        }
+
+        self.check_then_consume_keyword(Keyword::BY)?;
+        Ok(Some(self.parse_separated(&Token::Comma, |p| {
+            p.parse_order_by_expr()
+        })?))
     }
 
     /// Parse a query expression, i.e. a `SELECT` statement optionally
@@ -840,7 +859,6 @@ impl Parser {
         Ok(Box::new(Query {
             body: self.parse_query_body()?,
             order_by: self.parse_optional_order_by()?,
-            limit_clause: self.parse_optional_limit_clause()?,
         }))
     }
 

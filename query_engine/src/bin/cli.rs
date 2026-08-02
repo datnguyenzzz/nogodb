@@ -21,7 +21,7 @@ pub struct Args {
 }
 
 impl Args {
-    fn run(&self, client: &mut Client) -> Result<()> {
+    async fn run(&self, client: &mut Client) -> Result<()> {
         // Learning: execute(self.statement) will fail to compile here
         // `String` in Rust is heap allocated. &self has an ownership
         // of `statement`. When we are doing ...(self.statement), it
@@ -29,15 +29,16 @@ impl Args {
         // prohibited. There are 2 options:
         //. 1. Use the reference &str
         //. 2. Clone self.statement.clone()
-        client.execute(&self.statement)?;
+        client.execute(&self.statement).await?;
 
         Ok(())
     }
 }
 
-fn main() {
+#[tokio::main]
+async fn main() {
     env_logger::init();
     let args = Args::parse();
     let mut client = Client::new(SERVER_ADDRESS.to_string());
-    _ = args.run(&mut client);
+    let _ = args.run(&mut client).await;
 }

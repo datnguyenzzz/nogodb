@@ -22,9 +22,12 @@ impl Client {
         }
     }
 
-    pub fn execute(&mut self, statement: &str) -> Result<()> {
+    pub async fn execute(&mut self, statement: &str) -> Result<()> {
         let statements = self.parser.parse_sql(statement)?;
-        let _ = self.planner.plan_statment(statements);
+
+        for statement in statements {
+            let plan = self.planner.plan_statment(statement).await?;
+        }
 
         Ok(())
     }

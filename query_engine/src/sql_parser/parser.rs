@@ -1,5 +1,5 @@
 use core::fmt;
-use std::str::FromStr;
+use std::{fmt::Display, str::FromStr};
 
 use crate::sql_parser::{
     ast::{
@@ -35,6 +35,17 @@ impl From<TokenizerError> for ParserError {
         ParserError::TokenizerError(e.message)
     }
 }
+
+impl Display for ParserError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ParserError::TokenizerError(e) => write!(f, "Tokenizer Error: {}", e),
+            ParserError::ParserError(e) => write!(f, "Parser Error: {}", e),
+        }
+    }
+}
+
+impl std::error::Error for ParserError {}
 
 pub struct Parser {
     /// The unprocessed_index (0-indexed) of the first unprocessed token

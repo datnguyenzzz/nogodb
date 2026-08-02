@@ -1,8 +1,11 @@
+use anyhow::Result;
 // Learning: use crate::... in main.rs looks at the binary, not the library.
 // Use the library's name (query_engine::...) to reach into it.
 // A rust packages can have ≥1 binary crate, and ≤1 library crate
 use clap::Parser;
 use query_engine::Client;
+
+const SERVER_ADDRESS: &str = "localhost:50051";
 
 #[derive(Parser, Debug)]
 #[command(name = "nogodb cli", version, about)]
@@ -18,7 +21,7 @@ pub struct Args {
 }
 
 impl Args {
-    fn run(&self, client: &Client) {
+    fn run(&self, client: &mut Client) -> Result<()> {
         // Learning: execute(self.statement) will fail to compile here
         // `String` in Rust is heap allocated. &self has an ownership
         // of `statement`. When we are doing ...(self.statement), it
@@ -26,13 +29,15 @@ impl Args {
         // prohibited. There are 2 options:
         //. 1. Use the reference &str
         //. 2. Clone self.statement.clone()
-        client.execute(&self.statement);
+        client.execute(&self.statement)?;
+
+        Ok(())
     }
 }
 
 fn main() {
     env_logger::init();
     let args = Args::parse();
-    let client = Client::init();
-    args.run(&client);
+    let mut client = Client::new(SERVER_ADDRESS.to_string());
+    _ = args.run(&mut client);
 }

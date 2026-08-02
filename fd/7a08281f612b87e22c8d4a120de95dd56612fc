@@ -1,0 +1,38 @@
+query_engine/src/client.rs
+  h_42387b1c6b634c 1,3-5,8-9,13,17-18,21-22,25-26
+query_engine/src/planner/logical_plan.rs
+  h_42387b1c6b634c 1-38
+query_engine/src/storage/mod.rs
+  h_42387b1c6b634c 1
+query_engine/src/catalog/catalog.rs
+  h_42387b1c6b634c 1-14
+query_engine/src/storage/catalog.rs
+  h_42387b1c6b634c 1-23
+query_engine/src/sql_parser/parser.rs
+  h_42387b1c6b634c 2,39-45,48-49
+query_engine/src/planner/mod.rs
+  h_42387b1c6b634c 1-4
+query_engine/src/planner/planner.rs
+  h_42387b1c6b634c 1-32
+query_engine/src/lib.rs
+  h_42387b1c6b634c 1,3,5
+query_engine/src/bin/cli.rs
+  h_42387b1c6b634c 1,8-9,24,32-34,41-42
+query_engine/src/storage/storage.rs
+  h_42387b1c6b634c 1-14
+query_engine/src/catalog/provider.rs
+  h_42387b1c6b634c 1-29
+query_engine/src/catalog/mod.rs
+  h_42387b1c6b634c 1-4
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "fd7a08281f612b87e22c8d4a120de95dd56612fc",
+  "prompts": {},
+  "humans": {
+    "h_42387b1c6b634c": {
+      "author": "datnguyenzzz <thanh.nguyen@deliveryhero.com>"
+    }
+  }
+}

@@ -8,7 +8,7 @@ use arrow::{
 use crate::planner::ast::operators::BinaryOperator;
 
 /// Represents dynamic scalar literal values in expressions
-pub enum ScalaValue {
+pub enum ScalarValue {
     Null(DataType),
     Boolean(Option<bool>),
     Int32(Option<i32>),
@@ -17,7 +17,7 @@ pub enum ScalaValue {
     Utf8(Option<String>),
 }
 
-impl ScalaValue {
+impl ScalarValue {
     pub fn to_arrow(&self) -> ArrayRef {
         todo!("implement me")
     }
@@ -42,7 +42,7 @@ pub enum LogicalExpr {
     /// A named reference to a column (e.g., `id`, `name`)
     Column(String),
     /// A literal constant value (e.g., `42`, `"Alice"`)
-    Literal(ScalaValue),
+    Literal(ScalarValue),
     BinaryOp {
         left: Box<LogicalExpr>,
         op: BinaryOperator,
@@ -75,44 +75,44 @@ pub enum LogicalPlan {
 
     /// Evaluates predicate and filters rows (representing `WHERE` clauses)
     Filter {
-        predicate: Box<LogicalExpr>,
-        input: Arc<LogicalPlan>,
+        predicate: LogicalExpr,
+        input: Box<LogicalPlan>,
     },
 
     /// Evaluates expressions and shapes the output columns (representing `SELECT` lists)
     Projection {
-        exprs: Vec<Box<LogicalExpr>>,
-        input: Arc<LogicalPlan>,
+        exprs: Vec<LogicalExpr>,
+        input: Box<LogicalPlan>,
         schema: Arc<Schema>,
     },
 
     /// Joins two datasets (representing `JOIN` chains)
     HashJoin {
-        left: Arc<LogicalPlan>,
-        right: Arc<LogicalPlan>,
-        on: Vec<(Box<LogicalExpr>, Box<LogicalExpr>)>,
+        left: Box<LogicalPlan>,
+        right: Box<LogicalPlan>,
+        on: Vec<(LogicalExpr, LogicalExpr)>,
         join_type: JoinType,
         schema: Arc<Schema>,
     },
 
     /// Aggregates and groups data (representing `GROUP BY` and aggregate selections)
     Aggregate {
-        group_by: Vec<Box<LogicalExpr>>,
-        input: Arc<LogicalPlan>,
+        group_by: Vec<LogicalExpr>,
+        input: Box<LogicalPlan>,
         schema: Arc<Schema>,
     },
 
     /// Sorts rows by expressions (representing `ORDER BY` clauses)
     Sort {
-        sort_exprs: Vec<Box<LogicalExpr>>,
-        input: Arc<LogicalPlan>,
+        sort_exprs: Vec<LogicalExpr>,
+        input: Box<LogicalPlan>,
     },
 
     /// Slices the relation (representing `LIMIT` and `OFFSET` clauses)
     Limit {
         limit: usize,
         offset: usize,
-        input: Arc<LogicalPlan>,
+        input: Box<LogicalPlan>,
     },
 
     // DML
@@ -120,20 +120,20 @@ pub enum LogicalPlan {
     Insert {
         table_name: String,
         columns: Vec<String>,
-        input: Arc<LogicalPlan>,
+        input: Box<LogicalPlan>,
     },
 
     /// Updates matching rows in a table (representing `UPDATE`)
     Update {
         table_name: String,
-        assignments: Vec<(String, Box<LogicalExpr>)>,
-        selection: Option<Box<LogicalExpr>>,
+        assignments: Vec<(String, LogicalExpr)>,
+        selection: Option<LogicalExpr>,
     },
 
     /// Deletes matching rows from a table (representing `DELETE`)
     Delete {
         table_name: String,
-        selection: Option<Box<LogicalExpr>>,
+        selection: Option<LogicalExpr>,
     },
 
     // DDL

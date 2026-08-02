@@ -9,6 +9,6 @@ pub struct TableMetadata {
 
 // Learning: https://google.github.io/comprehensive-rust/concurrency/async-pitfalls/async-traits.html
 #[async_trait]
-pub trait CatalogClient: Send + Sync {
+pub trait CatalogClient {
     async fn fetch_table_meta(&self, name: &str) -> Result<TableMetadata>;
 }

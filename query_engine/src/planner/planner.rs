@@ -6,7 +6,7 @@ use crate::{
 };
 
 pub struct Planner {
-    catalog: Arc<CatalogProvider>,
+    catalog: CatalogProvider,
 }
 
 #[derive(Debug)]
@@ -27,7 +27,7 @@ impl Display for PlannerError {
 impl std::error::Error for PlannerError {}
 
 impl Planner {
-    pub fn new(catalog: Arc<CatalogProvider>) -> Self {
+    pub fn new(catalog: CatalogProvider) -> Self {
         Planner { catalog }
     }
 

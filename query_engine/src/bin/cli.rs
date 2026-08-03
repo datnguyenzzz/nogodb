@@ -1,9 +1,11 @@
+use std::sync::Arc;
+
 use anyhow::Result;
 // Learning: use crate::... in main.rs looks at the binary, not the library.
 // Use the library's name (query_engine::...) to reach into it.
 // A rust packages can have ≥1 binary crate, and ≤1 library crate
 use clap::Parser;
-use query_engine::Client;
+use query_engine::{Client, db::Database};
 
 const SERVER_ADDRESS: &str = "localhost:50051";
 
@@ -39,6 +41,7 @@ impl Args {
 async fn main() {
     env_logger::init();
     let args = Args::parse();
-    let mut client = Client::new(SERVER_ADDRESS.to_string());
+    let db: Database = Database::new(SERVER_ADDRESS.to_string());
+    let mut client = Client::new(Arc::new(db));
     let _ = args.run(&mut client).await;
 }

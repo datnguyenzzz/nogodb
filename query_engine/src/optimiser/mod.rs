@@ -1,6 +1,6 @@
 use anyhow::Result;
 
-use crate::planner::logical_plan::LogicalPlan;
+use crate::planner::LogicalPlan;
 
 /// Shared trait implemented by every individual optimizer pass
 pub trait OptimiserRule: Send + Sync {

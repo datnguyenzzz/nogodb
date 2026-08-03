@@ -2,11 +2,11 @@ use std::{fmt::Display, sync::Arc};
 
 use crate::{
     catalog::provider::CatalogProvider,
-    planner::{ast::Statement, logical_plan::LogicalPlan},
+    planner::{LogicalPlan, ast::Statement},
 };
 
 pub struct Planner {
-    catalog: CatalogProvider,
+    catalog: Arc<CatalogProvider>,
 }
 
 #[derive(Debug)]
@@ -27,7 +27,7 @@ impl Display for PlannerError {
 impl std::error::Error for PlannerError {}
 
 impl Planner {
-    pub fn new(catalog: CatalogProvider) -> Self {
+    pub fn new(catalog: Arc<CatalogProvider>) -> Self {
         Planner { catalog }
     }
 

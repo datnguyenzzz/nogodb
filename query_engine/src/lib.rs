@@ -1,3 +1,4 @@
+pub mod arrow;
 pub mod catalog;
 pub mod client;
 pub mod db;

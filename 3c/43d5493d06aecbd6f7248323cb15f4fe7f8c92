@@ -1,0 +1,18 @@
+query_engine/src/arrow/ipc/mod.rs
+  h_42387b1c6b634c 4-5,27,32,36-40,42,45,53-60,64,77,82,89-90,96-97,112-113,120-122,125-166,171
+query_engine/src/arrow/mod.rs
+  h_42387b1c6b634c 3,5,36-61
+query_engine/src/arrow/ipc/schema.rs
+  h_42387b1c6b634c 1,5,9-12,15-19,22-38,41-44,46-51,54
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "3c43d5493d06aecbd6f7248323cb15f4fe7f8c92",
+  "prompts": {},
+  "humans": {
+    "h_42387b1c6b634c": {
+      "author": "datnguyenzzz <thanh.nguyen@deliveryhero.com>"
+    }
+  }
+}

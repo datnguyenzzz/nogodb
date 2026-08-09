@@ -1,7 +1,8 @@
 pub mod ipc;
 
-use std::sync::Arc;
+use std::{slice, sync::Arc};
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DataType {
     Boolean,
     Int8,
@@ -21,6 +22,7 @@ pub enum DataType {
 /// * `name`: the name of the field
 /// * `data_type`: the type of the field
 /// * `nullable`: if the field is nullable
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Field {
     pub name: String,
     pub data_type: DataType,
@@ -30,6 +32,27 @@ pub struct Field {
 pub type FieldRef = Arc<Field>;
 
 pub struct Fields(Arc<[FieldRef]>);
+
+impl Fields {
+    pub fn iter(&self) -> std::slice::Iter<'_, FieldRef> {
+        self.0.iter()
+    }
+}
+
+impl<'a> IntoIterator for &'a Fields {
+    type Item = &'a FieldRef;
+    type IntoIter = slice::Iter<'a, FieldRef>;
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
+    }
+}
+
+impl From<Vec<Field>> for Fields {
+    fn from(value: Vec<Field>) -> Self {
+        let fields: Vec<FieldRef> = value.into_iter().map(Arc::new).collect();
+        Self(Arc::from(fields))
+    }
+}
 
 impl Default for Fields {
     fn default() -> Self {

@@ -4,12 +4,10 @@ pub use crate::sql_parser::ast;
 
 use std::sync::Arc;
 
-use arrow::{
-    array::ArrayRef,
-    datatypes::{DataType, Schema},
+use crate::{
+    arrow::{ArrayRef, DataType, Schema},
+    planner::ast::operators::BinaryOperator,
 };
-
-use crate::planner::ast::operators::BinaryOperator;
 
 /// Represents dynamic scalar literal values in expressions
 pub enum ScalarValue {

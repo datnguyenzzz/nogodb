@@ -303,10 +303,9 @@ pub fn build_ipc_data_type(
             };
             (FbType::Int, builder.finish().as_union_value())
         }
-        DataType::Float16 | DataType::Float32 | DataType::Float64 => {
+        DataType::Float32 | DataType::Float64 => {
             let mut builder = FloatingPointBuilder::new(fbb);
             match data_type {
-                DataType::Float16 => builder.add_precision(Precision::HALF),
                 DataType::Float32 => builder.add_precision(Precision::SINGLE),
                 DataType::Float64 => builder.add_precision(Precision::DOUBLE),
                 _ => {}
@@ -365,7 +364,6 @@ impl<'a> From<FbField<'a>> for Field {
                 match float.precision() {
                     None => panic!("precision is missing from the floating point field"),
                     Some(p) => match p {
-                        Precision::HALF => DataType::Float16,
                         Precision::SINGLE => DataType::Float32,
                         Precision::DOUBLE => DataType::Float64,
                         e => panic!("precision {e:?} is unexpected"),

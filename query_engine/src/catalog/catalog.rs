@@ -1,6 +1,7 @@
 use anyhow::Result;
-use arrow::datatypes::DataType;
 use async_trait::async_trait;
+
+use crate::arrow::DataType;
 
 pub struct TableMetadata {
     pub name: String,

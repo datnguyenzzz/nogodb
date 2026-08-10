@@ -1,7 +1,8 @@
 use std::sync::Arc;
 
 use anyhow::Result;
-use arrow::array::RecordBatch;
+
+use crate::arrow::RecordBatch;
 
 pub enum SinkResult {
     NeedMoreInput,

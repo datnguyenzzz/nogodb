@@ -1,0 +1,34 @@
+query_engine/src/arrow/array/primitive_array.rs
+  h_42387b1c6b634c 1-45,48-63,66-193
+query_engine/src/arrow/ipc/record_batch.rs
+  h_42387b1c6b634c 1-6
+query_engine/src/arrow/array/boolean_array.rs
+  h_42387b1c6b634c 1-92
+query_engine/src/arrow/mod.rs
+  h_42387b1c6b634c 1,4,6-8,22-239,303-326,329-417
+query_engine/src/arrow/ipc/mod.rs
+  h_42387b1c6b634c 306
+query_engine/src/execution/pipeline.rs
+  h_42387b1c6b634c 5
+query_engine/README.md
+  h_42387b1c6b634c 4-11
+query_engine/src/arrow/array/string_array.rs
+  h_42387b1c6b634c 1-147
+query_engine/src/arrow/array/mod.rs
+  h_42387b1c6b634c 1-6,8-36
+query_engine/src/planner/mod.rs
+  h_42387b1c6b634c 7-9
+query_engine/src/catalog/catalog.rs
+  h_42387b1c6b634c 4-5
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "71087f6db179abc6b93241a58745989a5b81a985",
+  "prompts": {},
+  "humans": {
+    "h_42387b1c6b634c": {
+      "author": "datnguyenzzz <thanh.nguyen@deliveryhero.com>"
+    }
+  }
+}

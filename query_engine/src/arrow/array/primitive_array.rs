@@ -14,6 +14,11 @@ pub struct PrimitiveArray<T: NativeType> {
 }
 
 impl<T: NativeType> Array for PrimitiveArray<T> {
+    #[inline]
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
     fn len(&self) -> usize {
         self.values.len() / mem::size_of::<T>()
     }
@@ -36,6 +41,10 @@ impl<T: NativeType> Array for PrimitiveArray<T> {
 
     fn data_type(&self) -> &DataType {
         &self.data_type
+    }
+
+    fn buffers(&self) -> Vec<Buffer> {
+        vec![self.values.clone()]
     }
 }
 

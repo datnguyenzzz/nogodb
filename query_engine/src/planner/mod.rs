@@ -5,25 +5,9 @@ pub use crate::sql_parser::ast;
 use std::sync::Arc;
 
 use crate::{
-    arrow::{ArrayRef, DataType, Schema},
+    arrow::{DataType, Schema},
     planner::ast::operators::BinaryOperator,
 };
-
-/// Represents dynamic scalar literal values in expressions
-pub enum ScalarValue {
-    Null(DataType),
-    Boolean(Option<bool>),
-    Int32(Option<i32>),
-    Int64(Option<i64>),
-    Float64(Option<f64>),
-    Utf8(Option<String>),
-}
-
-impl ScalarValue {
-    pub fn to_arrow(&self) -> ArrayRef {
-        todo!("implement me")
-    }
-}
 
 pub enum AggregationFn {
     Sum,
@@ -44,7 +28,7 @@ pub enum LogicalExpr {
     /// A named reference to a column (e.g., `id`, `name`)
     Column(String),
     /// A literal constant value (e.g., `42`, `"Alice"`)
-    Literal(ScalarValue),
+    Literal(DataType),
     BinaryOp {
         left: Box<LogicalExpr>,
         op: BinaryOperator,

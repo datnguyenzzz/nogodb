@@ -5,17 +5,15 @@ use std::{
 
 use anyhow::Result;
 
-use crate::catalog::catalog::{CatalogClient, TableMetadata};
+use crate::{catalog::TableMetadata, storage::CatalogStorage};
 
 pub struct CatalogProvider {
-    /// Remote API client to fetch metadata
-    client: Arc<dyn CatalogClient>,
-    /// Thread-safe in-memory cache to store metadata once fetched
+    client: Arc<dyn CatalogStorage>,
     cache: RwLock<HashMap<String, TableMetadata>>,
 }
 
 impl CatalogProvider {
-    pub fn new(client: Arc<dyn CatalogClient>) -> Self {
+    pub fn new(client: Arc<dyn CatalogStorage>) -> Self {
         CatalogProvider {
             client,
             cache: RwLock::new(HashMap::new()),

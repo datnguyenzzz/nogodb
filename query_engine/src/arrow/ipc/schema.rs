@@ -24,19 +24,26 @@ pub fn build_ipc_field<'a>(
 /// Note: Call [`FlatBufferBuilder::finished_data`] to get the serialized bytes
 pub fn schema_to_fb<'fbb>(schema: &Schema) -> FlatBufferBuilder<'fbb> {
     let mut fbb = FlatBufferBuilder::new();
+    let root = schema_to_fb_offset(&mut fbb, schema);
+    fbb.finish(root, None);
+    fbb
+}
+
+/// Serialize a schema in IPC format, returning the in progress offset
+pub fn schema_to_fb_offset<'fbb>(
+    fbb: &mut FlatBufferBuilder<'fbb>,
+    schema: &Schema,
+) -> WIPOffset<FbSchema<'fbb>> {
     let fb_fields = schema
         .fields
         .iter()
-        .map(|field| build_ipc_field(&mut fbb, field))
+        .map(|field| build_ipc_field(fbb, field))
         .collect::<Vec<_>>();
 
     let fb_fields_list = fbb.create_vector(&fb_fields);
-    let mut builder = FbSchemaBuilder::new(&mut fbb);
+    let mut builder = FbSchemaBuilder::new(fbb);
     builder.push_fields(fb_fields_list);
-    let root = builder.finish();
-
-    fbb.finish(root, None);
-    fbb
+    builder.finish()
 }
 
 /// Verifies that a buffer of bytes contains a `Schema` and returns it.

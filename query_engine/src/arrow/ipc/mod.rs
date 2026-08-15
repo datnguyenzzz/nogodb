@@ -1,3 +1,4 @@
+pub mod record_batch;
 pub mod schema;
 
 use std::sync::Arc;
@@ -276,6 +277,177 @@ define_ipc_types! {
             #[inline]
             pub fn push_fields(&mut self, fields: WIPOffset<Vector<'fbb, ForwardsUOffset<FbField>>>) {
                 self.fbb.push_slot_always::<WIPOffset<_>>(FbSchema::VT_FIELDS, fields);
+            }
+        }
+    },
+    FbMetaNode {
+        consts {
+            VT_LENGTH = 4,
+            VT_NULL_COUNT = 6,
+            VT_SEGMENT_OFFSET = 8,
+            VT_SEGMENT_LENGTH = 10,
+        }
+        functions {
+            #[inline]
+            pub fn length(&self) -> i64 {
+                unsafe { self._tab.get::<i64>(FbMetaNode::VT_LENGTH, Some(0)).unwrap() }
+            }
+
+            #[inline]
+            pub fn null_count(&self) -> i64 {
+                unsafe { self._tab.get::<i64>(FbMetaNode::VT_NULL_COUNT, Some(0)).unwrap() }
+            }
+        }
+        builder_functions {
+            #[inline]
+            pub fn push_length(&mut self, len: i64) {
+                self.fbb.push_slot::<i64>(FbMetaNode::VT_LENGTH, len, 0);
+            }
+            #[inline]
+            pub fn push_null_count(&mut self, count: i64) {
+                self.fbb.push_slot::<i64>(FbMetaNode::VT_NULL_COUNT, count, 0);
+            }
+        }
+    },
+    FbMetaSegment {
+        consts {
+            VT_OFFSET = 4,
+            VT_LENGTH = 6,
+        }
+        functions {
+            #[inline]
+            pub fn offset(&self) -> i64 {
+                unsafe { self._tab.get::<i64>(FbMetaSegment::VT_OFFSET, Some(0)).unwrap() }
+            }
+
+            #[inline]
+            pub fn length(&self) -> i64 {
+                unsafe { self._tab.get::<i64>(FbMetaSegment::VT_LENGTH, Some(0)).unwrap() }
+            }
+        }
+        builder_functions {
+            #[inline]
+            pub fn push_offset(&mut self, off: i64) {
+                self.fbb.push_slot::<i64>(FbMetaSegment::VT_OFFSET, off, 0);
+            }
+            #[inline]
+            pub fn push_length(&mut self, len: i64) {
+                self.fbb.push_slot::<i64>(FbMetaSegment::VT_LENGTH, len, 0);
+            }
+        }
+    },
+    FbRecordBatch {
+        consts {
+            VT_LENGTH = 4,
+            VT_NODES = 6,
+            VT_SEGMENTS = 8,
+            VT_COMPRESSION = 10,
+        }
+        functions {
+            #[inline]
+            pub fn length(&self) -> i32 {
+                unsafe { self._tab.get::<i32>(FbRecordBatch::VT_LENGTH, Some(0)).unwrap() }
+            }
+
+            #[inline]
+            pub fn nodes(&self) -> Option<Vector<'a, ForwardsUOffset<FbMetaNode<'a>>>> {
+                unsafe {
+                    self._tab.get::<ForwardsUOffset<Vector<'a, ForwardsUOffset<FbMetaNode>>>>(FbRecordBatch::VT_NODES, None)
+                }
+            }
+
+            #[inline]
+            pub fn segments(&self) -> Option<Vector<'a, ForwardsUOffset<FbMetaSegment<'a>>>> {
+                unsafe {
+                    self._tab.get::<ForwardsUOffset<Vector<'a, ForwardsUOffset<FbMetaSegment>>>>(FbRecordBatch::VT_SEGMENTS, None)
+                }
+            }
+
+            #[inline]
+            pub fn compression(&self) -> i32 {
+                unsafe {
+                    self._tab.get::<i32>(FbRecordBatch::VT_COMPRESSION, Some(0)).unwrap()
+                }
+            }
+        }
+        builder_functions {
+            #[inline]
+            pub fn push_length(&mut self, len: i32) {
+                self.fbb.push_slot::<i32>(FbRecordBatch::VT_LENGTH, len, 0);
+            }
+            #[inline]
+            pub fn push_nodes(&mut self, nodes: WIPOffset<Vector<'fbb, ForwardsUOffset<FbMetaNode>>>) {
+                self.fbb.push_slot_always::<WIPOffset<_>>(FbRecordBatch::VT_NODES, nodes);
+            }
+            #[inline]
+            pub fn push_segments(&mut self, segments: WIPOffset<Vector<'fbb, ForwardsUOffset<FbMetaSegment>>>) {
+                self.fbb.push_slot_always::<WIPOffset<_>>(FbRecordBatch::VT_SEGMENTS, segments);
+            }
+            #[inline]
+            pub fn push_compression(&mut self, compression: i32) {
+                self.fbb.push_slot::<i32>(FbRecordBatch::VT_COMPRESSION, compression, 0 /*uncompressed*/);
+            }
+        }
+    },
+    FbMessage {
+        consts {
+            VT_VERSION = 4,
+            VT_HEADER_TYPE = 6,
+            VT_HEADER = 8,
+            VT_BODY_LENGTH = 10,
+        }
+
+        functions {
+            #[inline]
+            pub fn version(&self) -> i16 {
+                unsafe { self._tab.get::<i16>(FbMessage::VT_VERSION, Some(0)).unwrap() }
+            }
+            #[inline]
+            pub fn header_type(&self) -> u8 {
+                // 1 = Schema, 2 = RecordBatch
+                unsafe { self._tab.get::<u8>(FbMessage::VT_HEADER_TYPE, Some(0)).unwrap() }
+            }
+            #[inline]
+            pub fn header(&self) -> Option<Table<'a>> {
+                unsafe { self._tab.get::<ForwardsUOffset<Table<'a>>>(FbMessage::VT_HEADER, None) }
+            }
+            #[inline]
+            pub fn header_as_fb_schema(&self) -> Option<FbSchema<'a>> {
+                if self.header_type() == 1 {
+                    self.header().map(|t| FbSchema::from_table(t))
+                } else {
+                    None
+                }
+            }
+            #[inline]
+            pub fn header_as_fb_record_batch(&self) -> Option<FbRecordBatch<'a>> {
+                if self.header_type() == 2 {
+                    self.header().map(|t| FbRecordBatch::from_table(t))
+                } else {
+                    None
+                }
+            }
+            #[inline]
+            pub fn body_length(&self) -> i64 {
+                unsafe { self._tab.get::<i64>(FbMessage::VT_BODY_LENGTH, Some(0)).unwrap() }
+            }
+        }
+        builder_functions {
+            #[inline]
+            pub fn push_version(&mut self, version: i16) {
+                self.fbb.push_slot::<i16>(FbMessage::VT_VERSION, version, 0);
+            }
+            #[inline]
+            pub fn push_header_type(&mut self, ty: u8) {
+                self.fbb.push_slot::<u8>(FbMessage::VT_HEADER_TYPE, ty, 0);
+            }
+            #[inline]
+            pub fn push_header(&mut self, header: WIPOffset<UnionWIPOffset>) {
+                self.fbb.push_slot_always::<WIPOffset<_>>(FbMessage::VT_HEADER, header);
+            }
+            #[inline]
+            pub fn push_body_length(&mut self, len: i64) {
+                self.fbb.push_slot::<i64>(FbMessage::VT_BODY_LENGTH, len, 0);
             }
         }
     }

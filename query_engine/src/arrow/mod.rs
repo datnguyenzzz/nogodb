@@ -1,9 +1,9 @@
 pub mod array;
 pub mod ipc;
 
-use std::{mem, slice, sync::Arc};
+use std::{mem, ops::Deref, slice, sync::Arc};
 
-use anyhow::{Result, anyhow, bail};
+use anyhow::{Result, anyhow};
 
 // Arrow Data type \\
 
@@ -52,6 +52,10 @@ impl Buffer {
         Self { data, ptr, length }
     }
 
+    pub fn from_zeroed(len: usize) -> Self {
+        Self::from(vec![0u8; len])
+    }
+
     /// Returns a new [Buffer] that is a slice of this buffer starting at `offset`,
     /// with `length` bytes.
     ///
@@ -87,6 +91,16 @@ impl Buffer {
         unsafe { slice::from_raw_parts(self.ptr, self.length) }
     }
 
+    /// Returns a mutable slice over the active buffer memory window.
+    ///
+    /// # Safety
+    /// The caller must ensure that this [`Buffer`] instance is **not shared** (no active clones of
+    /// this buffer are being accessed, read, or written to on other threads concurrently).
+    /// Violating this constraint leads to data races and undefined behavior.
+    pub fn as_slice_mut(&self) -> &mut [u8] {
+        unsafe { slice::from_raw_parts_mut(self.ptr as *mut u8, self.length) }
+    }
+
     /// Returns the length of this buffer in bytes.
     #[inline]
     pub fn len(&self) -> usize {
@@ -99,6 +113,35 @@ impl Buffer {
     /// stored anywhere, to avoid dangling pointers.
     pub fn as_ptr(&self) -> *const u8 {
         self.ptr
+    }
+
+    /// Resizes the buffer, either truncating its contents (with no change in capacity), or
+    /// growing it (potentially reallocating it) and writing `value` in the newly available bytes.
+    ///
+    /// If there are multiple active references (clones) to this buffer's shared memory, or if
+    /// this buffer is a sliced view, this function will automatically perform a **Copy-on-Write**
+    /// to avoid mutating other shared references, copying only the active slice data.
+    pub fn resize(&mut self, new_len: usize, value: u8) {
+        // Check if we have exclusive mutable ownership and the buffer is un-sliced
+        let is_exclusive = Arc::get_mut(&mut self.data).is_some();
+        let is_sliced = self.ptr != self.data.as_ptr();
+        if is_exclusive && !is_sliced {
+            // In-place resize
+            let data_vec = Arc::get_mut(&mut self.data).unwrap();
+            data_vec.resize(new_len, value);
+
+            self.ptr = data_vec.as_ptr();
+            self.length = new_len;
+        } else {
+            // Copy-On-Write: Isolate and copy only the active sliced bytes, then resize
+            let mut new_data = self.as_slice().to_vec();
+            new_data.resize(new_len, value);
+
+            let data = Arc::new(new_data);
+            self.ptr = data.as_ptr();
+            self.length = new_len;
+            self.data = data; // Transfer ownership to the newly isolated allocation
+        }
     }
 }
 
@@ -255,6 +298,14 @@ pub type FieldRef = Arc<Field>;
 
 pub struct Fields(Arc<[FieldRef]>);
 
+impl Deref for Fields {
+    type Target = [FieldRef];
+
+    fn deref(&self) -> &Self::Target {
+        self.0.as_ref()
+    }
+}
+
 impl Fields {
     pub fn iter(&self) -> std::slice::Iter<'_, FieldRef> {
         self.0.iter()
@@ -298,6 +349,12 @@ impl Schema {
             fields: fields.into(),
         }
     }
+
+    /// Returns an immutable reference of the vector of `Field` instances.
+    #[inline]
+    pub const fn fields(&self) -> &Fields {
+        &self.fields
+    }
 }
 
 pub type SchemaRef = Arc<Schema>;
@@ -307,6 +364,9 @@ pub type SchemaRef = Arc<Schema>;
 /// An array in the Arrow Columnar Format
 /// https://arrow.apache.org/docs/format/Columnar.html
 pub trait Array: Send + Sync {
+    /// Returns this array as `&dyn Any` to allow downcasting to concrete array types.
+    fn as_any(&self) -> &dyn std::any::Any;
+
     /// Returns a zero-copy slice of this array with the indicated offset and length.
     fn slice(&self, offset: usize, length: usize) -> ArrayRef;
 
@@ -324,6 +384,8 @@ pub trait Array: Send + Sync {
     fn len(&self) -> usize;
 
     fn data_type(&self) -> &DataType;
+
+    fn buffers(&self) -> Vec<Buffer>;
 
     // TODO: Support a funnction to return buffers back to the pool
 }
@@ -593,5 +655,53 @@ mod tests {
         assert_eq!(sliced_id.len(), 2);
         assert_eq!(sliced_val.len(), 2);
         assert_eq!(sliced_val.nulls().unwrap().null_count(), 1); // 1 null in this slice!
+    }
+
+    #[test]
+    fn test_buffer_resize() {
+        // 1. Test exclusive un-sliced in-place resize (grows, truncates, fills new slots)
+        let mut buf = Buffer::from(vec![10u8, 20, 30]);
+        assert_eq!(buf.len(), 3);
+        assert_eq!(buf.as_slice(), &[10, 20, 30]);
+
+        // Grow to 6, filling new slots with 9
+        buf.resize(6, 9);
+        assert_eq!(buf.len(), 6);
+        assert_eq!(buf.as_slice(), &[10, 20, 30, 9, 9, 9]);
+
+        // Truncate to 4
+        buf.resize(4, 0);
+        assert_eq!(buf.len(), 4);
+        assert_eq!(buf.as_slice(), &[10, 20, 30, 9]);
+
+        // 2. Test shared cloned resize (CoW: cloning buf and resizing the clone leaves original untouched!)
+        let original_buf = Buffer::from(vec![1u8, 2, 3]);
+        let mut cloned_buf = original_buf.clone();
+
+        // Resize the clone
+        cloned_buf.resize(5, 7);
+        assert_eq!(cloned_buf.len(), 5);
+        assert_eq!(cloned_buf.as_slice(), &[1, 2, 3, 7, 7]);
+
+        // Original buffer must be completely untouched and isolated!
+        assert_eq!(original_buf.len(), 3);
+        assert_eq!(original_buf.as_slice(), &[1, 2, 3]);
+
+        // 3. Test sliced resize (CoW: slicing a buffer, then resizing the slice)
+        let base_buf = Buffer::from(vec![10u8, 20, 30, 40, 50]);
+        // Slice: index 1, len 3 -> [20, 30, 40]
+        let mut sliced_buf = base_buf.slice(1, 3);
+        assert_eq!(sliced_buf.len(), 3);
+        assert_eq!(sliced_buf.as_slice(), &[20, 30, 40]);
+
+        // Resize the slice (grows to 5, filling with 8)
+        sliced_buf.resize(5, 8);
+        assert_eq!(sliced_buf.len(), 5);
+        // Should only copy the active sliced window and grow it!
+        assert_eq!(sliced_buf.as_slice(), &[20, 30, 40, 8, 8]);
+
+        // Base buffer must remain 100% untouched and original!
+        assert_eq!(base_buf.len(), 5);
+        assert_eq!(base_buf.as_slice(), &[10, 20, 30, 40, 50]);
     }
 }

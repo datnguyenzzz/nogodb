@@ -8,6 +8,11 @@ pub struct BooleanArray {
 }
 
 impl Array for BooleanArray {
+    #[inline]
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
     fn len(&self) -> usize {
         self.values.len()
     }
@@ -25,6 +30,10 @@ impl Array for BooleanArray {
 
     fn data_type(&self) -> &DataType {
         &DataType::Boolean
+    }
+
+    fn buffers(&self) -> Vec<Buffer> {
+        vec![self.values.buffer.clone()]
     }
 }
 

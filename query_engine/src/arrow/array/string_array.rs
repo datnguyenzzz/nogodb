@@ -11,6 +11,11 @@ pub struct StringArray {
 }
 
 impl Array for StringArray {
+    #[inline]
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
     fn len(&self) -> usize {
         self.offsets_value.len() / 4 - 1
     }
@@ -32,6 +37,10 @@ impl Array for StringArray {
 
     fn data_type(&self) -> &DataType {
         &DataType::Utf8
+    }
+
+    fn buffers(&self) -> Vec<Buffer> {
+        vec![self.offsets_value.clone(), self.data_value.clone()]
     }
 }
 

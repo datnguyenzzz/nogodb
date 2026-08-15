@@ -1,0 +1,24 @@
+query_engine/src/arrow/array/string_array.rs
+  h_42387b1c6b634c 36-39
+query_engine/src/arrow/ipc/mod.rs
+  h_42387b1c6b634c 1,282-344
+query_engine/src/arrow/ipc/record_batch.rs
+  h_42387b1c6b634c 1-304
+query_engine/src/arrow/array/boolean_array.rs
+  h_42387b1c6b634c 29-32
+query_engine/src/arrow/array/primitive_array.rs
+  h_42387b1c6b634c 40-43
+query_engine/src/arrow/mod.rs
+  h_42387b1c6b634c 328-329
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "0ca8030ef0235874e541b61af17c6e6d9a6a3644",
+  "prompts": {},
+  "humans": {
+    "h_42387b1c6b634c": {
+      "author": "datnguyenzzz <thanh.nguyen@deliveryhero.com>"
+    }
+  }
+}

@@ -9,7 +9,7 @@
 //! that the parser produces. If a test has to know about tokenization
 //! internals, it does not belong here.
 
-use query_engine::sql_parser::{
+use crate::sql_parser::{
     Parser,
     ast::{
         data_type::DataType,
@@ -680,7 +680,7 @@ fn cast_basic_int() {
     assert_eq!(
         e,
         Expr::Cast {
-            kind: query_engine::sql_parser::ast::expr::CastKind::Cast,
+            kind: crate::sql_parser::ast::expr::CastKind::Cast,
             expr: Box::new(id_expr("x")),
             data_type: DataType::Int(None),
         },
@@ -693,7 +693,7 @@ fn cast_with_precision() {
     assert_eq!(
         e,
         Expr::Cast {
-            kind: query_engine::sql_parser::ast::expr::CastKind::Cast,
+            kind: crate::sql_parser::ast::expr::CastKind::Cast,
             expr: Box::new(id_expr("x")),
             data_type: DataType::Int(Some(4)),
         },
@@ -706,7 +706,7 @@ fn cast_to_varchar_with_length() {
     assert_eq!(
         e,
         Expr::Cast {
-            kind: query_engine::sql_parser::ast::expr::CastKind::Cast,
+            kind: crate::sql_parser::ast::expr::CastKind::Cast,
             expr: Box::new(id_expr("x")),
             data_type: DataType::Varchar(Some(10)),
         },
@@ -719,7 +719,7 @@ fn cast_to_bigint() {
     assert_eq!(
         e,
         Expr::Cast {
-            kind: query_engine::sql_parser::ast::expr::CastKind::Cast,
+            kind: crate::sql_parser::ast::expr::CastKind::Cast,
             expr: Box::new(id_expr("x")),
             data_type: DataType::BigInt(None),
         },
@@ -732,7 +732,7 @@ fn cast_to_boolean() {
     assert_eq!(
         e,
         Expr::Cast {
-            kind: query_engine::sql_parser::ast::expr::CastKind::Cast,
+            kind: crate::sql_parser::ast::expr::CastKind::Cast,
             expr: Box::new(id_expr("x")),
             data_type: DataType::Boolean,
         },
@@ -745,7 +745,7 @@ fn cast_to_double_precision() {
     assert_eq!(
         e,
         Expr::Cast {
-            kind: query_engine::sql_parser::ast::expr::CastKind::Cast,
+            kind: crate::sql_parser::ast::expr::CastKind::Cast,
             expr: Box::new(id_expr("x")),
             data_type: DataType::DoublePrecision,
         },
@@ -758,11 +758,9 @@ fn try_cast_basic() {
     assert_eq!(
         e,
         Expr::Cast {
-            kind: query_engine::sql_parser::ast::expr::CastKind::TryCast,
+            kind: crate::sql_parser::ast::expr::CastKind::TryCast,
             expr: Box::new(id_expr("x")),
-            data_type: DataType::Float(
-                query_engine::sql_parser::ast::data_type::ExactNumberInfo::None,
-            ),
+            data_type: DataType::Float(crate::sql_parser::ast::data_type::ExactNumberInfo::None,),
         },
     );
 }
@@ -774,7 +772,7 @@ fn cast_of_arithmetic() {
     assert_eq!(
         e,
         Expr::Cast {
-            kind: query_engine::sql_parser::ast::expr::CastKind::Cast,
+            kind: crate::sql_parser::ast::expr::CastKind::Cast,
             expr: Box::new(binop(num("1"), BinaryOperator::Plus, num("1"))),
             data_type: DataType::Int(None),
         },
@@ -817,7 +815,7 @@ fn cast_of_ceil() {
     assert_eq!(
         e,
         Expr::Cast {
-            kind: query_engine::sql_parser::ast::expr::CastKind::Cast,
+            kind: crate::sql_parser::ast::expr::CastKind::Cast,
             expr: Box::new(Expr::Ceil {
                 expr: Box::new(id_expr("x"))
             }),
@@ -834,7 +832,7 @@ fn cast_inside_comparison() {
         e,
         binop(
             Expr::Cast {
-                kind: query_engine::sql_parser::ast::expr::CastKind::Cast,
+                kind: crate::sql_parser::ast::expr::CastKind::Cast,
                 expr: Box::new(id_expr("price")),
                 data_type: DataType::Int(None),
             },
@@ -955,7 +953,7 @@ fn realistic_cast_in_where() {
         binop(
             binop(
                 Expr::Cast {
-                    kind: query_engine::sql_parser::ast::expr::CastKind::Cast,
+                    kind: crate::sql_parser::ast::expr::CastKind::Cast,
                     expr: Box::new(id_expr("price")),
                     data_type: DataType::Int(None),
                 },
@@ -1134,7 +1132,7 @@ fn compound_in_cast() {
     assert_eq!(
         parse_where_expr("DELETE FROM t WHERE CAST(a.b AS INT);"),
         Expr::Cast {
-            kind: query_engine::sql_parser::ast::expr::CastKind::Cast,
+            kind: crate::sql_parser::ast::expr::CastKind::Cast,
             expr: Box::new(compound_expr(&["a", "b"])),
             data_type: DataType::Int(None),
         },

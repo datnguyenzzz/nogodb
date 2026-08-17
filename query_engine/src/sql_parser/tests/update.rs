@@ -7,7 +7,7 @@
 //! private fields, so we extract the values we want to compare through
 //! the parser's `Debug` output and through the public `Assignment` fields.
 
-use query_engine::sql_parser::{
+use crate::sql_parser::{
     Parser,
     ast::{
         dml::Update,
@@ -206,7 +206,7 @@ fn update_assignment_rhs_is_string_concat() {
 fn update_assignment_rhs_is_unary_minus() {
     let u = parse_update("UPDATE t SET a = -42;");
     let expected = Expr::UnaryOp {
-        op: query_engine::sql_parser::ast::operators::UnaryOperator::Minus,
+        op: crate::sql_parser::ast::operators::UnaryOperator::Minus,
         expr: Box::new(num("42")),
     };
     assert_eq!(u.assignments[0].value, expected);

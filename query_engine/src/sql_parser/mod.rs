@@ -5,3 +5,6 @@ pub mod precedence;
 pub mod tokenizer;
 
 pub use parser::Parser;
+
+#[cfg(test)]
+mod tests;

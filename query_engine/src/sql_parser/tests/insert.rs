@@ -7,7 +7,7 @@
 //! parser produces. If a test has to know about tokenization internals, it
 //! does not belong here.
 
-use query_engine::sql_parser::{
+use crate::sql_parser::{
     Parser,
     ast::{
         dml::Insert,
@@ -233,7 +233,7 @@ fn insert_values_arithmetic_expression() {
     let i = parse_insert("INSERT INTO t (a) VALUES (1 + 2);");
     let expected = Expr::BinaryOp {
         left: Box::new(num("1")),
-        op: query_engine::sql_parser::ast::operators::BinaryOperator::Plus,
+        op: crate::sql_parser::ast::operators::BinaryOperator::Plus,
         right: Box::new(num("2")),
     };
     assert_eq!(i.source, Some(values_query(vec![expected])));
@@ -255,7 +255,7 @@ fn insert_values_negative_literal() {
     // -42 is a unary minus on the literal
     let i = parse_insert("INSERT INTO t (a) VALUES (-42);");
     let expected = Expr::UnaryOp {
-        op: query_engine::sql_parser::ast::operators::UnaryOperator::Minus,
+        op: crate::sql_parser::ast::operators::UnaryOperator::Minus,
         expr: Box::new(num("42")),
     };
     assert_eq!(i.source, Some(values_query(vec![expected])));
@@ -435,7 +435,7 @@ fn insert_compound_in_arithmetic() {
     let i = parse_insert("INSERT INTO t (x) VALUES (a.b + 1);");
     let expected = Expr::BinaryOp {
         left: Box::new(compound_expr(&["a", "b"])),
-        op: query_engine::sql_parser::ast::operators::BinaryOperator::Plus,
+        op: crate::sql_parser::ast::operators::BinaryOperator::Plus,
         right: Box::new(num("1")),
     };
     assert_eq!(i.source, Some(values_query(vec![expected])));
@@ -447,7 +447,7 @@ fn insert_compound_in_comparison() {
     let i = parse_insert("INSERT INTO t (x) VALUES (a.b = 1);");
     let expected = Expr::BinaryOp {
         left: Box::new(compound_expr(&["a", "b"])),
-        op: query_engine::sql_parser::ast::operators::BinaryOperator::Eq,
+        op: crate::sql_parser::ast::operators::BinaryOperator::Eq,
         right: Box::new(num("1")),
     };
     assert_eq!(i.source, Some(values_query(vec![expected])));
@@ -457,9 +457,9 @@ fn insert_compound_in_comparison() {
 fn insert_compound_in_cast() {
     let i = parse_insert("INSERT INTO t (x) VALUES (CAST(a.b AS INT));");
     let expected = Expr::Cast {
-        kind: query_engine::sql_parser::ast::expr::CastKind::Cast,
+        kind: crate::sql_parser::ast::expr::CastKind::Cast,
         expr: Box::new(compound_expr(&["a", "b"])),
-        data_type: query_engine::sql_parser::ast::data_type::DataType::Int(None),
+        data_type: crate::sql_parser::ast::data_type::DataType::Int(None),
     };
     assert_eq!(i.source, Some(values_query(vec![expected])));
 }
@@ -479,7 +479,7 @@ fn insert_compound_both_sides_of_eq() {
     let i = parse_insert("INSERT INTO t (x) VALUES (a.b = c.d);");
     let expected = Expr::BinaryOp {
         left: Box::new(compound_expr(&["a", "b"])),
-        op: query_engine::sql_parser::ast::operators::BinaryOperator::Eq,
+        op: crate::sql_parser::ast::operators::BinaryOperator::Eq,
         right: Box::new(compound_expr(&["c", "d"])),
     };
     assert_eq!(i.source, Some(values_query(vec![expected])));

@@ -4,7 +4,7 @@
 //! These tests exercise the public API from the outside, like a real
 //! downstream user would. Run with `cargo test --test sqlparser_ansisql`.
 
-use query_engine::sql_parser::{
+use crate::sql_parser::{
     Parser,
     ast::{
         data_type::{DataType, ExactNumberInfo},

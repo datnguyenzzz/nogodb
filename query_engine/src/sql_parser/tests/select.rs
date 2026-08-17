@@ -7,7 +7,7 @@
 //! Tests assert only the public AST the parser produces. If a test has
 //! to know about tokenization internals, it does not belong here.
 
-use query_engine::sql_parser::{
+use crate::sql_parser::{
     Parser,
     ast::{
         expr::{Expr, Ident, SetExpr, Value},
@@ -178,9 +178,9 @@ fn select_projection_is_cast() {
     assert_eq!(
         s.projections,
         vec![SelectItem::Expr(Expr::Cast {
-            kind: query_engine::sql_parser::ast::expr::CastKind::Cast,
+            kind: crate::sql_parser::ast::expr::CastKind::Cast,
             expr: Box::new(id_expr("a")),
-            data_type: query_engine::sql_parser::ast::data_type::DataType::Int(None),
+            data_type: crate::sql_parser::ast::data_type::DataType::Int(None),
         })],
     );
 }

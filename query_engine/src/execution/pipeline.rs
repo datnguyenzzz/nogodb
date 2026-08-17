@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use anyhow::Result;
 
 use crate::arrow::RecordBatch;
@@ -21,9 +19,23 @@ pub struct SinkContext {
     pub thread_id: usize,
 }
 
-pub trait PhysicalSource {
-    /// Pulls batch_size-rows Arrow RecordBatches
-    fn get_chunk(&self, ctx: &mut SourceContext) -> Result<Option<RecordBatch>>;
+/// Represents a NUMA-aware dynamic execution block of roughly 100,000 rows.
+pub struct Morsel {
+    /// Starting row offset in the physical table
+    pub start_row: usize,
+    /// Number of active logical rows in this block (typically 100,000)
+    pub num_rows: usize,
+    /// The physical NUMA socket where this block's memory resides
+    pub numa_node: usize,
+}
+
+pub trait PhysicalSource: Send + Sync {
+    /// Dynamically pulls the next available Morsel from this source.
+    /// Prefers returning a Morsel local to the caller's `worker_numa_node` (NUMA-locality).
+    /// Returns `None` when all data in the table has been fully claimed.
+    fn next_morsel(&self, worker_numa_node: usize) -> Result<Option<Morsel>>;
+    /// Pulls a single 2048-row vectorized chunk from a specific, active Morsel.
+    fn get_chunk(&self, morsel: &Morsel, batch_offset: usize) -> Result<Option<RecordBatch>>;
 }
 
 pub trait PhysicalOperator {
@@ -55,37 +67,17 @@ pub trait PhysicalSink {
 /// when all depended pipelines are finished
 pub struct Pipeline {
     pub id: usize,
-    // Operators are stateless and in-place vector transformers. And they are never
-    // shared between different pipelines.
-    // Sources and Sinks are almost isolated, unless for pipeline breakers (such as
-    // Joins or Group By), the Source and Sink are distinct, separate objects, and
-    // they share their state table internally
     pub source: Box<dyn PhysicalSource>,
     pub operators: Vec<Box<dyn PhysicalOperator>>,
     pub sink: Box<dyn PhysicalSink>,
     /// List of Pipeline IDs that MUST execute and complete before this pipeline can run
     pub dependencies: Vec<usize>,
-    /// Number of concurrent partitions (threads) to execute this pipeline on
+    /// Number of concurrent partitions (morsels) inside this pipeline
     pub partitions: usize,
 }
 
 impl Pipeline {
     pub fn add_dependency(&mut self, id: usize) {
         self.dependencies.push(id);
-    }
-}
-
-/// Represents a single thread running a pipeline for a specific data partition.
-/// It implements the standard push-based execution loop.
-pub struct PipelineTask {
-    pub pipeline: Arc<Pipeline>,
-    pub partition_id: usize,
-}
-
-impl PipelineTask {
-    /// Primary execution loop. Drives data from Source -> Operator Chain -> Sink.
-    pub fn execute(&self) -> Result<()> {
-        // TODO: Push loop: fetch batch, transform in-place, push to sink
-        todo!("implement me!")
     }
 }

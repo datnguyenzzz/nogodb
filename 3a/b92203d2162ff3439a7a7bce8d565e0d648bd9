@@ -1,0 +1,20 @@
+query_engine/src/planner/mod.rs
+  h_42387b1c6b634c 2,7-8,11,20,32-35,41-43,45-66,88,91,111,118,121,128
+query_engine/src/catalog/mod.rs
+  h_42387b1c6b634c 5
+query_engine/src/planner/planner.rs
+  h_42387b1c6b634c 4,7-15,40-60,67-266,268-269,271-302,305-306,308-537,539-1109,1111-1112
+query_engine/src/catalog/provider.rs
+  h_42387b1c6b634c 11-12,24-36
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "3ab92203d2162ff3439a7a7bce8d565e0d648bd9",
+  "prompts": {},
+  "humans": {
+    "h_42387b1c6b634c": {
+      "author": "datnguyenzzz <thanh.nguyen@deliveryhero.com>"
+    }
+  }
+}

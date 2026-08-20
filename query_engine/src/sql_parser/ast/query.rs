@@ -116,4 +116,8 @@ pub struct Query {
     pub body: Box<SetExpr>,
     /// ORDER BY
     pub order_by: Option<Vec<OrderByExpr>>,
+    /// LIMIT <number>
+    pub limit: Option<usize>,
+    /// OFFSET <number>
+    pub offset: Option<usize>,
 }

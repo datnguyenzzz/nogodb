@@ -8,8 +8,8 @@ use anyhow::Result;
 use crate::{catalog::TableMetadata, storage::CatalogStorage};
 
 pub struct CatalogProvider {
-    client: Arc<dyn CatalogStorage>,
-    cache: RwLock<HashMap<String, TableMetadata>>,
+    pub client: Arc<dyn CatalogStorage>,
+    pub cache: RwLock<HashMap<String, TableMetadata>>,
 }
 
 impl CatalogProvider {
@@ -20,8 +20,19 @@ impl CatalogProvider {
         }
     }
 
-    /// Primary entry point. Returns cached metadata or initiates an API call to load it.
     pub async fn get_table_metadata(&self, table_name: &str) -> Result<TableMetadata> {
-        todo!("implement me!")
+        {
+            let cache_read = self.cache.read().unwrap();
+            if let Some(meta) = cache_read.get(table_name) {
+                return Ok(meta.clone());
+            }
+        }
+        let meta = self.client.fetch_table_meta(table_name).await?;
+        {
+            let mut cache_write = self.cache.write().unwrap();
+            cache_write.insert(table_name.to_string(), meta.clone());
+        }
+
+        Ok(meta)
     }
 }

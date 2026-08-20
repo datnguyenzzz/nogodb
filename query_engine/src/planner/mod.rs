@@ -1,14 +1,14 @@
 pub mod planner;
+pub use planner::Planner;
 
 pub use crate::sql_parser::ast;
 
-use std::sync::Arc;
-
 use crate::{
-    arrow::{DataType, Schema},
-    planner::ast::operators::BinaryOperator,
+    arrow::{DataType, SchemaRef},
+    planner::ast::operators::{BinaryOperator, UnaryOperator},
 };
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum AggregationFn {
     Sum,
     Count,
@@ -17,6 +17,7 @@ pub enum AggregationFn {
     Avg,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum JoinType {
     Inner,
     Left,
@@ -24,16 +25,45 @@ pub enum JoinType {
     Full,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum LogicalExpr {
     /// A named reference to a column (e.g., `id`, `name`)
     Column(String),
-    /// A literal constant value (e.g., `42`, `"Alice"`)
-    Literal(DataType),
+    /// A multi-part compound column reference (e.g. `users.id` or `db.users.id`)
+    CompoundColumn(Vec<String>),
+    /// A literal value (e.g., `42`, `"Alice"`)
+    Value(ast::expr::Value),
     BinaryOp {
         left: Box<LogicalExpr>,
         op: BinaryOperator,
         right: Box<LogicalExpr>,
     },
+    UnaryOp {
+        op: UnaryOperator,
+        expr: Box<LogicalExpr>,
+    },
+    /// `expr IS NULL`
+    IsNull(Box<LogicalExpr>),
+    /// `expr IS NOT NULL`
+    IsNotNull(Box<LogicalExpr>),
+    /// `expr IS TRUE`
+    IsTrue(Box<LogicalExpr>),
+    /// `expr IS NOT TRUE`
+    IsNotTrue(Box<LogicalExpr>),
+    /// `expr IS FALSE`
+    IsFalse(Box<LogicalExpr>),
+    /// `expr IS NOT FALSE`
+    IsNotFalse(Box<LogicalExpr>),
+    /// `CAST(expr AS data_type)` or `TRY_CAST(expr AS data_type)`
+    Cast {
+        kind: ast::expr::CastKind,
+        expr: Box<LogicalExpr>,
+        data_type: DataType,
+    },
+    /// `CEIL(expr)`
+    Ceil(Box<LogicalExpr>),
+    /// `FLOOR(expr)`
+    Floor(Box<LogicalExpr>),
     /// An aggregate function call (e.g., `SUM(amount)`, `COUNT(*)`)
     Aggregation {
         op: AggregationFn,
@@ -45,18 +75,27 @@ pub enum LogicalExpr {
     },
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct LogicalColumnDef {
     pub name: String,
     pub data_type: DataType,
 }
 
+#[derive(Debug)]
 pub enum LogicalPlan {
     // Query + Relational
     /// Reads data from a physical table partition, optionally pruning columns
+    /// by the query optimizer
     Scan {
         table_name: String,
-        schema: Arc<Schema>,
+        schema: SchemaRef,
         projections: Option<Vec<String>>,
+    },
+
+    /// A relation consisting of a set of literal rows (representing a `VALUES` clause)
+    Values {
+        schema: SchemaRef,
+        values: Vec<Vec<LogicalExpr>>,
     },
 
     /// Evaluates predicate and filters rows (representing `WHERE` clauses)
@@ -69,23 +108,24 @@ pub enum LogicalPlan {
     Projection {
         exprs: Vec<LogicalExpr>,
         input: Box<LogicalPlan>,
-        schema: Arc<Schema>,
+        schema: SchemaRef,
     },
 
     /// Joins two datasets (representing `JOIN` chains)
     HashJoin {
         left: Box<LogicalPlan>,
         right: Box<LogicalPlan>,
+        // join on on.0 == on.1
         on: Vec<(LogicalExpr, LogicalExpr)>,
         join_type: JoinType,
-        schema: Arc<Schema>,
+        schema: SchemaRef,
     },
 
     /// Aggregates and groups data (representing `GROUP BY` and aggregate selections)
     Aggregate {
         group_by: Vec<LogicalExpr>,
         input: Box<LogicalPlan>,
-        schema: Arc<Schema>,
+        schema: SchemaRef,
     },
 
     /// Sorts rows by expressions (representing `ORDER BY` clauses)

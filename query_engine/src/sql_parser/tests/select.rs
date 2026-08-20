@@ -642,3 +642,41 @@ fn err_select_garbage_input() {
 fn err_select_table_is_literal() {
     assert!(try_parse("SELECT a, b FROM 123;").is_err());
 }
+
+// J. Limit & Offset
+
+#[test]
+fn select_with_limit() {
+    let q = parse_query("SELECT a, b FROM t LIMIT 10;");
+    assert_eq!(q.limit, Some(10));
+    assert_eq!(q.offset, None);
+}
+
+#[test]
+fn select_with_offset() {
+    let q = parse_query("SELECT a, b FROM t OFFSET 5;");
+    assert_eq!(q.limit, None);
+    assert_eq!(q.offset, Some(5));
+}
+
+#[test]
+fn select_with_limit_and_offset() {
+    let q = parse_query("SELECT a, b FROM t LIMIT 20 OFFSET 15;");
+    assert_eq!(q.limit, Some(20));
+    assert_eq!(q.offset, Some(15));
+}
+
+#[test]
+fn err_select_limit_dangling() {
+    assert!(try_parse("SELECT a, b FROM t LIMIT;").is_err());
+}
+
+#[test]
+fn err_select_limit_is_not_number() {
+    assert!(try_parse("SELECT a, b FROM t LIMIT abc;").is_err());
+}
+
+#[test]
+fn err_select_offset_dangling() {
+    assert!(try_parse("SELECT a, b FROM t OFFSET;").is_err());
+}

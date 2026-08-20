@@ -865,10 +865,59 @@ impl Parser {
     /// preceded with some `WITH` CTE declarations and optionally followed
     /// by `ORDER BY`.
     fn parse_query(&mut self) -> Result<Box<Query>, ParserError> {
+        let body = self.parse_query_body()?;
+        let order_by = self.parse_optional_order_by()?;
+        let limit = self.parse_optional_limit()?;
+        let offset = self.parse_optional_offset()?;
+
         Ok(Box::new(Query {
-            body: self.parse_query_body()?,
-            order_by: self.parse_optional_order_by()?,
+            body,
+            order_by,
+            limit,
+            offset,
         }))
+    }
+
+    /// Helper to parse standard "LIMIT <number>" clauses
+    fn parse_optional_limit(&mut self) -> Result<Option<usize>, ParserError> {
+        if self.check_then_consume_keyword(Keyword::LIMIT).is_ok() {
+            let next_tok = self.peek_nth_token(0);
+            match &next_tok.token {
+                Token::Number(val, _) => {
+                    let limit_val = val.parse::<usize>().map_err(|e| {
+                        ParserError::ParserError(format!("Invalid LIMIT number: {e}"))
+                    })?;
+                    self.advance_token();
+                    Ok(Some(limit_val))
+                }
+                e => Err(ParserError::ParserError(format!(
+                    "Expected a number after LIMIT, got {e}"
+                ))),
+            }
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Helper to parse standard "OFFSET <number>" clauses
+    fn parse_optional_offset(&mut self) -> Result<Option<usize>, ParserError> {
+        if self.check_then_consume_keyword(Keyword::OFFSET).is_ok() {
+            let next_tok = self.peek_nth_token(0);
+            match &next_tok.token {
+                Token::Number(val, _) => {
+                    let offset_val = val.parse::<usize>().map_err(|e| {
+                        ParserError::ParserError(format!("Invalid OFFSET number: {e}"))
+                    })?;
+                    self.advance_token();
+                    Ok(Some(offset_val))
+                }
+                e => Err(ParserError::ParserError(format!(
+                    "Expected a number after OFFSET, got {e}"
+                ))),
+            }
+        } else {
+            Ok(None)
+        }
     }
 
     /// The SQL INSERT INTO <table> Statement

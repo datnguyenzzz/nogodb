@@ -70,6 +70,8 @@ fn values_query(exprs: Vec<Expr>) -> Box<Query> {
     Box::new(Query {
         body: Box::new(SetExpr::Values(Parens { content: exprs })),
         order_by: None,
+        limit: None,
+        offset: None,
     })
 }
 

@@ -7,7 +7,7 @@ use anyhow::{Result, anyhow};
 
 // Arrow Data type \\
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum DataType {
     Boolean,
     Int8,
@@ -296,6 +296,7 @@ pub struct Field {
 
 pub type FieldRef = Arc<Field>;
 
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Fields(Arc<[FieldRef]>);
 
 impl Deref for Fields {
@@ -333,6 +334,7 @@ impl Default for Fields {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Schema {
     pub fields: Fields,
 }

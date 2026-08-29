@@ -1,0 +1,20 @@
+query_engine/src/optimiser/equivalent_filter.rs
+  h_42387b1c6b634c 1-1202
+query_engine/src/planner/planner.rs
+  h_42387b1c6b634c 83-86,89-99,109-110,112-114,116,510,1140-1172
+query_engine/src/planner/mod.rs
+  h_42387b1c6b634c 7,80-88,181-183
+query_engine/src/optimiser/mod.rs
+  h_42387b1c6b634c 1-2,23
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "f2fa6922e860f1d6174f6b07a663ef9da5b77405",
+  "prompts": {},
+  "humans": {
+    "h_42387b1c6b634c": {
+      "author": "datnguyenzzz <thanh.nguyen@deliveryhero.com>"
+    }
+  }
+}

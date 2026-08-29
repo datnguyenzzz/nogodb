@@ -48,9 +48,7 @@ fn has_aggregation(expr: &LogicalExpr) -> bool {
         LogicalExpr::IsNull(expr) => has_aggregation(expr),
         LogicalExpr::IsNotNull(expr) => has_aggregation(expr),
         LogicalExpr::IsTrue(expr) => has_aggregation(expr),
-        LogicalExpr::IsNotTrue(expr) => has_aggregation(expr),
         LogicalExpr::IsFalse(expr) => has_aggregation(expr),
-        LogicalExpr::IsNotFalse(expr) => has_aggregation(expr),
         LogicalExpr::Cast { expr, .. } => has_aggregation(expr),
         LogicalExpr::Ceil(expr) => has_aggregation(expr),
         LogicalExpr::Floor(expr) => has_aggregation(expr),
@@ -82,8 +80,23 @@ impl Planner {
         match expr {
             Expr::Identifier(ident) => {
                 let name = &ident.value;
-                if schema.fields().iter().any(|f| f.name == *name) {
-                    Ok(LogicalExpr::Column(name.to_string()))
+
+                // Find the field in the active schema, matching either raw names ("users.id")
+                // or bare column names ("id" matches field "users.id")
+                if let Some(field) = schema
+                    .fields()
+                    .iter()
+                    .find(|f| f.name == *name || f.name.ends_with(&format!(".{}", name)))
+                {
+                    // Fully qualify the column name using the field's actual canonical name!
+                    if field.name.contains('.') {
+                        let parts: Vec<String> =
+                            field.name.split('.').map(|s| s.to_string()).collect();
+                        Ok(LogicalExpr::CompoundColumn(parts))
+                    } else {
+                        // Table has no prefix (e.g. standalone/mock schema), emit as bare Column
+                        Ok(LogicalExpr::Column(field.name.clone()))
+                    }
                 } else {
                     Err(PlannerError::PlannerError(format!(
                         "Column '{}' not found in table schema",
@@ -93,19 +106,18 @@ impl Planner {
             }
             Expr::CompoundIdentifier(parts) => {
                 let paths: Vec<String> = parts.iter().map(|i| i.value.clone()).collect();
-                // If it is a local column reference (e.g. table_name.col_name)
-                // we can validate the column suffix
-                if let Some(col) = paths.last() {
-                    if schema.fields().iter().any(|f| f.name == *col) {
-                        Ok(LogicalExpr::CompoundColumn(paths))
-                    } else {
-                        Err(PlannerError::PlannerError(format!(
-                            "Column '{}' not found in table schema",
-                            col
-                        )))
-                    }
-                } else {
+                let full_name = paths.join(".");
+                if schema
+                    .fields()
+                    .iter()
+                    .any(|f| f.name == full_name || f.name.ends_with(&format!(".{}", full_name)))
+                {
                     Ok(LogicalExpr::CompoundColumn(paths))
+                } else {
+                    Err(PlannerError::PlannerError(format!(
+                        "Column '{}' not found in table schema",
+                        full_name
+                    )))
                 }
             }
             Expr::Value(val) => Ok(LogicalExpr::Value(val.clone())),
@@ -132,17 +144,9 @@ impl Planner {
                 let compiled_inner = self.plan_expr(*&inner, schema)?;
                 Ok(LogicalExpr::IsTrue(Box::new(compiled_inner)))
             }
-            Expr::IsNotTrue(inner) => {
-                let compiled_inner = self.plan_expr(*&inner, schema)?;
-                Ok(LogicalExpr::IsNotTrue(Box::new(compiled_inner)))
-            }
             Expr::IsFalse(inner) => {
                 let compiled_inner = self.plan_expr(*&inner, schema)?;
                 Ok(LogicalExpr::IsFalse(Box::new(compiled_inner)))
-            }
-            Expr::IsNotFalse(inner) => {
-                let compiled_inner = self.plan_expr(*&inner, schema)?;
-                Ok(LogicalExpr::IsNotFalse(Box::new(compiled_inner)))
             }
             Expr::Cast {
                 kind,
@@ -385,7 +389,8 @@ impl Planner {
             .columns
             .into_iter()
             .map(|(name, dt)| Field {
-                name,
+                // Automatically prefix each column name with table name to fully qualify it!
+                name: format!("{}.{}", table_name, name),
                 data_type: dt,
                 nullable: true,
             })
@@ -396,6 +401,7 @@ impl Planner {
             table_name,
             schema: schema.clone(),
             projections: None,
+            pruner: None,
         };
 
         Ok((plan, schema))
@@ -501,7 +507,13 @@ impl Planner {
                 }
                 SelectItem::Wildcard => {
                     for field in schema.fields().iter() {
-                        exprs.push(LogicalExpr::Column(field.name.clone()));
+                        if field.name.contains('.') {
+                            let parts: Vec<String> =
+                                field.name.split('.').map(|s| s.to_string()).collect();
+                            exprs.push(LogicalExpr::CompoundColumn(parts));
+                        } else {
+                            exprs.push(LogicalExpr::Column(field.name.clone()));
+                        }
                     }
                 }
             }
@@ -609,7 +621,7 @@ impl Planner {
         })
     }
 
-    /// Compiles an Update AST into an UPDATE LogicalPlan
+    /// Compiles an Update AST into an [`LogicalPlan::Update`]
     async fn plan_update(&self, update: Update) -> Result<LogicalPlan, PlannerError> {
         let table_name = match update.table {
             TableFactor::Table { name, .. } => name.value.clone(),
@@ -650,7 +662,7 @@ impl Planner {
         })
     }
 
-    /// Compiles an Delete AST into an DELETE LogicalPlan
+    /// Compiles an Delete AST into an[`LogicalPlan::Delete`]
     async fn plan_delete(&self, delete: Delete) -> Result<LogicalPlan, PlannerError> {
         let table_factor = match delete.from.first() {
             Some(tf) => tf,
@@ -779,8 +791,12 @@ mod tests {
         let proj_node = match plan {
             LogicalPlan::Projection { exprs, input, .. } => {
                 assert_eq!(exprs.len(), 2);
-                assert!(matches!(&exprs[0], LogicalExpr::Column(name) if name == "id"));
-                assert!(matches!(&exprs[1], LogicalExpr::Column(name) if name == "name"));
+                assert!(
+                    matches!(&exprs[0], LogicalExpr::CompoundColumn(parts) if parts[0] == "users" && parts[1] == "id")
+                );
+                assert!(
+                    matches!(&exprs[1], LogicalExpr::CompoundColumn(parts) if parts[0] == "users" && parts[1] == "name")
+                );
                 input
             }
             _ => panic!("Expected Projection top-level node"),
@@ -895,7 +911,9 @@ mod tests {
                 group_by, input, ..
             } => {
                 assert_eq!(group_by.len(), 1);
-                assert!(matches!(&group_by[0], LogicalExpr::Column(name) if name == "age"));
+                assert!(
+                    matches!(&group_by[0], LogicalExpr::CompoundColumn(parts) if parts[0] == "users" && parts[1] == "age")
+                );
                 assert!(
                     matches!(*input, LogicalPlan::Scan { table_name, .. } if table_name == "users")
                 );
@@ -931,9 +949,15 @@ mod tests {
         let proj_node = match plan {
             LogicalPlan::Projection { exprs, input, .. } => {
                 assert_eq!(exprs.len(), 3); // id, name, active
-                assert!(matches!(&exprs[0], LogicalExpr::Column(name) if name == "id"));
-                assert!(matches!(&exprs[1], LogicalExpr::Column(name) if name == "name"));
-                assert!(matches!(&exprs[2], LogicalExpr::Column(name) if name == "active"));
+                assert!(
+                    matches!(&exprs[0], LogicalExpr::CompoundColumn(parts) if parts[0] == "users" && parts[1] == "id")
+                );
+                assert!(
+                    matches!(&exprs[1], LogicalExpr::CompoundColumn(parts) if parts[0] == "users" && parts[1] == "name")
+                );
+                assert!(
+                    matches!(&exprs[2], LogicalExpr::CompoundColumn(parts) if parts[0] == "users" && parts[1] == "active")
+                );
                 input
             }
             _ => panic!("Expected Projection top-level node"),
@@ -980,7 +1004,9 @@ mod tests {
         let sort_node = match plan {
             LogicalPlan::Sort { sort_exprs, input } => {
                 assert_eq!(sort_exprs.len(), 1);
-                assert!(matches!(&sort_exprs[0], LogicalExpr::Column(name) if name == "id"));
+                assert!(
+                    matches!(&sort_exprs[0], LogicalExpr::CompoundColumn(parts) if parts[0] == "users" && parts[1] == "id")
+                );
                 input
             }
             _ => panic!("Expected Sort top-level node"),
@@ -1110,5 +1136,69 @@ mod tests {
 
         let plan_err = planner.plan_statment(statement).await.unwrap_err();
         assert!(plan_err.to_string().contains("Column count mismatch"));
+    }
+
+    #[tokio::test]
+    async fn test_plan_shorthand_canonicalization_and_joins() {
+        let catalog = Arc::new(MockCatalog::new());
+        // Add table with raw, un-prefixed columns in catalog
+        catalog.add_table(
+            "users",
+            vec![
+                ("id", DataType::Int32),
+                ("name", DataType::Utf8),
+                ("active", DataType::Boolean),
+            ],
+        );
+
+        let provider = Arc::new(CatalogProvider::new(catalog));
+        let planner = Planner::new(provider);
+
+        // Parse query using un-prefixed bare names
+        let sql = "SELECT id, name FROM users WHERE active = true;";
+        let mut parser = crate::sql_parser::Parser::default();
+        let statements = parser.parse_sql(sql).unwrap();
+        let statement = statements.into_iter().next().unwrap();
+
+        let plan = planner.plan_statment(statement).await.unwrap();
+
+        // Assert that the compiled plan has fully qualified table-prefixed compound columns
+        let proj_node = match plan {
+            LogicalPlan::Projection { exprs, input, .. } => {
+                assert_eq!(exprs.len(), 2);
+
+                // Un-prefixed "id" became fully qualified "users.id"!
+                assert!(
+                    matches!(&exprs[0], LogicalExpr::CompoundColumn(parts) if parts[0] == "users" && parts[1] == "id")
+                );
+                assert!(
+                    matches!(&exprs[1], LogicalExpr::CompoundColumn(parts) if parts[0] == "users" && parts[1] == "name")
+                );
+                input
+            }
+            _ => panic!("Expected Projection top-level node"),
+        };
+
+        // Assert under Projection is Filter containing qualified predicate (users.active = true)
+        let filter_node = match *proj_node {
+            LogicalPlan::Filter { predicate, input } => {
+                assert!(
+                    matches!(predicate, LogicalExpr::BinaryOp { ref left, .. } if matches!(**left, LogicalExpr::CompoundColumn(ref parts) if parts[0] == "users" && parts[1] == "active"))
+                );
+                input
+            }
+            _ => panic!("Expected Filter node under Projection"),
+        };
+
+        // Assert Scan leaf node under Filter has full schema qualification
+        match *filter_node {
+            LogicalPlan::Scan { ref schema, .. } => {
+                let fields = schema.fields();
+                assert_eq!(fields[0].name, "users.id");
+                assert_eq!(fields[1].name, "users.name");
+                assert_eq!(fields[2].name, "users.active");
+            }
+            _ => panic!("Expected Scan leaf node"),
+        }
     }
 }

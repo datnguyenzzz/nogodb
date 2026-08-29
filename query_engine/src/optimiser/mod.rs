@@ -1,5 +1,8 @@
+pub mod equivalent_filter;
+
 use anyhow::Result;
 
+use crate::optimiser::equivalent_filter::EquivalenceFilterPropagation;
 use crate::planner::LogicalPlan;
 
 /// Shared trait implemented by every individual optimizer pass
@@ -17,8 +20,10 @@ pub struct Optimiser {
 
 impl Default for Optimiser {
     fn default() -> Self {
-        // TODO: Add more optimiser rules here
-        Optimiser { rules: vec![] }
+        // Sequentially execute registered optimization rules!
+        Optimiser {
+            rules: vec![Box::new(EquivalenceFilterPropagation)],
+        }
     }
 }
 

@@ -4,7 +4,7 @@ pub use planner::Planner;
 pub use crate::sql_parser::ast;
 
 use crate::{
-    arrow::{DataType, SchemaRef},
+    arrow::{DataType, Schema, SchemaRef},
     planner::ast::operators::{BinaryOperator, UnaryOperator},
 };
 
@@ -48,12 +48,8 @@ pub enum LogicalExpr {
     IsNotNull(Box<LogicalExpr>),
     /// `expr IS TRUE`
     IsTrue(Box<LogicalExpr>),
-    /// `expr IS NOT TRUE`
-    IsNotTrue(Box<LogicalExpr>),
     /// `expr IS FALSE`
     IsFalse(Box<LogicalExpr>),
-    /// `expr IS NOT FALSE`
-    IsNotFalse(Box<LogicalExpr>),
     /// `CAST(expr AS data_type)` or `TRY_CAST(expr AS data_type)`
     Cast {
         kind: ast::expr::CastKind,
@@ -81,6 +77,16 @@ pub struct LogicalColumnDef {
     pub data_type: DataType,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+/// Represents a runtime dynamic predicate identifier pushed from a HashJoin build-side
+pub struct DynamicJoinPruner {
+    pub join_id: usize,
+    /// The join-key column being tracked on the build-side
+    pub build_col: String,
+    /// The target column on the probe-side where the filter is applied
+    pub probe_col: String,
+}
+
 #[derive(Debug)]
 pub enum LogicalPlan {
     // Query + Relational
@@ -90,6 +96,7 @@ pub enum LogicalPlan {
         table_name: String,
         schema: SchemaRef,
         projections: Option<Vec<String>>,
+        pruner: Option<Vec<DynamicJoinPruner>>,
     },
 
     /// A relation consisting of a set of literal rows (representing a `VALUES` clause)
@@ -170,4 +177,17 @@ pub enum LogicalPlan {
     },
 
     ShowTables,
+}
+
+impl LogicalPlan {
+    pub fn schema(&self) -> Option<Schema> {
+        match self {
+            LogicalPlan::Scan { schema, .. }
+            | LogicalPlan::Values { schema, .. }
+            | LogicalPlan::Projection { schema, .. }
+            | LogicalPlan::HashJoin { schema, .. }
+            | LogicalPlan::Aggregate { schema, .. } => Some(schema.as_ref().clone()),
+            _ => None,
+        }
+    }
 }

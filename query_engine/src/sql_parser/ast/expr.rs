@@ -71,12 +71,8 @@ pub enum Expr {
     CompoundIdentifier(Vec<Ident>),
     /// `IS FALSE` operator
     IsFalse(Box<Expr>),
-    /// `IS NOT FALSE` operator
-    IsNotFalse(Box<Expr>),
     /// `IS TRUE` operator
     IsTrue(Box<Expr>),
-    /// `IS NOT TRUE` operator
-    IsNotTrue(Box<Expr>),
     /// `IS NULL` operator
     IsNull(Box<Expr>),
     /// `IS NOT NULL` operator

@@ -6,8 +6,11 @@ use std::{
 use anyhow::Result;
 
 use crate::{
-    optimiser::OptimiserRule,
-    planner::{LogicalExpr, LogicalPlan, ast::operators::BinaryOperator},
+    optimiser::{
+        OptimiserRule, accumulate_columns, get_column_canonical_name,
+        make_column_from_canonical_name, rebuild_conjunction, split_conjunction,
+    },
+    planner::{LogicalExpr, LogicalPlan},
 };
 
 /// Manage column equivalence relations in near-constant O(α(N)) time
@@ -15,77 +18,6 @@ use crate::{
 struct EquivalenceClass {
     parent: HashMap<String, String>,
     rank: HashMap<String, usize>,
-}
-
-/// Extracts the canonical dot-separated column name (e.g. "users.id")
-fn get_column_canonical_name(expr: &LogicalExpr) -> Option<String> {
-    match expr {
-        LogicalExpr::Column(name) => Some(name.clone()),
-        LogicalExpr::CompoundColumn(parts) => Some(parts.join(".")),
-        _ => None,
-    }
-}
-
-/// Builds a Column or CompoundColumn from a canonical name
-fn make_column_from_canonical_name(name: String) -> LogicalExpr {
-    if name.contains('.') {
-        LogicalExpr::CompoundColumn(name.split('.').map(|s| s.to_string()).collect())
-    } else {
-        LogicalExpr::Column(name)
-    }
-}
-
-/// Recursively extracts all column names referenced inside a LogicalExpr.
-fn accumulate_columns(predicate: &LogicalExpr, cols: &mut HashSet<String>) {
-    match predicate {
-        LogicalExpr::Column(col) => {
-            cols.insert(col.to_string());
-        }
-        LogicalExpr::CompoundColumn(parts) => {
-            cols.insert(parts.join("."));
-        }
-        LogicalExpr::BinaryOp { left, right, .. } => {
-            accumulate_columns(left, cols);
-            accumulate_columns(right, cols);
-        }
-        LogicalExpr::IsNull(expr)
-        | LogicalExpr::IsNotNull(expr)
-        | LogicalExpr::IsTrue(expr)
-        | LogicalExpr::IsFalse(expr) => {
-            accumulate_columns(expr, cols);
-        }
-        _ => {}
-    }
-}
-
-/// Recursively splits an expression tree of `AND` conjuncts into a flat
-/// list of independent expressions. Consume the requested expr
-fn split_conjunction(expr: LogicalExpr, acc: &mut Vec<LogicalExpr>) {
-    match expr {
-        LogicalExpr::BinaryOp { left, op, right } if op == BinaryOperator::And => {
-            split_conjunction(*left, acc);
-            split_conjunction(*right, acc);
-        }
-        other => acc.push(other),
-    }
-}
-
-/// Reconstructs a flat list of independent conjuncts back into a single
-/// `AND` expression tree.
-pub fn rebuild_conjunction(mut conjuncts: Vec<LogicalExpr>) -> Option<LogicalExpr> {
-    if conjuncts.is_empty() {
-        return None;
-    }
-    let mut root = conjuncts.pop().unwrap();
-    while let Some(expr) = conjuncts.pop() {
-        root = LogicalExpr::BinaryOp {
-            left: Box::new(expr),
-            op: BinaryOperator::And,
-            right: Box::new(root),
-        }
-    }
-
-    Some(root)
 }
 
 impl EquivalenceClass {
@@ -384,6 +316,19 @@ impl EquivalenceFilterPropagation {
                 on: on.to_vec(),
                 join_type,
                 schema: schema.clone(),
+            }),
+            LogicalPlan::Limit {
+                limit,
+                offset,
+                input,
+            } => Ok(LogicalPlan::Limit {
+                limit,
+                offset,
+                input: Box::new(self.pushdown_propagated_filters(*input, eq_class)?),
+            }),
+            LogicalPlan::Sort { sort_exprs, input } => Ok(LogicalPlan::Sort {
+                sort_exprs,
+                input: Box::new(self.pushdown_propagated_filters(*input, eq_class)?),
             }),
             other => Ok(other),
         }

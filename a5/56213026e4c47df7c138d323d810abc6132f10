@@ -1,0 +1,18 @@
+query_engine/src/optimiser/mod.rs
+  h_42387b1c6b634c 1,4-5,10-11,13-84,104-106
+query_engine/src/optimiser/equivalent_filter.rs
+  h_42387b1c6b634c 9-12,320-332
+query_engine/src/optimiser/dynamic_join_pushdown.rs
+  h_42387b1c6b634c 1-428
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "a556213026e4c47df7c138d323d810abc6132f10",
+  "prompts": {},
+  "humans": {
+    "h_42387b1c6b634c": {
+      "author": "datnguyenzzz <thanh.nguyen@deliveryhero.com>"
+    }
+  }
+}

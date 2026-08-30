@@ -1,0 +1,16 @@
+query_engine/src/optimiser/mod.rs
+  h_42387b1c6b634c 3,11,108
+query_engine/src/optimiser/projection_pushdown.rs
+  h_42387b1c6b634c 1-201
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "5bd035f547ea148ff80a0ba9dd5f44b6c13a9a31",
+  "prompts": {},
+  "humans": {
+    "h_42387b1c6b634c": {
+      "author": "datnguyenzzz <thanh.nguyen@deliveryhero.com>"
+    }
+  }
+}

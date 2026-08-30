@@ -1,5 +1,6 @@
 pub mod dynamic_join_pushdown;
 pub mod equivalent_filter;
+pub mod projection_pushdown;
 
 use std::collections::HashSet;
 
@@ -7,6 +8,7 @@ use anyhow::Result;
 
 use crate::optimiser::dynamic_join_pushdown::DynamicJoinFilter;
 use crate::optimiser::equivalent_filter::EquivalenceFilterPropagation;
+use crate::optimiser::projection_pushdown::ProjectionPushdown;
 use crate::planner::ast::operators::BinaryOperator;
 use crate::planner::{LogicalExpr, LogicalPlan};
 
@@ -103,6 +105,7 @@ impl Default for Optimiser {
             rules: vec![
                 Box::new(EquivalenceFilterPropagation),
                 Box::new(DynamicJoinFilter::default()),
+                Box::new(ProjectionPushdown::default()),
             ],
         }
     }

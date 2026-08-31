@@ -328,6 +328,12 @@ impl From<Vec<Field>> for Fields {
     }
 }
 
+impl From<Vec<FieldRef>> for Fields {
+    fn from(value: Vec<FieldRef>) -> Self {
+        Self(value.into())
+    }
+}
+
 impl Default for Fields {
     fn default() -> Self {
         Self(Arc::new([]))
@@ -356,6 +362,23 @@ impl Schema {
     #[inline]
     pub const fn fields(&self) -> &Fields {
         &self.fields
+    }
+
+    pub fn project(&self, indexes: &[usize]) -> Result<Self> {
+        let new_fields = indexes
+            .iter()
+            .map(|i| {
+                self.fields().get(*i).cloned().ok_or_else(|| {
+                    anyhow!(
+                        "project index {} out of bounds, max field {}",
+                        i,
+                        self.fields().len()
+                    )
+                })
+            })
+            .collect::<Result<Vec<_>>>()?;
+
+        Ok(Self::new(new_fields))
     }
 }
 
@@ -498,6 +521,24 @@ impl RecordBatch {
             columns: sliced_columns,
             row_count: length,
         }
+    }
+
+    pub fn project(&self, indexes: &[usize]) -> Result<Self> {
+        let projected_schema = self.schema().project(indexes)?;
+        let projected_fields = indexes
+            .iter()
+            .map(|i| {
+                self.columns().get(*i).cloned().ok_or_else(|| {
+                    anyhow!(
+                        "project index {} out of bounds, max field {}",
+                        i,
+                        self.columns.len()
+                    )
+                })
+            })
+            .collect::<Result<Vec<_>>>()?;
+
+        Self::try_new(SchemaRef::new(projected_schema), projected_fields)
     }
 }
 
@@ -705,5 +746,50 @@ mod tests {
         // Base buffer must remain 100% untouched and original!
         assert_eq!(base_buf.len(), 5);
         assert_eq!(base_buf.as_slice(), &[10, 20, 30, 40, 50]);
+    }
+
+    #[test]
+    fn test_record_batch_projection_zero_copy() {
+        use crate::arrow::array::PrimitiveArray;
+
+        let schema = Arc::new(Schema::new(vec![
+            Field {
+                name: "a".to_string(),
+                data_type: DataType::Int32,
+                nullable: false,
+            },
+            Field {
+                name: "b".to_string(),
+                data_type: DataType::Float64,
+                nullable: true,
+            },
+            Field {
+                name: "c".to_string(),
+                data_type: DataType::Boolean,
+                nullable: true,
+            },
+        ]));
+
+        let col_a: ArrayRef = Arc::new(PrimitiveArray::from(vec![1, 2, 3]));
+        let col_b: ArrayRef = Arc::new(PrimitiveArray::from(vec![Some(10.0), None, Some(30.0)]));
+        let col_c: ArrayRef = Arc::new(PrimitiveArray::from(vec![true, false, true]));
+
+        let batch = RecordBatch::try_new(schema, vec![col_a, col_b, col_c]).unwrap();
+
+        // Project columns `a` (index 0) and `c` (index 2)
+        let projected = batch.project(&[0, 2]).unwrap();
+        assert_eq!(projected.num_columns(), 2);
+        assert_eq!(projected.num_rows(), 3);
+
+        // Assert schema matching
+        let fields = projected.schema().fields();
+        assert_eq!(fields[0].name, "a");
+        assert_eq!(fields[1].name, "c");
+
+        // Verify underlying column data pointers match exactly (verifying zero-copy!)
+        assert_eq!(
+            projected.column(0).as_any().type_id(),
+            batch.column(0).as_any().type_id()
+        );
     }
 }

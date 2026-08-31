@@ -1,6 +1,8 @@
 use std::sync::Arc;
 
-use crate::arrow::{Array, BooleanBuffer, Buffer, DataType, NullBuffer};
+use anyhow::Result;
+
+use crate::arrow::{Array, BooleanBuffer, Buffer, DataType, NullBuffer, array::PrimitiveArray};
 
 pub struct BooleanArray {
     values: BooleanBuffer,
@@ -51,6 +53,143 @@ impl BooleanArray {
         );
 
         self.values.value(index)
+    }
+
+    pub fn iter(&self) -> BooleanIter<'_> {
+        BooleanIter::new(self)
+    }
+
+    pub fn take(&self, indexes: &PrimitiveArray<i32>) -> Result<Self> {
+        let res = indexes
+            .iter()
+            .map(|idx_opt| match idx_opt {
+                Some(idx) => {
+                    let u_idx = idx as usize;
+                    if u_idx >= self.len() {
+                        return None;
+                    }
+                    if self.is_null(u_idx) {
+                        None
+                    } else {
+                        Some(self.value(u_idx))
+                    }
+                }
+                None => None,
+            })
+            .collect();
+        Ok(res)
+    }
+}
+
+pub struct BooleanIter<'a> {
+    array: &'a BooleanArray,
+    current: usize,
+    len: usize,
+}
+
+impl<'a> BooleanIter<'a> {
+    pub fn new(arr: &'a BooleanArray) -> Self {
+        Self {
+            array: arr,
+            current: 0,
+            len: arr.len(),
+        }
+    }
+}
+
+impl<'a> Iterator for BooleanIter<'a> {
+    type Item = Option<bool>;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.current < self.len {
+            let old = self.current;
+            self.current += 1;
+            if self.array.is_null(old) {
+                Some(None)
+            } else {
+                Some(Some(self.array.value(old)))
+            }
+        } else {
+            None
+        }
+    }
+
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (self.len - self.current, Some(self.len - self.current))
+    }
+}
+
+impl<'a> ExactSizeIterator for BooleanIter<'a> {}
+
+impl std::iter::FromIterator<bool> for BooleanArray {
+    fn from_iter<I: IntoIterator<Item = bool>>(iter: I) -> Self {
+        let iterator = iter.into_iter();
+        let (len, _) = iterator.size_hint();
+        let mut value_bytes = vec![0u8; (len + 7) / 8];
+        let mut count = 0;
+        for val in iterator {
+            if val {
+                value_bytes[count / 8] |= 1 << (count % 8);
+            }
+            count += 1;
+        }
+        Self {
+            values: BooleanBuffer::new(Buffer::from(value_bytes), 0, count),
+            nulls: None,
+        }
+    }
+}
+
+impl std::iter::FromIterator<Option<bool>> for BooleanArray {
+    fn from_iter<I: IntoIterator<Item = Option<bool>>>(iter: I) -> Self {
+        let iterator = iter.into_iter();
+        let (len, _) = iterator.size_hint();
+        let mut value_bytes = vec![0u8; (len + 7) / 8];
+        let mut validity_bytes = Vec::with_capacity((len + 7) / 8);
+
+        let mut current_bytes = 0u8;
+        let mut bit_count = 0;
+        let mut has_nulls = false;
+
+        for item in iterator {
+            match item {
+                Some(val) => {
+                    if val {
+                        value_bytes[bit_count / 8] |= 1 << (bit_count % 8);
+                    }
+                    current_bytes |= 1 << (bit_count % 8);
+                }
+                None => {
+                    has_nulls = true;
+                }
+            }
+            bit_count += 1;
+            if bit_count % 8 == 0 {
+                validity_bytes.push(current_bytes);
+                current_bytes = 0u8;
+            }
+        }
+
+        if bit_count % 8 != 0 {
+            validity_bytes.push(current_bytes);
+        }
+
+        let nulls = if has_nulls {
+            Some(NullBuffer::new(BooleanBuffer::new(
+                Buffer::from(validity_bytes),
+                0,
+                bit_count,
+            )))
+        } else {
+            None
+        };
+
+        Self {
+            values: BooleanBuffer::new(Buffer::from(value_bytes), 0, bit_count),
+            nulls,
+        }
     }
 }
 
@@ -163,5 +302,37 @@ mod tests {
         assert!(!sliced_array.value(0));
         assert!(!sliced_array.is_null(1)); // Original index 2 is now sliced 1 (Valid false)
         assert!(!sliced_array.value(1));
+    }
+
+    #[test]
+    fn test_boolean_array_take_and_iter() {
+        // 1. Create source array: [true, None, false, true, None]
+        let original = BooleanArray::from(vec![Some(true), None, Some(false), Some(true), None]);
+
+        // 2. Iterate and verify original values
+        let gathered: Vec<Option<bool>> = original.iter().collect();
+        assert_eq!(
+            gathered,
+            vec![Some(true), None, Some(false), Some(true), None]
+        );
+
+        // 3. Create indices array: [2, 0, null, 3, 100]
+        let indices = PrimitiveArray::from(vec![Some(2i32), Some(0), None, Some(3), Some(100)]);
+
+        // 4. Perform take!
+        let taken = original.take(&indices).unwrap();
+
+        assert_eq!(taken.len(), 5);
+        let taken_gathered: Vec<Option<bool>> = taken.iter().collect();
+
+        // Index 2 -> Some(false)
+        // Index 0 -> Some(true)
+        // Index null -> None
+        // Index 3 -> Some(true)
+        // Index 100 (out of bounds) -> None
+        assert_eq!(
+            taken_gathered,
+            vec![Some(false), Some(true), None, Some(true), None]
+        );
     }
 }

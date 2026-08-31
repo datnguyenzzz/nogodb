@@ -2,7 +2,11 @@
 
 use std::{ptr, sync::Arc};
 
-use crate::arrow::{Array, ArrayRef, BooleanBuffer, Buffer, DataType, NullBuffer};
+use anyhow::Result;
+
+use crate::arrow::{
+    Array, ArrayRef, BooleanBuffer, Buffer, DataType, NullBuffer, array::PrimitiveArray,
+};
 
 pub struct StringArray {
     offsets_value: Buffer, // each offset value is i32
@@ -66,6 +70,101 @@ impl StringArray {
 
         let bytes = &self.data_value.as_slice()[start..end];
         unsafe { str::from_utf8_unchecked(bytes) }
+    }
+
+    pub fn iter(&self) -> StringIter<'_> {
+        StringIter::new(self)
+    }
+
+    pub fn take(&self, indexes: &PrimitiveArray<i32>) -> Result<Self> {
+        let res = indexes
+            .iter()
+            .map(|idx_opt| match idx_opt {
+                Some(idx) => {
+                    let u_idx = idx as usize;
+                    if u_idx >= self.len() {
+                        return None;
+                    }
+                    if self.is_null(u_idx) {
+                        None
+                    } else {
+                        Some(self.value(u_idx))
+                    }
+                }
+                None => None,
+            })
+            .collect();
+        Ok(res)
+    }
+}
+
+pub struct StringIter<'a> {
+    array: &'a StringArray,
+    current: usize,
+    len: usize,
+}
+
+impl<'a> StringIter<'a> {
+    pub fn new(arr: &'a StringArray) -> Self {
+        Self {
+            array: arr,
+            current: 0,
+            len: arr.len(),
+        }
+    }
+}
+
+impl<'a> Iterator for StringIter<'a> {
+    type Item = Option<&'a str>;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.current < self.len {
+            let old = self.current;
+            self.current += 1;
+            if self.array.is_null(old) {
+                Some(None)
+            } else {
+                Some(Some(self.array.value(old)))
+            }
+        } else {
+            None
+        }
+    }
+
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (self.len - self.current, Some(self.len - self.current))
+    }
+}
+
+impl<'a> ExactSizeIterator for StringIter<'a> {}
+
+impl<'a> std::iter::FromIterator<Option<&'a str>> for StringArray {
+    fn from_iter<I: IntoIterator<Item = Option<&'a str>>>(iter: I) -> Self {
+        let vec: Vec<Option<&str>> = iter.into_iter().collect();
+        StringArray::from(vec)
+    }
+}
+
+impl std::iter::FromIterator<Option<String>> for StringArray {
+    fn from_iter<I: IntoIterator<Item = Option<String>>>(iter: I) -> Self {
+        let vec: Vec<Option<String>> = iter.into_iter().collect();
+        StringArray::from(vec)
+    }
+}
+
+impl<'a> std::iter::FromIterator<&'a str> for StringArray {
+    fn from_iter<I: IntoIterator<Item = &'a str>>(iter: I) -> Self {
+        let vec: Vec<&str> = iter.into_iter().collect();
+        StringArray::from(vec)
+    }
+}
+
+impl std::iter::FromIterator<String> for StringArray {
+    fn from_iter<I: IntoIterator<Item = String>>(iter: I) -> Self {
+        let vec: Vec<String> = iter.into_iter().collect();
+        StringArray::from(vec)
     }
 }
 
@@ -229,5 +328,43 @@ mod tests {
         assert_eq!(sliced_array.len(), 2);
         assert_eq!(sliced_array.value(0), "Bob");
         assert_eq!(sliced_array.value(1), "Charlie");
+    }
+
+    #[test]
+    fn test_string_array_take_and_iter() {
+        // 1. Create source array: ["Alice", None, "Bob", "Charlie", None]
+        let original = StringArray::from(vec![
+            Some("Alice"),
+            None,
+            Some("Bob"),
+            Some("Charlie"),
+            None,
+        ]);
+
+        // 2. Iterate and verify original values
+        let gathered: Vec<Option<&str>> = original.iter().collect();
+        assert_eq!(
+            gathered,
+            vec![Some("Alice"), None, Some("Bob"), Some("Charlie"), None]
+        );
+
+        // 3. Create indices array: [2, 0, null, 3, 100]
+        let indices = PrimitiveArray::from(vec![Some(2i32), Some(0), None, Some(3), Some(100)]);
+
+        // 4. Perform take!
+        let taken = original.take(&indices).unwrap();
+
+        assert_eq!(taken.len(), 5);
+        let taken_gathered: Vec<Option<&str>> = taken.iter().collect();
+
+        // Index 2 -> Some("Bob")
+        // Index 0 -> Some("Alice")
+        // Index null -> None
+        // Index 3 -> Some("Charlie")
+        // Index 100 (out of bounds) -> None
+        assert_eq!(
+            taken_gathered,
+            vec![Some("Bob"), Some("Alice"), None, Some("Charlie"), None]
+        );
     }
 }

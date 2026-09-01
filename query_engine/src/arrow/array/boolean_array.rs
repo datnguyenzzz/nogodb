@@ -79,6 +79,30 @@ impl BooleanArray {
             .collect();
         Ok(res)
     }
+
+    /// Performs a bitwise binary operation with another [`BooleanArray`] returning a new [`BooleanArray`].
+    pub fn bitwise_bin_op<F>(&self, rhs: &BooleanArray, op: F) -> BooleanArray
+    where
+        F: FnMut(u64, u64) -> u64,
+    {
+        assert_eq!(self.len(), rhs.len(), "BooleanArray must have equal length");
+
+        // Apply bitwise operation to the values buffer
+        let new_values = self.values.bitwise_bin_op(&rhs.values, op);
+
+        // Merge validity bitmaps: output is null if either input is null (Standard Null Propagation)
+        let new_nulls = match (&self.nulls, &rhs.nulls) {
+            (Some(n1), Some(n2)) => {
+                let validity_buf = n1.inner().bitwise_bin_op(n2.inner(), |a, b| a & b);
+                Some(NullBuffer::new(validity_buf))
+            }
+            (Some(n1), None) => Some(n1.clone()),
+            (None, Some(n2)) => Some(n2.clone()),
+            (None, None) => None,
+        };
+
+        BooleanArray::new(new_values, new_nulls)
+    }
 }
 
 pub struct BooleanIter<'a> {
@@ -334,5 +358,25 @@ mod tests {
             taken_gathered,
             vec![Some(false), Some(true), None, Some(true), None]
         );
+    }
+
+    #[test]
+    fn test_boolean_array_bitwise_ops() {
+        // LHS: [Some(true), None, Some(false), Some(true)]
+        let lhs = BooleanArray::from(vec![Some(true), None, Some(false), Some(true)]);
+        // RHS: [Some(false), Some(true), None, Some(true)]
+        let rhs = BooleanArray::from(vec![Some(false), Some(true), None, Some(true)]);
+
+        // 1. Bitwise AND: result values should be AND'ed, and nulls propagated
+        // Expected: [Some(false), None, None, Some(true)]
+        let result_and = lhs.bitwise_bin_op(&rhs, |a, b| a & b);
+        let gathered_and: Vec<Option<bool>> = result_and.iter().collect();
+        assert_eq!(gathered_and, vec![Some(false), None, None, Some(true)]);
+
+        // 2. Bitwise OR: result values should be OR'ed, and nulls propagated
+        // Expected: [Some(true), None, None, Some(true)]
+        let result_or = lhs.bitwise_bin_op(&rhs, |a, b| a | b);
+        let gathered_or: Vec<Option<bool>> = result_or.iter().collect();
+        assert_eq!(gathered_or, vec![Some(true), None, None, Some(true)]);
     }
 }

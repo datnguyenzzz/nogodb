@@ -223,6 +223,61 @@ impl BooleanBuffer {
         self.bit_len
     }
 
+    /// Performs a bitwise binary operation with another [`BooleanBuffer`] using u64 word operations.
+    pub fn bitwise_bin_op<F>(&self, rhs: &BooleanBuffer, mut op: F) -> BooleanBuffer
+    where
+        F: FnMut(u64, u64) -> u64,
+    {
+        assert_eq!(self.bit_len, rhs.bit_len, "Boolean buffers must have equal length");
+        let bit_len = self.bit_len;
+        let total_bytes = (bit_len + 7) / 8;
+        let mut result_bytes = vec![0u8; total_bytes];
+
+        if self.bit_offset == 0 && rhs.bit_offset == 0 {
+            // Fast Path: aligned, direct u64 bitwise binary operation!
+            let self_slice = self.buffer.as_slice();
+            let rhs_slice = rhs.buffer.as_slice();
+            let u64_chunks = total_bytes / 8;
+
+            unsafe {
+                let self_ptr_u64 = self_slice.as_ptr() as *const u64;
+                let rhs_ptr_u64 = rhs_slice.as_ptr() as *const u64;
+                let result_ptr_u64 = result_bytes.as_mut_ptr() as *mut u64;
+
+                for i in 0..u64_chunks {
+                    let w1 = *self_ptr_u64.add(i);
+                    let w2 = *rhs_ptr_u64.add(i);
+                    *result_ptr_u64.add(i) = op(w1, w2);
+                }
+            }
+
+            // Tail bytes
+            let processed_bytes = u64_chunks * 8;
+            for i in processed_bytes..total_bytes {
+                let w1 = self_slice[i] as u64;
+                let w2 = rhs_slice[i] as u64;
+                result_bytes[i] = op(w1, w2) as u8;
+            }
+        } else {
+            // Slow Path Fallback: bit-by-bit iteration for unaligned bits
+            for i in 0..bit_len {
+                let bit_lhs = self.value(i);
+                let bit_rhs = rhs.value(i);
+                
+                let w1 = if bit_lhs { 1u64 } else { 0u64 };
+                let w2 = if bit_rhs { 1u64 } else { 0u64 };
+                let bit_res = (op(w1, w2) & 1) != 0;
+
+                if bit_res {
+                    result_bytes[i / 8] |= 1 << (i % 8);
+                }
+            }
+        }
+
+        let buffer = Buffer::from(result_bytes);
+        BooleanBuffer::new(buffer, 0, bit_len)
+    }
+
     /// Returns the number of set bits in this buffer
     pub fn count_set_bits(&self) -> usize {
         let mut count = 0;
@@ -275,6 +330,12 @@ impl NullBuffer {
     #[inline]
     pub fn null_count(&self) -> usize {
         self.null_count
+    }
+
+    /// Returns a reference to the underlying [`BooleanBuffer`] bitmask.
+    #[inline]
+    pub fn inner(&self) -> &BooleanBuffer {
+        &self.buffer
     }
 }
 

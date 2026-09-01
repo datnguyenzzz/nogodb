@@ -19,13 +19,11 @@ pub struct SinkContext {
     pub thread_id: usize,
 }
 
-/// Represents a NUMA-aware dynamic execution block of roughly 100,000 rows.
+/// Represents a NUMA-aware dynamic execution block of roughly [`MORSEL_SIZE`] rows.
+#[derive(Clone)]
 pub struct Morsel {
-    /// Starting row offset in the physical table
     pub start_row: usize,
-    /// Number of active logical rows in this block (typically 100,000)
     pub num_rows: usize,
-    /// The physical NUMA socket where this block's memory resides
     pub numa_node: usize,
 }
 
@@ -51,6 +49,8 @@ pub trait PhysicalSink {
     fn combine(&self) -> Result<()>;
 }
 
+pub type PipelineID = usize;
+
 /// A linear pipeline of execution: Source -> [Operators...] -> Sink
 /// Execution plans for non-trivial SQL queries are assembled by
 /// stitching multiple pipelines together. There are 3 components in
@@ -66,12 +66,11 @@ pub trait PhysicalSink {
 /// A pipeline is depended on other pipelines, meaning it can only be executed
 /// when all depended pipelines are finished
 pub struct Pipeline {
-    pub id: usize,
+    pub id: PipelineID,
     pub source: Box<dyn PhysicalSource>,
     pub operators: Vec<Box<dyn PhysicalOperator>>,
     pub sink: Box<dyn PhysicalSink>,
-    /// List of Pipeline IDs that MUST execute and complete before this pipeline can run
-    pub dependencies: Vec<usize>,
+    pub dependencies: Vec<PipelineID>,
     /// Number of concurrent partitions (morsels) inside this pipeline
     pub partitions: usize,
 }

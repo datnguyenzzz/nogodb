@@ -7,15 +7,15 @@ use crate::execution::{
     pipeline::{Morsel, Pipeline},
 };
 
-pub struct MorselWorker {
+pub struct Worker {
     pub id: usize,
     pub numa_node: usize,
     pub dispatcher: Arc<Dispatcher>,
 }
 
-impl MorselWorker {
+impl Worker {
     pub async fn run_loop(self) -> Result<()> {
-        //  we'd pin this thread to Core `self.id`:
+        // we'd pin this thread to Core `self.id`:
         // execute_vectorized_morsel_loop
         todo!("implement me")
     }
@@ -33,6 +33,22 @@ impl MorselWorker {
 /// The Scheduler coordinates pipeline execution. It builds a dependency graph, schedules
 /// independent tasks on the Tokio thread pool, and when a pipeline finishes, invokes the
 /// sink's `combine()` hook to finalize states before unlocking dependent tasks.
+// Architecture:
+//                                     [ Scheduler ]
+//                                           │
+//                                           ▼  (Register Pipelines & Dependency DAG)
+//                                    [ DISPATCHER ]
+//                                           │
+//               ┌---------------------------┼---------------------------┐
+//               ▼                           ▼                           ▼
+//        [ NUMA 0 Queue ]            [ NUMA 1 Queue ]            [ NUMA 2 Queue ]
+//       (Morsel, Morsel...)         (Morsel, Morsel...)         (Morsel, Morsel...)
+//               ▲                           ▲                           ▲
+//               │ (Pull Local Work First)   │                           │
+//         [ Worker 0 ]                [ Worker 1 ]                [ Worker 2 ]
+//      (Pinned to Core 0)          (Pinned to Core 1)          (Pinned to Core 2)
+//               │                           │                           |
+//               └------(If Local Empty, Steal from other Node)----------┘
 pub struct Scheduler {
     pub numa_nodes: usize,
     pub cores_per_node: usize,

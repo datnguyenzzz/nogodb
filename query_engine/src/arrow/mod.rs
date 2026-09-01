@@ -228,7 +228,10 @@ impl BooleanBuffer {
     where
         F: FnMut(u64, u64) -> u64,
     {
-        assert_eq!(self.bit_len, rhs.bit_len, "Boolean buffers must have equal length");
+        assert_eq!(
+            self.bit_len, rhs.bit_len,
+            "Boolean buffers must have equal length"
+        );
         let bit_len = self.bit_len;
         let total_bytes = (bit_len + 7) / 8;
         let mut result_bytes = vec![0u8; total_bytes];
@@ -263,7 +266,7 @@ impl BooleanBuffer {
             for i in 0..bit_len {
                 let bit_lhs = self.value(i);
                 let bit_rhs = rhs.value(i);
-                
+
                 let w1 = if bit_lhs { 1u64 } else { 0u64 };
                 let w2 = if bit_rhs { 1u64 } else { 0u64 };
                 let bit_res = (op(w1, w2) & 1) != 0;

@@ -39,7 +39,7 @@ impl Client {
             let physical_node = self.physical_generator.create_plan(&optimised_plan)?;
             let mut builder = PlanBuilder::new();
             physical_node.build(&mut builder)?;
-            self.db.scheduler.execute_job(builder.pipelines).await?;
+            self.db.scheduler.execute_job(builder.pipelines)?;
         }
 
         Ok(())

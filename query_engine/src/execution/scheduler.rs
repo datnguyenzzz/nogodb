@@ -14,7 +14,7 @@ pub struct Worker {
 }
 
 impl Worker {
-    pub async fn run_loop(self) -> Result<()> {
+    pub fn run_loop(self) -> Result<()> {
         // we'd pin this thread to Core `self.id`:
         // execute_vectorized_morsel_loop
         todo!("implement me")
@@ -59,7 +59,7 @@ impl Scheduler {
         todo!("implement me")
     }
     /// Spawns parallel worker tasks on Tokio, submitting the query pipeline DAG
-    pub async fn execute_job(&self, pipelines: Vec<Pipeline>) -> Result<()> {
+    pub fn execute_job(&self, pipelines: Vec<Pipeline>) -> Result<()> {
         todo!("implement me")
     }
 }

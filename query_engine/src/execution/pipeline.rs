@@ -27,7 +27,7 @@ pub struct Morsel {
     pub numa_node: usize,
 }
 
-pub trait PhysicalSource: Send + Sync {
+pub trait PhysicalSource {
     /// Dynamically pulls the next available Morsel from this source.
     /// Prefers returning a Morsel local to the caller's `worker_numa_node` (NUMA-locality).
     /// Returns `None` when all data in the table has been fully claimed.

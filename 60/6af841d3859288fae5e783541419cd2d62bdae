@@ -1,0 +1,20 @@
+query_engine/src/execution/README.md
+  h_42387b1c6b634c 1-44
+query_engine/src/execution/pipeline.rs
+  h_42387b1c6b634c 30
+query_engine/src/client.rs
+  h_42387b1c6b634c 42
+query_engine/src/execution/scheduler.rs
+  h_42387b1c6b634c 17
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "606af841d3859288fae5e783541419cd2d62bdae",
+  "prompts": {},
+  "humans": {
+    "h_42387b1c6b634c": {
+      "author": "datnguyenzzz <thanh.nguyen@deliveryhero.com>"
+    }
+  }
+}

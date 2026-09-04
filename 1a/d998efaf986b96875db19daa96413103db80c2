@@ -1,0 +1,24 @@
+query_engine/Dockerfile
+  h_42387b1c6b634c 1-9
+query_engine/src/execution/dispatcher.rs
+  h_42387b1c6b634c 12
+query_engine/Makefile
+  h_42387b1c6b634c 3-6
+query_engine/src/execution/pipeline.rs
+  h_42387b1c6b634c 3
+query_engine/src/execution/mod.rs
+  h_42387b1c6b634c 6-12
+query_engine/src/execution/numa_topology.rs
+  h_42387b1c6b634c 1-295
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "1ad998efaf986b96875db19daa96413103db80c2",
+  "prompts": {},
+  "humans": {
+    "h_42387b1c6b634c": {
+      "author": "datnguyenzzz <thanh.nguyen@deliveryhero.com>"
+    }
+  }
+}

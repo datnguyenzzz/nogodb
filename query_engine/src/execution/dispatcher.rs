@@ -9,7 +9,10 @@ use std::{
 
 use anyhow::Result;
 
-use crate::execution::pipeline::{Morsel, Pipeline, PipelineID};
+use crate::execution::{
+    Morsel,
+    pipeline::{Pipeline, PipelineID},
+};
 
 /// 100_000K is an optimal starting number for the morsel size
 /// according to the benchmark reported in https://dl.acm.org/doi/epdf/10.1145/2588555.2610507

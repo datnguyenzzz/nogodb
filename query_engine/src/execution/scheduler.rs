@@ -2,10 +2,7 @@ use std::sync::Arc;
 
 use anyhow::Result;
 
-use crate::execution::{
-    dispatcher::Dispatcher,
-    pipeline::{Morsel, Pipeline},
-};
+use crate::execution::{Morsel, dispatcher::Dispatcher, pipeline::Pipeline};
 
 pub struct Worker {
     pub id: usize,

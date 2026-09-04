@@ -1,6 +1,6 @@
 use anyhow::Result;
 
-use crate::arrow::RecordBatch;
+use crate::{arrow::RecordBatch, execution::Morsel};
 
 pub enum SinkResult {
     NeedMoreInput,
@@ -17,14 +17,6 @@ pub struct SourceContext {
 pub struct SinkContext {
     /// sink needs to be parallelism-aware
     pub thread_id: usize,
-}
-
-/// Represents a NUMA-aware dynamic execution block of roughly [`MORSEL_SIZE`] rows.
-#[derive(Clone)]
-pub struct Morsel {
-    pub start_row: usize,
-    pub num_rows: usize,
-    pub numa_node: usize,
 }
 
 pub trait PhysicalSource {

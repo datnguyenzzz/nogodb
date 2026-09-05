@@ -286,16 +286,25 @@ define_ipc_types! {
             VT_NULL_COUNT = 6,
             VT_SEGMENT_OFFSET = 8,
             VT_SEGMENT_LENGTH = 10,
+            VT_MIN_VAL = 12,
+            VT_MAX_VAL = 14,
         }
         functions {
             #[inline]
             pub fn length(&self) -> i64 {
                 unsafe { self._tab.get::<i64>(FbMetaNode::VT_LENGTH, Some(0)).unwrap() }
             }
-
             #[inline]
             pub fn null_count(&self) -> i64 {
                 unsafe { self._tab.get::<i64>(FbMetaNode::VT_NULL_COUNT, Some(0)).unwrap() }
+            }
+            #[inline]
+            pub fn min_val(&self) -> i64 {
+                unsafe { self._tab.get::<i64>(FbMetaNode::VT_MIN_VAL, Some(0)).unwrap() }
+            }
+            #[inline]
+            pub fn max_val(&self) -> i64 {
+                unsafe { self._tab.get::<i64>(FbMetaNode::VT_MAX_VAL, Some(0)).unwrap() }
             }
         }
         builder_functions {
@@ -306,6 +315,14 @@ define_ipc_types! {
             #[inline]
             pub fn push_null_count(&mut self, count: i64) {
                 self.fbb.push_slot::<i64>(FbMetaNode::VT_NULL_COUNT, count, 0);
+            }
+            #[inline]
+            pub fn push_min_val(&mut self, val: i64) {
+                self.fbb.push_slot::<i64>(FbMetaNode::VT_MIN_VAL, val, 0);
+            }
+            #[inline]
+            pub fn push_max_val(&mut self, val: i64) {
+                self.fbb.push_slot::<i64>(FbMetaNode::VT_MAX_VAL, val, 0);
             }
         }
     },

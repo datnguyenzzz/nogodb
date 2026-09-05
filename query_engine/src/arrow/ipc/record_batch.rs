@@ -57,8 +57,8 @@ impl<W: Write> Writer<W> {
     /// Serializes and compresses a `RecordBatch` into a standard, zero-deserialization Arrow IPC packet
     fn write_record_batch(&mut self, batch: &RecordBatch) -> Result<()> {
         let mut body_bytes: Vec<u8> = Vec::new();
-        // represents (column length, null count) of column
-        let mut nodes: Vec<(i64, i64)> = Vec::new();
+        // represents (column length, null count, min value, max value) of column
+        let mut nodes: Vec<(i64, i64, i64, i64)> = Vec::new();
         // represents (offset, length) of a continous decoded block
         let mut segments: Vec<(i64, i64)> = Vec::new();
 
@@ -100,9 +100,91 @@ impl<W: Write> Writer<W> {
 
         // Gather all nodes (logical properties) and segments (physical offsets)
         for col_ref in batch.columns() {
+            // calculate min/max of the column
+            let (min_val, max_val) = match col_ref.data_type() {
+                DataType::Int8 => {
+                    let prim = col_ref
+                        .as_any()
+                        .downcast_ref::<PrimitiveArray<i8>>()
+                        .unwrap();
+                    let min = prim.iter().flatten().min().unwrap_or(0) as i64;
+                    let max = prim.iter().flatten().max().unwrap_or(0) as i64;
+                    (min, max)
+                }
+                DataType::Int16 => {
+                    let prim = col_ref
+                        .as_any()
+                        .downcast_ref::<PrimitiveArray<i16>>()
+                        .unwrap();
+                    let min = prim.iter().flatten().min().unwrap_or(0) as i64;
+                    let max = prim.iter().flatten().max().unwrap_or(0) as i64;
+                    (min, max)
+                }
+                DataType::Int32 => {
+                    let prim = col_ref
+                        .as_any()
+                        .downcast_ref::<PrimitiveArray<i32>>()
+                        .unwrap();
+                    let min = prim.iter().flatten().min().unwrap_or(0) as i64;
+                    let max = prim.iter().flatten().max().unwrap_or(0) as i64;
+                    (min, max)
+                }
+                DataType::Int64 => {
+                    let prim = col_ref
+                        .as_any()
+                        .downcast_ref::<PrimitiveArray<i64>>()
+                        .unwrap();
+                    let min = prim.iter().flatten().min().unwrap_or(0) as i64;
+                    let max = prim.iter().flatten().max().unwrap_or(0) as i64;
+                    (min, max)
+                }
+                DataType::Float32 => {
+                    let prim = col_ref
+                        .as_any()
+                        .downcast_ref::<PrimitiveArray<f32>>()
+                        .unwrap();
+                    let min = prim
+                        .iter()
+                        .flatten()
+                        .filter(|&x| !x.is_nan())
+                        .min_by(|a, b| a.partial_cmp(b).unwrap())
+                        .unwrap_or(0.0);
+                    let max = prim
+                        .iter()
+                        .flatten()
+                        .filter(|&x| !x.is_nan())
+                        .max_by(|a, b| a.partial_cmp(b).unwrap())
+                        .unwrap_or(0.0);
+                    (min.to_bits() as i64, max.to_bits() as i64)
+                }
+                DataType::Float64 => {
+                    let prim = col_ref
+                        .as_any()
+                        .downcast_ref::<PrimitiveArray<f64>>()
+                        .unwrap();
+                    let min = prim
+                        .iter()
+                        .flatten()
+                        .filter(|&x| !x.is_nan())
+                        .min_by(|a, b| a.partial_cmp(b).unwrap())
+                        .unwrap_or(0.0);
+                    let max = prim
+                        .iter()
+                        .flatten()
+                        .filter(|&x| !x.is_nan())
+                        .max_by(|a, b| a.partial_cmp(b).unwrap())
+                        .unwrap_or(0.0);
+                    (min.to_bits() as i64, max.to_bits() as i64)
+                }
+                // TODO: We can support min-max pruner for utf-8 columns, can't we ?
+                _ => (0, 0),
+            };
+
             nodes.push((
                 col_ref.len() as i64,
                 col_ref.nulls().map(|n| n.null_count()).unwrap_or_default() as i64,
+                min_val,
+                max_val,
             ));
 
             compress_and_encode(
@@ -125,16 +207,18 @@ impl<W: Write> Writer<W> {
         &mut self,
         rows: i32,
         body_bytes: Vec<u8>,
-        nodes: Vec<(i64, i64)>,
+        nodes: Vec<(i64, i64, i64, i64)>,
         segments: Vec<(i64, i64)>,
     ) -> Result<()> {
         let mut fbb = FlatBufferBuilder::new();
 
         let mut fb_nodes = Vec::new();
-        for (len, null_count) in nodes {
+        for (len, null_count, min_val, max_val) in nodes {
             let mut node_builder = FbMetaNodeBuilder::new(&mut fbb);
             node_builder.push_length(len);
             node_builder.push_null_count(null_count);
+            node_builder.push_min_val(min_val);
+            node_builder.push_max_val(max_val);
             fb_nodes.push(node_builder.finish());
         }
 
@@ -829,5 +913,84 @@ mod tests {
             .unwrap();
         assert_eq!(id_col2.value(0), 30);
         assert_eq!(id_col2.value(1), 40);
+    }
+
+    #[test]
+    fn test_record_batch_statistics_serialization() {
+        use crate::arrow::array::BooleanArray;
+
+        // 1. Define Schema: [id: Int32, amount: Float64, flag: Boolean]
+        let schema = Arc::new(Schema::new(vec![
+            Field {
+                name: "id".to_string(),
+                data_type: DataType::Int32,
+                nullable: false,
+            },
+            Field {
+                name: "amount".to_string(),
+                data_type: DataType::Float64,
+                nullable: false,
+            },
+            Field {
+                name: "flag".to_string(),
+                data_type: DataType::Boolean,
+                nullable: false,
+            },
+        ]));
+
+        // 2. Build columns
+        let id_col: ArrayRef = Arc::new(PrimitiveArray::from(vec![10i32, -5, 30, 2]));
+        let amount_col: ArrayRef =
+            Arc::new(PrimitiveArray::from(vec![100.5f64, -20.25, 450.0, 0.0]));
+        let flag_col: ArrayRef = Arc::new(BooleanArray::from(vec![true, false, true, false]));
+
+        let batch = RecordBatch::try_new(schema, vec![id_col, amount_col, flag_col]).unwrap();
+
+        // 3. Serialize into buffer
+        let mut buffer = Vec::new();
+        {
+            let mut writer = Writer::new(&mut buffer);
+            writer.write(&batch).unwrap();
+        }
+
+        // 4. Decode the FlatBuffer headers and verify statistics!
+        // Skip schema block and read the record batch message
+        let mut record_batch_msg_offset = 0;
+        for i in 0..(buffer.len() - 4) {
+            if &buffer[i..(i + 4)] == &[0xFF, 0xFF, 0xFF, 0xFF] && i > 0 {
+                // This is the second message block (The RecordBatch message!)
+                record_batch_msg_offset = i;
+                break;
+            }
+        }
+        assert!(record_batch_msg_offset > 0);
+
+        let fb_msg_slice = &buffer[record_batch_msg_offset + 8..]; // skip continuation + len
+        let fb_msg = unsafe { root_as_message(fb_msg_slice).unwrap() };
+        let fb_batch = fb_msg.header_as_fb_record_batch().unwrap();
+        let fb_nodes = fb_batch.nodes().unwrap();
+
+        assert_eq!(fb_nodes.len(), 3);
+
+        // --- Column 0 (id: Int32) ---
+        let node_id = fb_nodes.get(0);
+        assert_eq!(node_id.length(), 4);
+        assert_eq!(node_id.min_val(), -5); // Minimum is -5
+        assert_eq!(node_id.max_val(), 30); // Maximum is 30
+
+        // --- Column 1 (amount: Float64) ---
+        let node_amount = fb_nodes.get(1);
+        assert_eq!(node_amount.length(), 4);
+        // Transmute back to f64 to verify floating point precision preservation!
+        let min_f = f64::from_bits(node_amount.min_val() as u64);
+        let max_f = f64::from_bits(node_amount.max_val() as u64);
+        assert_eq!(min_f, -20.25);
+        assert_eq!(max_f, 450.0);
+
+        // --- Column 2 (flag: Boolean) ---
+        let node_flag = fb_nodes.get(2);
+        assert_eq!(node_flag.length(), 4);
+        assert_eq!(node_flag.min_val(), 0); // Boolean defaults/falls back to 0
+        assert_eq!(node_flag.max_val(), 0);
     }
 }

@@ -1,0 +1,16 @@
+query_engine/src/arrow/ipc/record_batch.rs
+  h_42387b1c6b634c 60-61,103-144,148-149,172,178,182,917-940
+query_engine/src/arrow/ipc/mod.rs
+  h_42387b1c6b634c 289-290,301-303,305-308,319-326
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "953c5278e2f0b89449e0daeb082971583bb3f1d4",
+  "prompts": {},
+  "humans": {
+    "h_42387b1c6b634c": {
+      "author": "datnguyenzzz <thanh.nguyen@deliveryhero.com>"
+    }
+  }
+}

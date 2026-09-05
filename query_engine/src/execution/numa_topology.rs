@@ -85,7 +85,9 @@ impl NumaTopology {
             }
         }
 
-        Self { cpu_to_numa: core_to_numa }
+        Self {
+            cpu_to_numa: core_to_numa,
+        }
     }
 
     #[cfg(test)]
@@ -142,7 +144,9 @@ impl NumaTopology {
             }
         }
 
-        Self { cpu_to_numa: core_to_numa }
+        Self {
+            cpu_to_numa: core_to_numa,
+        }
     }
 
     /// Returns the physical NUMA node ID of a specific Core ID
@@ -153,11 +157,12 @@ impl NumaTopology {
         node_id % self.numa_nodes_count()
     }
 
-    /// Returns the total number of physical NUMA nodes discovered 
+    /// Returns the total number of physical NUMA nodes discovered
     /// on the system.
     #[inline]
     pub fn numa_nodes_count(&self) -> usize {
-        let unique_nodes: std::collections::HashSet<usize> = self.cpu_to_numa.values().copied().collect();
+        let unique_nodes: std::collections::HashSet<usize> =
+            self.cpu_to_numa.values().copied().collect();
         unique_nodes.len().max(1)
     }
 
@@ -253,7 +258,7 @@ mod tests {
     #[test]
     fn test_numa_topology_discovery_robust() {
         let topo = NumaTopology::detect();
-        
+
         // Count should always be >= 1 (Universal fallback)
         assert!(topo.numa_nodes_count() >= 1);
         assert!(topo.cores_count() >= 1);
@@ -282,7 +287,7 @@ mod tests {
         let topo = NumaTopology::detect_with_path(sysfs_node_path);
 
         assert_eq!(topo.numa_nodes_count(), 2);
-        
+
         // Match core maps safely (only if they are part of active allowed cores)
         let active_cores = NumaTopology::get_available_core_ids();
         if active_cores.contains(&1) {

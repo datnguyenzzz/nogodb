@@ -198,10 +198,13 @@ impl Dispatcher {
 mod tests {
     use super::*;
     use crate::arrow::RecordBatch;
-    use crate::execution::pipeline::{PhysicalSink, PhysicalSource, SinkContext, SinkResult};
+    use crate::execution::pipeline::{PhysicalSink, PhysicalSource, SinkResult, SinkContext};
 
     struct DummySource;
     impl PhysicalSource for DummySource {
+        fn total_rows(&self) -> Result<usize> {
+            Ok(0)
+        }
         fn next_morsel(&self, _worker_numa_node: usize) -> Result<Option<Morsel>> {
             Ok(None)
         }

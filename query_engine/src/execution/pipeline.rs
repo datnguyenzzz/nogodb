@@ -11,15 +11,15 @@ pub struct SourceContext {
     /// source needs to be parallelism-aware, and know how to
     /// partition rows
     pub partition_id: usize,
-    pub thread_id: usize,
 }
 
 pub struct SinkContext {
-    /// sink needs to be parallelism-aware
     pub thread_id: usize,
 }
 
-pub trait PhysicalSource {
+pub trait PhysicalSource: Send + Sync {
+    /// Returns the exact, physical number of rows present in this source.
+    fn total_rows(&self) -> Result<usize>;
     /// Dynamically pulls the next available Morsel from this source.
     /// Prefers returning a Morsel local to the caller's `worker_numa_node` (NUMA-locality).
     /// Returns `None` when all data in the table has been fully claimed.
@@ -28,19 +28,18 @@ pub trait PhysicalSource {
     fn get_chunk(&self, morsel: &Morsel, batch_offset: usize) -> Result<Option<RecordBatch>>;
 }
 
-pub trait PhysicalOperator {
+pub trait PhysicalOperator: Send + Sync {
     /// Performs in-place vectorized transformations
-    fn execute(&self, input: RecordBatch) -> Result<Option<RecordBatch>>;
+    fn execute(&self, input: &RecordBatch) -> Result<Option<RecordBatch>>;
 }
 
-pub trait PhysicalSink {
+pub trait PhysicalSink: Send + Sync {
     /// Consumes batches then accumulates to thread-local states
     fn sink(&self, ctx: &mut SinkContext, input: RecordBatch) -> Result<SinkResult>;
     /// Combines thread-local partition states into a finalized global
     /// state once all threads finish
     fn combine(&self) -> Result<()>;
 }
-
 pub type PipelineID = usize;
 
 /// A linear pipeline of execution: Source -> [Operators...] -> Sink

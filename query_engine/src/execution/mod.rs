@@ -5,7 +5,7 @@ pub mod pipeline;
 pub mod scheduler;
 
 /// Represents a NUMA-aware dynamic execution block of roughly [`MORSEL_SIZE`] rows.
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub struct Morsel {
     pub start_row: usize,
     pub num_rows: usize,

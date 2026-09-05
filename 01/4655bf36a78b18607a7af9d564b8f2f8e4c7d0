@@ -1,0 +1,18 @@
+query_engine/src/execution/scheduler.rs
+  h_42387b1c6b634c 3-8,11-41,43-52,55,58-61,65-115,119-146,176-185,189-230,233-344
+query_engine/src/execution/dispatcher.rs
+  h_42387b1c6b634c 205-207
+query_engine/src/execution/mod.rs
+  h_42387b1c6b634c 8
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "014655bf36a78b18607a7af9d564b8f2f8e4c7d0",
+  "prompts": {},
+  "humans": {
+    "h_42387b1c6b634c": {
+      "author": "datnguyenzzz <thanh.nguyen@deliveryhero.com>"
+    }
+  }
+}

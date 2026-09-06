@@ -1,17 +1,17 @@
-use std::sync::Arc;
+use std::{io, sync::Arc};
 
-use anyhow::{Result, anyhow};
+use anyhow::{Result, anyhow, bail};
 use tokio::{
     runtime::LocalRuntime,
     sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel},
     task,
 };
 
+use crate::arrow::{Buffer, RecordBatch, SchemaRef, ipc};
 use crate::execution::{
-    Morsel,
     dispatcher::{DispatchResult, Dispatcher},
     numa_topology::NumaTopology,
-    pipeline::{Pipeline, SinkResult, SinkContext},
+    pipeline::{Pipeline, ScanMessage, SinkContext},
 };
 
 /// An Inter-Core message represented as a boxed closure to be
@@ -66,7 +66,7 @@ impl Worker {
         core_affinity::set_for_current(self.core_id);
 
         // Build an isolated, single-threaded Tokio LocalRuntime (similar to LocalSet)
-        // and run the cooperative Reactor loop directly on the it
+        // and run the cooperative Reactor loop directly on it
         let rt = LocalRuntime::new().unwrap();
         rt.block_on(async move {
             loop {
@@ -78,7 +78,6 @@ impl Worker {
                 // (until it isn't :-) )
                 while let Ok(msg) = self.mailbox_rx.try_recv() {
                     if let Err(e) = msg() {
-                        // TODO: How should we handle error here ?
                         eprintln!(
                             "Error executing inter-core message on Core {}: {:?}",
                             self.core_id.id, e
@@ -88,15 +87,20 @@ impl Worker {
                 }
 
                 match self.dispatcher.pull_work(self.numa_node).await? {
-                    DispatchResult::ProcessMorsel { pipeline, morsel } => {
+                    DispatchResult::ProcessMorsel {
+                        pipeline,
+                        morsel,
+                        scan_message,
+                    } => {
                         let pipeline_id = pipeline.id;
-                        if let Err(e) = self.execute_vectorized_morsel_loop(&pipeline, morsel) {
+                        if let Err(e) = self.execute_vectorized_quantum(&pipeline, scan_message) {
                             eprintln!("Error executing pipeline: {:?}", e);
                         }
 
                         self.dispatcher
                             .mark_morsel_complete(pipeline_id, morsel)
                             .await?;
+                        is_done = true;
                     }
                     DispatchResult::Wait => {
                         // pipeline is blocked on active dependencies
@@ -115,57 +119,75 @@ impl Worker {
         Ok(())
     }
 
-    /// The core vectorized push-loop: processes the 100,000-row morsel
-    /// vector-by-vector (2048 rows)
-    fn execute_vectorized_morsel_loop(&self, pipeline: &Pipeline, morsel: Morsel) -> Result<()> {
-        let mut offset = 0;
-        let mut sink_ctx = SinkContext { thread_id: self.core_id.id };
+    /// Reads compressed body bytes, decompresses them using Zstd, and decodes the FlatBuffer
+    /// columns directly into a structured RecordBatch locally on the pinned worker core.
+    fn decompress_and_decode(
+        compressed_data: Buffer,
+        metadata_bytes: Buffer,
+        schema: SchemaRef,
+    ) -> Result<RecordBatch> {
+        let fb_message = flatbuffers::root::<ipc::FbMessage>(metadata_bytes.as_slice())
+            .map_err(|e| anyhow!("Failed to parse FlatBuffer header: {:?}", e))?;
+        let fb_batch = fb_message
+            .header_as_fb_record_batch()
+            .ok_or_else(|| anyhow!("Invalid FlatBuffer: expected RecordBatch header"))?;
 
-        while let Some(mut batch) = pipeline.source.get_chunk(&morsel, offset)? {
-            let mut is_passed = true;
+        let compressed_slice = compressed_data.as_slice();
+        if compressed_slice.len() < 8 {
+            bail!("Invalid compressed page block: body too short");
+        }
 
-            for op in &pipeline.operators {
-                if let Some(next_batch) = op.execute(&batch)? {
-                    batch = next_batch
-                } else {
-                    is_passed = false;
-                    break;
-                }
+        let uncompressed_len = i64::from_le_bytes(compressed_slice[0..8].try_into().unwrap());
+        let decompressed_buf = if uncompressed_len == -1 {
+            Buffer::from(compressed_slice[8..].to_vec())
+        } else {
+            let mut decoder = zstd::Decoder::new(&compressed_slice[8..])?;
+            let mut output = vec![0u8; uncompressed_len as usize];
+            io::Read::read_exact(&mut decoder, &mut output)?;
+            Buffer::from(output)
+        };
+
+        let mut batch_decoder =
+            ipc::record_batch::RecordBatchDecoder::new(&decompressed_buf, fb_batch, schema);
+        batch_decoder.try_decode()
+    }
+
+    /// Processes the page, decompresses if needed, and pushes through operators.
+    fn execute_vectorized_quantum(&self, pipeline: &Pipeline, message: ScanMessage) -> Result<()> {
+        let mut sink_ctx = SinkContext {
+            core_id: self.core_id.id,
+        };
+        let mut batch = match message {
+            ScanMessage::Batch(b) => b,
+            ScanMessage::CompressedPage {
+                data: compressed_data,
+                meta: metadata_bytes,
+            } => Self::decompress_and_decode(
+                compressed_data,
+                metadata_bytes,
+                pipeline.schema.clone(),
+            )?,
+        };
+
+        let mut is_passed = true;
+
+        for op in &pipeline.operators {
+            if let Some(next_batch) = op.execute(&batch)? {
+                batch = next_batch
+            } else {
+                is_passed = false;
+                break;
             }
+        }
 
-            if is_passed {
-                match pipeline.sink.sink(&mut sink_ctx, batch)? {
-                    SinkResult::Finished => break,
-                    SinkResult::NeedMoreInput => {}
-                }
-            }
-
-            offset += 1
+        if is_passed {
+            _ = pipeline.sink.sink(&mut sink_ctx, batch)?;
         }
 
         Ok(())
     }
 }
 
-/// The Scheduler coordinates pipeline execution. It builds a dependency graph, schedules
-/// independent tasks on the Tokio thread pool, and when a pipeline finishes, invokes the
-/// sink's `combine()` hook to finalize states before unlocking dependent tasks.
-// Architecture:
-//                                     [ Scheduler ]
-//                                           │
-//                                           ▼  (Register Pipelines & Dependency DAG)
-//                                    [ DISPATCHER ]
-//                                           │
-//               ┌---------------------------┼---------------------------┐
-//               ▼                           ▼                           ▼
-//        [ NUMA 0 Queue ]            [ NUMA 1 Queue ]            [ NUMA 2 Queue ]
-//       (Morsel, Morsel...)         (Morsel, Morsel...)         (Morsel, Morsel...)
-//               ▲                           ▲                           ▲
-//               │ (Pull Local Work First)   │                           │
-//         [ Worker 0 ]                [ Worker 1 ]                [ Worker 2 ]
-//      (Pinned to Core 0)          (Pinned to Core 1)          (Pinned to Core 2)
-//               │                           │                           |
-//               └------(If Local Empty, Steal from other Node)----------┘
 pub struct Scheduler {
     pub numa_nodes: usize,
     pub cores_per_node: usize,
@@ -188,8 +210,7 @@ impl Scheduler {
     pub fn execute_job(&self, pipelines: Vec<Pipeline>) -> Result<()> {
         let dispatcher = Arc::new(Dispatcher::new(self.numa_nodes));
         for pipeline in pipelines {
-            let rows = pipeline.source.total_rows()?;
-            dispatcher.register(pipeline, rows)?;
+            dispatcher.register(pipeline)?;
         }
 
         let topo = NumaTopology::detect();
@@ -234,37 +255,10 @@ impl Scheduler {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::execution::pipeline::{PhysicalOperator, PhysicalSink, PhysicalSource, SinkContext, SinkResult};
-    use crate::arrow::{Field, Schema, DataType, RecordBatch, ArrayRef, array::PrimitiveArray};
+    use crate::arrow::{ArrayRef, DataType, Field, RecordBatch, Schema, array::PrimitiveArray};
+    use crate::execution::Morsel;
+    use crate::execution::pipeline::{PhysicalSink, SinkResult};
     use std::sync::Mutex;
-
-    struct MockSource;
-    impl PhysicalSource for MockSource {
-        fn total_rows(&self) -> Result<usize> {
-            Ok(30)
-        }
-        fn next_morsel(&self, _worker_numa_node: usize) -> Result<Option<Morsel>> {
-            Ok(None)
-        }
-        fn get_chunk(&self, morsel: &Morsel, batch_offset: usize) -> Result<Option<RecordBatch>> {
-            // Generate mock batch data up to 3 batches
-            if batch_offset >= 3 {
-                return Ok(None);
-            }
-            
-            let schema = Arc::new(Schema::new(vec![
-                Field { name: "val".to_string(), data_type: DataType::Int32, nullable: false },
-            ]));
-            
-            // Symmetrically yield unique offset elements
-            let start = (morsel.start_row + batch_offset * 10) as i32;
-            let values: Vec<i32> = (0..10).map(|i| start + i).collect();
-            let array: ArrayRef = Arc::new(PrimitiveArray::from(values));
-            
-            let batch = RecordBatch::try_new(schema, vec![array])?;
-            Ok(Some(batch))
-        }
-    }
 
     struct MockSink {
         accumulated: Arc<Mutex<Vec<i32>>>,
@@ -273,7 +267,11 @@ mod tests {
     impl PhysicalSink for MockSink {
         fn sink(&self, _ctx: &mut SinkContext, input: RecordBatch) -> Result<SinkResult> {
             let mut guard = self.accumulated.lock().unwrap();
-            let array = input.column(0).as_any().downcast_ref::<PrimitiveArray<i32>>().unwrap();
+            let array = input
+                .column(0)
+                .as_any()
+                .downcast_ref::<PrimitiveArray<i32>>()
+                .unwrap();
             for val in array.iter().flatten() {
                 guard.push(val);
             }
@@ -295,25 +293,82 @@ mod tests {
 
         let pipeline = Pipeline {
             id: 100,
-            source: Box::new(MockSource),
             operators: vec![],
-            sink: Box::new(MockSink { accumulated: accumulated_state.clone() }),
+            sink: Box::new(MockSink {
+                accumulated: accumulated_state.clone(),
+            }),
             dependencies: vec![],
             partitions: 1,
+            schema: Arc::new(Schema::new(Vec::<Field>::new())),
         };
 
-        // Submit job to parallel Reactors!
-        scheduler.execute_job(vec![pipeline]).unwrap();
+        // Initialize and register inside dispatcher
+        let dispatcher = Arc::new(Dispatcher::new(scheduler.numa_nodes));
+        dispatcher.register(pipeline).unwrap();
+
+        // Feed mock page buffers into dispatcher queues!
+        let mut row_offset = 0;
+        let mut count = 0;
+        while row_offset < 30 {
+            let numa_node = count % scheduler.numa_nodes;
+            let morsel = Morsel {
+                start_row: row_offset,
+                num_rows: 10,
+                numa_node,
+            };
+
+            // Build mock RecordBatch
+            let schema = Arc::new(Schema::new(vec![Field {
+                name: "val".to_string(),
+                data_type: DataType::Int32,
+                nullable: false,
+            }]));
+            let values: Vec<i32> = (0..10).map(|i| (row_offset + i) as i32).collect();
+            let array: ArrayRef = Arc::new(PrimitiveArray::from(values));
+            let batch = RecordBatch::try_new(schema, vec![array]).unwrap();
+
+            dispatcher
+                .push_scan_message(100, numa_node, morsel, ScanMessage::Batch(batch))
+                .unwrap();
+            row_offset += 10;
+            count += 1;
+        }
+
+        // Spawn threads manually for exact execution
+        let mut thread_handles = Vec::new();
+        let total_workers = scheduler.cores_per_node * scheduler.numa_nodes;
+        let active_core_ids = core_affinity::get_core_ids().unwrap_or_default();
+
+        let mut mailbox_txs = Vec::with_capacity(total_workers);
+        let mut mailbox_rxs = Vec::with_capacity(total_workers);
+        for _ in 0..total_workers {
+            let (tx, rx) = unbounded_channel();
+            mailbox_txs.push(MailBoxSender { sender: tx });
+            mailbox_rxs.push(rx)
+        }
+
+        for id in 0..total_workers {
+            let core_id = active_core_ids.get(id).unwrap();
+            let worker_numa = NumaTopology::detect().numa_node(core_id.id);
+            let mut worker = Worker {
+                core_id: *core_id,
+                numa_node: worker_numa,
+                dispatcher: dispatcher.clone(),
+                mailbox_rx: mailbox_rxs.remove(0),
+                all_mailboxes: mailbox_txs.clone(),
+            };
+            let handle = std::thread::spawn(move || worker.run_loop());
+            thread_handles.push(handle);
+        }
+
+        for handle in thread_handles {
+            handle.join().unwrap().unwrap();
+        }
 
         let mut final_results = accumulated_state.lock().unwrap().clone();
         final_results.sort(); // Sort because parallel workers process in arbitrary order!
 
-        // Slicing registers 30 rows (Morsel 1: 30 rows).
-        // It evaluates 3 batches of 10 rows.
-        // Total rows processed = 30 rows!
         assert_eq!(final_results.len(), 30);
-
-        // Assert first and last values are mapped cleanly
         assert_eq!(final_results[0], 0);
         assert_eq!(final_results[29], 29);
     }
@@ -323,18 +378,20 @@ mod tests {
         let scheduler = Scheduler::new();
         let _total_workers = scheduler.numa_nodes * scheduler.cores_per_node;
 
-        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+        let (tx, mut rx) = unbounded_channel();
         let sender = MailBoxSender { sender: tx };
 
         // Symmetrically submit a closure to Core's mailbox!
         let trigger = Arc::new(Mutex::new(false));
         let trigger_clone = trigger.clone();
 
-        sender.submit(move || {
-            let mut guard = trigger_clone.lock().unwrap();
-            *guard = true;
-            Ok(())
-        }).unwrap();
+        sender
+            .submit(move || {
+                let mut guard = trigger_clone.lock().unwrap();
+                *guard = true;
+                Ok(())
+            })
+            .unwrap();
 
         // Pull message on receiver
         let msg = rx.try_recv().unwrap();

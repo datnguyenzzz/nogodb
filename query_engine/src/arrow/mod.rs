@@ -487,6 +487,7 @@ pub type ArrayRef = Arc<dyn Array>;
 /// A `RecordBatch` is a two-dimensional dataset of a number of
 /// contiguous arrays, each the same length. A record batch has
 /// a schema which must match its arrays’ datatypes.
+#[derive(Clone)]
 pub struct RecordBatch {
     schema: SchemaRef,
     /// Specific operations for different arrays types (e.g., primitive, list, struct)
@@ -498,6 +499,14 @@ pub struct RecordBatch {
 }
 
 impl RecordBatch {
+    pub fn new_empty() -> Self {
+        Self {
+            schema: SchemaRef::new(Schema::new(Vec::<Field>::new())),
+            columns: vec![],
+            row_count: 0,
+        }
+    }
+
     pub fn try_new(schema: SchemaRef, columns: Vec<ArrayRef>) -> Result<Self> {
         // Fix: logic inversion. It should find columns where type does NOT match!
         let type_not_match =

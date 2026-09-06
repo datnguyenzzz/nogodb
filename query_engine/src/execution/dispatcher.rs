@@ -1,5 +1,4 @@
 use std::{
-    cmp,
     collections::{HashMap, HashSet, VecDeque},
     sync::{
         Arc, Mutex,
@@ -11,19 +10,16 @@ use anyhow::Result;
 
 use crate::execution::{
     Morsel,
-    pipeline::{Pipeline, PipelineID},
+    pipeline::{Pipeline, PipelineID, ScanMessage},
 };
-
-/// 100_000K is an optimal starting number for the morsel size
-/// according to the benchmark reported in https://dl.acm.org/doi/epdf/10.1145/2588555.2610507
-pub const MORSEL_SIZE: usize = 100_000;
 
 /// Represents the dispatcher's response to an idle worker thread requesting work.
 pub enum DispatchResult {
-    /// Executing this specific Morsel of this Pipeline.
+    /// Executing this specific Morsel of this Pipeline, loaded with its pre-fetched ScanMessage
     ProcessMorsel {
         pipeline: Arc<Pipeline>,
         morsel: Morsel,
+        scan_message: ScanMessage,
     },
     /// No work is ready right now (pipelines are blocked on dependencies); worker should yield.
     Wait,
@@ -33,9 +29,9 @@ pub enum DispatchResult {
 
 /// A NUMA-aware work queue for a running [Pipeline]
 pub struct WorkQueue {
-    /// Queues of pending morsels, segmented by their physical NUMA node:
-    /// `numa_queues[numa_node_id] = VecDeque<Morsel>`
-    pub numa_queues: Vec<VecDeque<Morsel>>,
+    /// Queues of pending morsels and their ScanMessages, segmented by
+    /// their physical NUMA node
+    pub numa_queues: Vec<VecDeque<(Morsel, ScanMessage)>>,
     /// Number of active/in-flight tasks currently being processed on CPU cores
     pub active_tasks: AtomicUsize,
     pub total_morsels: usize,
@@ -51,6 +47,8 @@ pub struct DispatcherState {
 pub struct Dispatcher {
     pub numa_nodes: usize,
     pub state: Mutex<DispatcherState>,
+    // join-id <-> [min_val, max_val]
+    pub join_bounds: Mutex<HashMap<usize, (i64, i64)>>,
 }
 
 impl Dispatcher {
@@ -62,28 +60,43 @@ impl Dispatcher {
                 work_queues: HashMap::new(),
                 completed_pipelines: HashSet::new(),
             }),
+            join_bounds: Mutex::new(HashMap::new()),
         }
     }
 
-    /// Registers an executable pipeline and dynamically slices its total rows into
-    /// [MORSEL_SIZE]-row morsels, distributing them evenly across physical NUMA nodes
-    pub fn register(&self, pipeline: Pipeline, rows: usize) -> Result<()> {
-        let mut numa_queues = vec![VecDeque::new(); self.numa_nodes];
-        let mut total_morsels = 0;
-        let mut row_offset = 0;
+    /// Queries the active join key boundaries for a specific join ID.
+    pub fn get_join_bounds(&self, join_id: usize) -> Option<(i64, i64)> {
+        let guard = self.join_bounds.lock().unwrap();
+        guard.get(&join_id).copied()
+    }
 
-        while row_offset < rows {
-            let num_rows = cmp::min(MORSEL_SIZE, rows - row_offset);
-            let numa_node = total_morsels % self.numa_nodes;
-            numa_queues[numa_node].push_back(Morsel {
-                start_row: row_offset,
-                num_rows,
-                numa_node,
-            });
-            row_offset += num_rows;
-            total_morsels += 1;
+    /// Publishes/updates the join key boundaries for a specific join ID.
+    pub fn publish_join_bounds(&self, join_id: usize, min_val: i64, max_val: i64) {
+        let mut guard = self.join_bounds.lock().unwrap();
+        guard.insert(join_id, (min_val, max_val));
+    }
+
+    /// Pushes a single pre-fetched [ScanMessage] (and its [Morsel]) dynamically
+    /// into the target NUMA node's queue. Called asynchronously by the unpinned I/O thread.
+    pub fn push_scan_message(
+        &self,
+        pipeline_id: usize,
+        numa_node: usize,
+        morsel: Morsel,
+        message: ScanMessage,
+    ) -> Result<()> {
+        let mut state = self.state.lock().unwrap();
+        if let Some(queue) = state.work_queues.get_mut(&pipeline_id) {
+            queue.numa_queues[numa_node % self.numa_nodes].push_back((morsel, message));
+            queue.total_morsels += 1;
         }
+        Ok(())
+    }
 
+    /// Registers an executable pipeline inside the coordination DAG, instantiating
+    /// an empty, ready-to-run WorkQueue. Slices are pushed dynamically via push_scan_message.
+    pub fn register(&self, pipeline: Pipeline) -> Result<()> {
+        let numa_queues = vec![VecDeque::new(); self.numa_nodes];
         let pipeline_id = pipeline.id;
         let mut state = self.state.lock().unwrap();
         state.pipelines.insert(pipeline_id, Arc::new(pipeline));
@@ -92,7 +105,7 @@ impl Dispatcher {
             WorkQueue {
                 numa_queues,
                 active_tasks: AtomicUsize::new(0),
-                total_morsels,
+                total_morsels: 0,
             },
         );
 
@@ -126,13 +139,14 @@ impl Dispatcher {
         // It'd give a higher latency penalty, but the worker is not idle
         for id in &runnable_pipeline_ids {
             let queue = state.work_queues.get_mut(id).unwrap();
-            if let Some(morsel) = queue.numa_queues[worker_numa_node].pop_front() {
+            if let Some((morsel, message)) = queue.numa_queues[worker_numa_node].pop_front() {
                 queue
                     .active_tasks
                     .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
                 return Ok(DispatchResult::ProcessMorsel {
                     pipeline: state.pipelines.get(id).unwrap().clone(),
                     morsel,
+                    scan_message: message,
                 });
             }
         }
@@ -140,19 +154,23 @@ impl Dispatcher {
         for id in &runnable_pipeline_ids {
             let queue = state.work_queues.get_mut(id).unwrap();
             for stolen_numa in 0..self.numa_nodes {
-                if let Some(morsel) = queue.numa_queues[stolen_numa].pop_front() {
+                if stolen_numa == worker_numa_node {
+                    continue;
+                }
+                if let Some((morsel, message)) = queue.numa_queues[stolen_numa].pop_front() {
                     queue.active_tasks.fetch_add(1, Ordering::SeqCst);
                     return Ok(DispatchResult::ProcessMorsel {
                         pipeline: state.pipelines.get(id).unwrap().clone(),
                         morsel,
+                        scan_message: message,
                     });
                 }
             }
         }
 
         // If no morsels are left to claim, but some cores are still processing active tasks,
-        // we must wait for them to finish before we can advance the DAG.
-        let active_tasks_exist = runnable_pipeline_ids.iter().any(|id| {
+        // we must wait for them to finish before we can advance the DAG
+        let has_active_tasks = runnable_pipeline_ids.iter().any(|id| {
             state
                 .work_queues
                 .get(id)
@@ -162,15 +180,18 @@ impl Dispatcher {
                 > 0
         });
 
-        if active_tasks_exist {
+        if has_active_tasks {
             Ok(DispatchResult::Wait)
         } else {
             for id in runnable_pipeline_ids {
+                if let Some(pipeline) = state.pipelines.get(&id) {
+                    pipeline.sink.combine()?;
+                }
                 state.pipelines.remove(&id);
                 state.work_queues.remove(&id);
                 state.completed_pipelines.insert(id);
             }
-            Ok(DispatchResult::Finished)
+            Ok(DispatchResult::Wait)
         }
     }
 
@@ -198,20 +219,7 @@ impl Dispatcher {
 mod tests {
     use super::*;
     use crate::arrow::RecordBatch;
-    use crate::execution::pipeline::{PhysicalSink, PhysicalSource, SinkResult, SinkContext};
-
-    struct DummySource;
-    impl PhysicalSource for DummySource {
-        fn total_rows(&self) -> Result<usize> {
-            Ok(0)
-        }
-        fn next_morsel(&self, _worker_numa_node: usize) -> Result<Option<Morsel>> {
-            Ok(None)
-        }
-        fn get_chunk(&self, _morsel: &Morsel, _batch_offset: usize) -> Result<Option<RecordBatch>> {
-            Ok(None)
-        }
-    }
+    use crate::execution::pipeline::{PhysicalSink, SinkContext, SinkResult};
 
     struct DummySink;
     impl PhysicalSink for DummySink {
@@ -231,33 +239,82 @@ mod tests {
         // 1. Register Pipeline A (ID: 10, no dependencies)
         let pipeline_a = Pipeline {
             id: 10,
-            source: Box::new(DummySource),
             operators: vec![],
             sink: Box::new(DummySink),
             dependencies: vec![],
             partitions: 1,
+            schema: std::sync::Arc::new(crate::arrow::Schema::new(
+                Vec::<crate::arrow::Field>::new(),
+            )),
         };
-        // Register with 150,000 rows (Slices into 2 morsels: 100,000 and 50,000)
-        dispatcher.register(pipeline_a, 150_000).unwrap();
+        dispatcher.register(pipeline_a).unwrap();
+
+        // Push mock data dynamically matching standard NUMA nodes!
+        let morsel_a1 = Morsel {
+            start_row: 0,
+            num_rows: 100_000,
+            numa_node: 0,
+        };
+        dispatcher
+            .push_scan_message(
+                10,
+                0,
+                morsel_a1,
+                ScanMessage::Batch(RecordBatch::new_empty()),
+            )
+            .unwrap();
+
+        let morsel_a2 = Morsel {
+            start_row: 100_000,
+            num_rows: 50_000,
+            numa_node: 1,
+        };
+        dispatcher
+            .push_scan_message(
+                10,
+                1,
+                morsel_a2,
+                ScanMessage::Batch(RecordBatch::new_empty()),
+            )
+            .unwrap();
 
         // 2. Register Pipeline B (ID: 20, DEPENDS on A)
         let mut pipeline_b = Pipeline {
             id: 20,
-            source: Box::new(DummySource),
             operators: vec![],
             sink: Box::new(DummySink),
             dependencies: vec![],
             partitions: 1,
+            schema: std::sync::Arc::new(crate::arrow::Schema::new(
+                Vec::<crate::arrow::Field>::new(),
+            )),
         };
         pipeline_b.add_dependency(10);
-        dispatcher.register(pipeline_b, 50_000).unwrap();
+        dispatcher.register(pipeline_b).unwrap();
+
+        // Push Pipeline B's mock data!
+        let morsel_b1 = Morsel {
+            start_row: 0,
+            num_rows: 50_000,
+            numa_node: 0,
+        };
+        dispatcher
+            .push_scan_message(
+                20,
+                0,
+                morsel_b1,
+                ScanMessage::Batch(RecordBatch::new_empty()),
+            )
+            .unwrap();
 
         // --- TEST 1: DAG Blocking ---
         // Request work on NUMA Node 0. Since A is not finished, B is blocked.
         // The dispatcher should return A's morsel (assigned to NUMA Node 0)!
         let work_res = dispatcher.pull_work(0).await.unwrap();
-        let morsel_a1 = match work_res {
-            DispatchResult::ProcessMorsel { pipeline, morsel } => {
+        let fetched_a1 = match work_res {
+            DispatchResult::ProcessMorsel {
+                pipeline, morsel, ..
+            } => {
                 assert_eq!(pipeline.id, 10);
                 assert_eq!(morsel.numa_node, 0);
                 morsel
@@ -270,8 +327,10 @@ mod tests {
         // Slicing put the 2nd morsel (50,000 rows) on NUMA Node 1 queue.
         // Worker 0 should successfully STEAL Node 1's morsel!
         let work_res2 = dispatcher.pull_work(0).await.unwrap();
-        let morsel_a2 = match work_res2 {
-            DispatchResult::ProcessMorsel { pipeline, morsel } => {
+        let fetched_a2 = match work_res2 {
+            DispatchResult::ProcessMorsel {
+                pipeline, morsel, ..
+            } => {
                 assert_eq!(pipeline.id, 10);
                 assert_eq!(morsel.numa_node, 1);
                 morsel
@@ -288,18 +347,20 @@ mod tests {
         // --- TEST 4: DAG Phase Progression ---
         // Mark both of A's morsels as complete!
         dispatcher
-            .mark_morsel_complete(10, morsel_a1)
+            .mark_morsel_complete(10, fetched_a1)
             .await
             .unwrap();
         dispatcher
-            .mark_morsel_complete(10, morsel_a2)
+            .mark_morsel_complete(10, fetched_a2)
             .await
             .unwrap();
 
         // Request work on NUMA Node 0. Since A is completed, B is unlocked and released!
         let work_res4 = dispatcher.pull_work(0).await.unwrap();
         match work_res4 {
-            DispatchResult::ProcessMorsel { pipeline, morsel } => {
+            DispatchResult::ProcessMorsel {
+                pipeline, morsel, ..
+            } => {
                 assert_eq!(pipeline.id, 20);
                 assert_eq!(morsel.numa_node, 0);
             }

@@ -405,11 +405,10 @@ impl<R: Read> MessageReader<R> {
         Ok(Some(meta_len))
     }
 }
-
-struct RecordBatchDecoder<'a> {
-    buf: &'a Buffer,
-    _fb_batch: FbRecordBatch<'a>,
-    schema: SchemaRef,
+pub struct RecordBatchDecoder<'a> {
+    pub buf: &'a Buffer,
+    pub _fb_batch: FbRecordBatch<'a>,
+    pub schema: SchemaRef,
     _nodes: VectorIter<'a, ForwardsUOffset<FbMetaNode<'a>>>,
     segments: VectorIter<'a, ForwardsUOffset<FbMetaSegment<'a>>>,
     is_compressed: bool,

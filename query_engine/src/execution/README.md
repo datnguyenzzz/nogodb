@@ -1,10 +1,10 @@
 #### 0. Core Pillars of the Architecture
 
 ```
-                                      [ Scheduler ]
-                                            │
-                                            ▼  (Register Pipelines & Dependency DAG)
-                                     [ DISPATCHER ]
+       [ I/O Scan data ]              [ Scheduler ]
+      (Un-pinned thread)                    │
+              |                             ▼  (Register Pipelines & Dependency DAG)
+              └----------------------▶[ DISPATCHER ]
                                             │
                 ┌───────────────────────────┼───────────────────────────┐
                 ▼                           ▼                           ▼

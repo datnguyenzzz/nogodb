@@ -55,6 +55,17 @@ impl BooleanArray {
         self.values.value(index)
     }
 
+    /// Returns the number of non-null, true values within this array.
+    pub fn true_count(&self) -> usize {
+        // Fast Path: If there are no nulls, count set bits directly in the raw buffer!
+        if self.nulls.is_none() {
+            self.values.count_set_bits()
+        } else {
+            // Symmetrical Fallback: Iterate and count only non-null true values
+            self.iter().flatten().filter(|&b| b).count()
+        }
+    }
+
     pub fn iter(&self) -> BooleanIter<'_> {
         BooleanIter::new(self)
     }

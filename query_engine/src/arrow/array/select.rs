@@ -1,14 +1,22 @@
-use std::sync::Arc;
+use std::{cmp, sync::Arc};
 
 use anyhow::{Result, anyhow, bail};
 
 use crate::{
     arrow::{
-        Array, ArrayRef, DataType,
+        Array, ArrayRef, DataType, RecordBatch,
         array::{BooleanArray, PrimitiveArray, StringArray},
     },
     dispatch_native_type,
 };
+
+/// If the filter selects more than this fraction of rows, use
+/// [`SlicesIterator`] to copy ranges of values. Otherwise iterate
+/// over individual rows using [`IndexIterator`]
+///
+/// Threshold of 0.8 chosen based on <https://dl.acm.org/doi/abs/10.1145/3465998.3466009>
+///
+const FILTER_SLICES_SELECTIVITY_THRESHOLD: f64 = 0.8;
 
 /// Take elements by index from [`Array`], creating a new [`Array`] from those indexes.
 ///
@@ -67,4 +75,197 @@ pub fn take(values: &dyn Array, indexes: &dyn Array) -> Result<ArrayRef> {
     }
 }
 
-// Other select functions here , filter, merger, coalesce
+/// Precomputed optimized strategy for selecting rows from arrays
+pub enum IterationStrategy {
+    /// A precomputed list of indices
+    Indexes(PrimitiveArray<i32>),
+    /// A precomputed array of ranges
+    Slices(Vec<(usize, usize)>),
+    /// Select all rows
+    All,
+    /// Select no rows
+    None,
+}
+
+/// A filtering predicate that can be applied to any Array or RecordBatch
+pub struct FilterPredicate {
+    count: usize,
+    /// Precomputed strategy for iterating over the selected rows of this predicate
+    strategy: IterationStrategy,
+}
+
+impl FilterPredicate {
+    pub fn new(predicate: &BooleanArray) -> Self {
+        let count = predicate.true_count();
+        let len = predicate.len();
+
+        if len == 0 || count == 0 {
+            return Self {
+                count,
+                strategy: IterationStrategy::None,
+            };
+        }
+
+        if len == count {
+            return Self {
+                count,
+                strategy: IterationStrategy::All,
+            };
+        }
+
+        let mut slices = Vec::with_capacity(cmp::min(64, count));
+        let mut indexes = Vec::with_capacity(count);
+        let mut in_slice = false;
+        let mut slice_start = 0;
+        for i in 0..len {
+            if predicate.value(i) {
+                indexes.push(i as i32);
+                if !in_slice {
+                    in_slice = true;
+                    slice_start = i
+                }
+            } else if in_slice {
+                in_slice = false;
+                slices.push((slice_start, i - slice_start))
+            }
+        }
+
+        if in_slice {
+            slices.push((slice_start, len - slice_start))
+        }
+
+        // This can then be used as a heuristic for the optimal iteration strategy
+        let selectivity_frac = count as f64 / len as f64;
+        if selectivity_frac > FILTER_SLICES_SELECTIVITY_THRESHOLD {
+            return Self {
+                count,
+                strategy: IterationStrategy::Slices(slices),
+            };
+        }
+
+        Self {
+            count,
+            strategy: IterationStrategy::Indexes(PrimitiveArray::from(indexes)),
+        }
+    }
+
+    pub fn filter(&self, value: &dyn Array) -> Result<ArrayRef> {
+        match &self.strategy {
+            IterationStrategy::All => Ok(value.slice(0, self.count)),
+            IterationStrategy::None => Ok(value.slice(0, 0)),
+            IterationStrategy::Indexes(indexes) => take(value, indexes),
+            IterationStrategy::Slices(slices) => {
+                if slices.len() == 1 {
+                    let (start, len) = slices[0];
+                    Ok(value.slice(start, len))
+                } else {
+                    let indexes: Vec<i32> = slices
+                        .iter()
+                        .flat_map(|&(start, len)| (start..(start + len)).map(|i| i as i32))
+                        .collect();
+
+                    take(value, &PrimitiveArray::from(indexes))
+                }
+            }
+        }
+    }
+
+    pub fn filter_record_batch(&self, batch: &RecordBatch) -> Result<RecordBatch> {
+        let filtered_columns = batch
+            .columns()
+            .iter()
+            .map(|c| self.filter(c.as_ref()))
+            .collect::<Result<Vec<_>>>()?;
+
+        RecordBatch::try_new(batch.schema().clone(), filtered_columns)
+    }
+}
+
+/// Returns a filtered `values` [`Array`] where the corresponding elements of
+/// `predicate` are `true`.
+pub fn filter(value: &dyn Array, predicate: &BooleanArray) -> Result<ArrayRef> {
+    let pred = FilterPredicate::new(predicate);
+    pred.filter(value)
+}
+
+pub fn filter_record_batch(batch: &RecordBatch, predicate: &BooleanArray) -> Result<RecordBatch> {
+    let pred = FilterPredicate::new(predicate);
+    pred.filter_record_batch(batch)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::arrow::{DataType, Field, Schema, array::StringArray};
+
+    #[test]
+    fn test_filter_single_array() {
+        let values = PrimitiveArray::from(vec![10i32, 20, 30, 40, 50]);
+        let predicate =
+            BooleanArray::from(vec![Some(true), None, Some(false), Some(true), Some(false)]);
+
+        // Filter the values
+        // Expected results: [10, 40] (since index 0 is true, 1 is null/false, 2 is false, 3 is true, 4 is false)
+        let filtered = filter(&values, &predicate).unwrap();
+        assert_eq!(filtered.len(), 2);
+
+        let parsed = filtered
+            .as_any()
+            .downcast_ref::<PrimitiveArray<i32>>()
+            .unwrap();
+        assert_eq!(parsed.value(0), 10);
+        assert_eq!(parsed.value(1), 40);
+    }
+
+    #[test]
+    fn test_filter_record_batch() {
+        let schema = Arc::new(Schema::new(vec![
+            Field {
+                name: "id".to_string(),
+                data_type: DataType::Int32,
+                nullable: false,
+            },
+            Field {
+                name: "name".to_string(),
+                data_type: DataType::Utf8,
+                nullable: true,
+            },
+        ]));
+
+        let id_col: ArrayRef = Arc::new(PrimitiveArray::from(vec![1i32, 2, 3, 4]));
+        let name_col: ArrayRef = Arc::new(StringArray::from(vec![
+            Some("Alice"),
+            None,
+            Some("Charlie"),
+            Some("David"),
+        ]));
+        let batch = RecordBatch::try_new(schema, vec![id_col, name_col]).unwrap();
+
+        let predicate = BooleanArray::from(vec![Some(true), Some(false), None, Some(true)]);
+
+        // Filter the RecordBatch
+        // Expected rows:
+        // - Row 0 (id: 1, name: "Alice")
+        // - Row 3 (id: 4, name: "David")
+        let filtered_batch = filter_record_batch(&batch, &predicate).unwrap();
+        assert_eq!(filtered_batch.num_rows(), 2);
+        assert_eq!(filtered_batch.num_columns(), 2);
+
+        // Verify column values are compacted correctly
+        let out_id = filtered_batch
+            .column(0)
+            .as_any()
+            .downcast_ref::<PrimitiveArray<i32>>()
+            .unwrap();
+        assert_eq!(out_id.value(0), 1);
+        assert_eq!(out_id.value(1), 4);
+
+        let out_name = filtered_batch
+            .column(1)
+            .as_any()
+            .downcast_ref::<StringArray>()
+            .unwrap();
+        assert_eq!(out_name.value(0), "Alice");
+        assert_eq!(out_name.value(1), "David");
+    }
+}

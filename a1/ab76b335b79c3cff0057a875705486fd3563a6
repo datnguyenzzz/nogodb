@@ -1,0 +1,14 @@
+query_engine/src/arrow/array/select.rs
+  h_42387b1c6b634c 1,7,13-20,78-271
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "a1ab76b335b79c3cff0057a875705486fd3563a6",
+  "prompts": {},
+  "humans": {
+    "h_42387b1c6b634c": {
+      "author": "datnguyenzzz <thanh.nguyen@deliveryhero.com>"
+    }
+  }
+}

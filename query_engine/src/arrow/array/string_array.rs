@@ -8,6 +8,7 @@ use crate::arrow::{
     Array, ArrayRef, BooleanBuffer, Buffer, DataType, NullBuffer, array::PrimitiveArray,
 };
 
+#[derive(Clone)]
 pub struct StringArray {
     offsets_value: Buffer, // each offset value is i32
     data_value: Buffer,
@@ -55,6 +56,10 @@ impl StringArray {
             data_value,
             nulls,
         }
+    }
+
+    pub fn new_scalar(value: String) -> Self {
+        Self::from(vec![value])
     }
 
     /// Returns the primitive value at index `index` with zero-copy casting

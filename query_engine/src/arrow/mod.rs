@@ -1,5 +1,6 @@
 pub mod array;
 pub mod ipc;
+pub mod ord;
 
 use std::{mem, ops::Deref, slice, sync::Arc};
 
@@ -464,6 +465,14 @@ pub trait Array: Send + Sync {
     /// the nulls are represented in the underlying arrow format.
     fn nulls(&self) -> Option<&NullBuffer>;
 
+    /// Returns a potentially computed [`NullBuffer`] that represents the logical
+    /// null values of this array, if any.
+    /// Logical nulls represent the values that are null in the array,
+    /// regardless of the underlying physical arrow representation.
+    fn logical_nulls(&self) -> Option<NullBuffer> {
+        self.nulls().cloned()
+    }
+
     /// Returns whether the element at `index` is null according to [`Array::nulls`]
     fn is_null(&self, index: usize) -> bool {
         self.nulls().is_some_and(|n| n.is_null(index))
@@ -480,6 +489,19 @@ pub trait Array: Send + Sync {
 }
 
 pub type ArrayRef = Arc<dyn Array>;
+
+pub struct Scalar<T: Array>(T);
+
+impl<T: Array> Scalar<T> {
+    pub fn new(arr: T) -> Self {
+        assert_eq!(arr.len(), 1);
+        Self(arr)
+    }
+
+    pub fn inner(self) -> T {
+        self.0
+    }
+}
 
 /// A two-dimensional batch of column-oriented data with a defined
 /// [schema](arrow_schema::Schema).

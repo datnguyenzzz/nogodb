@@ -44,6 +44,24 @@ pub struct DispatcherState {
 }
 
 /// The central, thread-safe Coordinator driving the Morsel Parallel execution DAG.
+///
+/// ```text
+///        [ I/O Scan data ]              [ Scheduler ]
+///       (Un-pinned thread)                    │
+///               |                             ▼  (Register Pipelines & Dependency DAG)
+///               └----------------------▶[ DISPATCHER ]
+///                                             │
+///                 ┌---------------------------┼---------------------------┐
+///                 ▼                           ▼                           ▼
+///          [ NUMA 0 Queue ]            [ NUMA 1 Queue ]            [ NUMA 2 Queue ]
+///         (Morsel, Morsel...)         (Morsel, Morsel...)         (Morsel, Morsel...)
+///                 ▲                           ▲                           ▲
+///                 │ (Pull Local Work First)   │                           │
+///           [ Worker 0 ]                [ Worker 1 ]                [ Worker 2 ]
+///        (Pinned to Core 0)          (Pinned to Core 1)          (Pinned to Core 2)
+///                 │                           │                           │
+///                 └------(If Local Empty, Steal from other Node)----------┘
+/// ```
 pub struct Dispatcher {
     pub numa_nodes: usize,
     pub state: Mutex<DispatcherState>,

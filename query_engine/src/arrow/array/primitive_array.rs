@@ -8,6 +8,7 @@ use crate::arrow::{Array, BooleanBuffer, Buffer, DataType, NullBuffer, array::Na
 
 /// An array of primitive values. A primitive value array represents an array of values
 /// each having the same physical slot width typically measured in bytes
+#[derive(Clone)]
 pub struct PrimitiveArray<T: NativeType> {
     data_type: DataType,
     values: Buffer,
@@ -58,6 +59,10 @@ impl<T: NativeType> PrimitiveArray<T> {
             nulls,
             _phantom: marker::PhantomData,
         }
+    }
+
+    pub fn new_scalar(value: T) -> Self {
+        Self::from(vec![value])
     }
 
     pub fn iter(&self) -> PrimitiveIter<'_, T> {

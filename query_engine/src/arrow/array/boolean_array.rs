@@ -4,6 +4,7 @@ use anyhow::Result;
 
 use crate::arrow::{Array, BooleanBuffer, Buffer, DataType, NullBuffer, array::PrimitiveArray};
 
+#[derive(Clone)]
 pub struct BooleanArray {
     values: BooleanBuffer,
     nulls: Option<NullBuffer>,
@@ -42,6 +43,10 @@ impl Array for BooleanArray {
 impl BooleanArray {
     pub fn new(values: BooleanBuffer, nulls: Option<NullBuffer>) -> Self {
         Self { values, nulls }
+    }
+
+    pub fn new_scalar(value: bool) -> Self {
+        Self::from(vec![value])
     }
 
     pub fn value(&self, index: usize) -> bool {
@@ -113,6 +118,12 @@ impl BooleanArray {
         };
 
         BooleanArray::new(new_values, new_nulls)
+    }
+
+    /// Consumes this BooleanArray and returns its raw underlying values and null buffers.
+    /// This is a completely zero-copy O(1) operation!
+    pub fn into_parts(self) -> (BooleanBuffer, Option<NullBuffer>) {
+        (self.values, self.nulls)
     }
 }
 

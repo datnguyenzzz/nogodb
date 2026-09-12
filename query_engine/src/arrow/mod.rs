@@ -490,15 +490,15 @@ pub trait Array: Send + Sync {
 
 pub type ArrayRef = Arc<dyn Array>;
 
-pub struct Scalar<T: Array>(T);
+pub struct Scalar(ArrayRef);
 
-impl<T: Array> Scalar<T> {
-    pub fn new(arr: T) -> Self {
+impl Scalar {
+    pub fn new(arr: ArrayRef) -> Self {
         assert_eq!(arr.len(), 1);
         Self(arr)
     }
 
-    pub fn inner(self) -> T {
+    pub fn inner(self) -> ArrayRef {
         self.0
     }
 }

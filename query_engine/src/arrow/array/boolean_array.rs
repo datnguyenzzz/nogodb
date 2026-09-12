@@ -60,6 +60,10 @@ impl BooleanArray {
         self.values.value(index)
     }
 
+    pub fn values(&self) -> BooleanBuffer {
+        self.values.clone()
+    }
+
     /// Returns the number of non-null, true values within this array.
     pub fn true_count(&self) -> usize {
         // Fast Path: If there are no nulls, count set bits directly in the raw buffer!

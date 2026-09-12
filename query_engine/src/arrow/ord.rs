@@ -252,9 +252,9 @@ impl Datum for &dyn Array {
     }
 }
 
-impl<T: Array> Datum for Scalar<T> {
+impl Datum for Scalar {
     fn get(&self) -> (&dyn Array, bool) {
-        (&self.0, true)
+        (self.0.as_ref(), true)
     }
 }
 
@@ -374,6 +374,8 @@ fn compare_op(op: Op, lhs: &dyn Datum, rhs: &dyn Datum) -> Result<BooleanArray> 
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use super::*;
 
     #[test]
@@ -415,7 +417,7 @@ mod tests {
         // 2. Array vs Scalar Greater Than (gt)
         // Compare left > 15 (Scalar)
         let scalar_val = PrimitiveArray::from(vec![15i32]);
-        let scalar = Scalar::new(scalar_val);
+        let scalar = Scalar::new(Arc::new(scalar_val));
 
         // Expected: [Some(false), None, Some(true)]
         let res_gt = gt(&left, &scalar).unwrap();
@@ -437,7 +439,7 @@ mod tests {
         // 2. Array vs Scalar Less Than-or-Equal (lt_eq)
         // Compare left <= 15.0
         let scalar_val = PrimitiveArray::from(vec![15.0f64]);
-        let scalar = Scalar::new(scalar_val);
+        let scalar = Scalar::new(Arc::new(scalar_val));
 
         // Expected: [Some(true), None, Some(false)]
         let res_lt_eq = lt_eq(&left, &scalar).unwrap();

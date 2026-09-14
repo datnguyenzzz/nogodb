@@ -49,3 +49,50 @@ If an execution core blocks on Disk I/O (such as waiting for sectors during a ta
 * Non-Blocking Scans: Pinned CPU Reactor threads *never* execute synchronous disk-read system calls. Our physical scan source operator acts as a non-blocking consumer pulling from a thread-local vector queue.
 * Asynchronous I/O Pool: A dedicated background thread pool handles raw file reading and decompression (Zstd decoding) in parallel.
 * Double-Buffering Overlap: While the CPU is executing queries on Morsel N in local RAM, the I/O pool is pre-fetching and compiling Morsel N+1 into memory. When the reactor finishes the current batch, it performs a nanosecond pointer-swap to acquire the next pre-fetched batch, completely hiding I/O latency behind CPU execution time!
+
+#### 6. Share-Nothing HashJoin Strategy & Architecture
+
+Inspired by: 
+- https://cedardb.com/blog/simple_efficient_hash_tables
+- https://db.in.tum.de/~birler/papers/hashtable.pdf
+
+To achieve maximum multi-core processing speeds, our query engine implements a parallel Hash Join fully aligned with the **unchained adjacency-table** design.
+
+```text
+              Smaller Side                                
+              BUILD PHASE                               
+               [ Core 0 ]                                               
+                   │                                                   
+                   ▼ (Hash % Cores) 
+        ┌──────────┴───────────────────────────────┐
+        |                                          |
+        ▼                                          ▼ (Remote Core Shuffling)                       
+    [ Local Core 0's Directory Slots ]         [ Mailbox Shuffling ]                         
+        (Bloom Tag + Pointer)                      │
+         │                                   (Core 1 Reactor Mailbox)
+         ▼ (Contiguous in RAM)                     |
+    [ Contiguous Adjacency Array ]                 ▼ (Build action on Core 1)
+```
+
+```text
+             Larger Side
+             PROBE PHASE
+            [ Probe Key ]
+                  │
+                  ▼ (Hash % Cores)
+       ┌──────────┴──────────┐
+       ▼ (Local Core)        ▼ (Remote Core Shuffling)
+  [ Probe Local ]       [ Mailbox Shuffling ]
+       │                     │
+ (Local HT Probe)      (Core B Reactor Mailbox)
+```
+
+Traditional multi-threaded engines build a single concurrent hash table protected by global mutexes or atomic locks, causing severe CPU cache coherency invalidations (cache line bouncing) and thread-lock convoys. Symmetrically, we eliminate this completely:
+
+##### A. The 3 Phase Pipeline-Breaking Lifecycle
+1. Phase 1: Local Buffering (Perfect-Fit Sizing): 
+- Pinned workers run the build-side pipeline, collecting and buffering incoming Arrow record batches locally in-memory. Since the total row count is calculated exactly upfront, the table is allocated perfect-fit. It never resizes, never triggers rehashing, and maintains 100% memory packing density!
+2. Phase 2: Parallel Symmetrical Construction: 
+- Each core compiles its own private, thread-local `HashTable` independently. Since each core works on its local partition in absolute thread isolation, this phase is 100% lock-free, atomic-free and without any thread synchronization or CPU core stalls.
+3. Phase 3: Synchronized Read-Only Probing: 
+- The probe relation is scanned and compared against the unchained tables in parallel. Since Phase 3 is 100% read-only, it requires absolute zero locks, mutexes, or atomic synchronization, running at peak memory-bus bandwidth.

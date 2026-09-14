@@ -96,7 +96,6 @@ impl Worker {
                         if let Err(e) = self.execute_vectorized_quantum(&pipeline, scan_message) {
                             eprintln!("Error executing pipeline: {:?}", e);
                         }
-
                         self.dispatcher
                             .mark_morsel_complete(pipeline_id, morsel)
                             .await?;

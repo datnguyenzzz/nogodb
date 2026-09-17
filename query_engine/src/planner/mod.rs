@@ -122,7 +122,7 @@ pub enum LogicalPlan {
     HashJoin {
         left: Box<LogicalPlan>,
         right: Box<LogicalPlan>,
-        // join on on.0 == on.1
+        // join on on[0].0 == on[1].1
         on: Vec<(LogicalExpr, LogicalExpr)>,
         join_type: JoinType,
         schema: SchemaRef,

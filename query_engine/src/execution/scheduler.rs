@@ -1,4 +1,7 @@
-use std::{io, sync::Arc};
+use std::{
+    io,
+    sync::{Arc, mpsc},
+};
 
 use anyhow::{Result, anyhow, bail};
 use tokio::{
@@ -7,34 +10,22 @@ use tokio::{
     task,
 };
 
-use crate::arrow::{Buffer, RecordBatch, SchemaRef, ipc};
+use crate::arrow::{
+    Buffer, RecordBatch, SchemaRef,
+    ipc::{self, record_batch::RecordBatchDecoder},
+};
 use crate::execution::{
+    Morsel,
     dispatcher::{DispatchResult, Dispatcher},
     numa_topology::NumaTopology,
-    pipeline::{Pipeline, ScanMessage, SinkContext},
+    pipeline::{Pipeline, ScanMessage, SinkContext, SinkResult},
 };
 
 /// An Inter-Core message represented as a boxed closure to be
 /// executed on a remote Reactor core.
-/// In the thread-per-core architecture, Core 0 is physically forbidden
-/// from ever locking or directly reading/writing memory owned by Core 1.
-/// Therefore, instead of Core 0 locking Core 1's memory to read it, Core 0
-/// uses Inter-Core Message Passing
-//     [ Core 0 (Reactor) ]                              [ Core 1 (Reactor) ]
-//                  │                                                  │
-//                  │ 1. Core 0 compiles Lookup closure                │
-//                  │                                                  │
-//                  ▼                                                  │
-//         [ Mailbox_Sender 1 ] ───(2. submit closure via channel)───► [ Mailbox_Receiver 1 ]
-//                                                                     │
-//                                                                     │ 3. Core 1 polls receiver
-//                                                                     │    and executes lookup locally
-//                                                                     ▼
-//                                                            [ Core 1's RAM location ]
 pub type InterCoreMessage = Box<dyn FnOnce() -> Result<()> + Send>;
 
 /// A Thread-safe mailbox sender handle to submit tasks/messages
-/// to a specific Core's Reactor
 #[derive(Clone)]
 pub struct MailBoxSender {
     sender: UnboundedSender<InterCoreMessage>,
@@ -65,8 +56,6 @@ impl Worker {
     pub fn run_loop(&mut self) -> Result<()> {
         core_affinity::set_for_current(self.core_id);
 
-        // Build an isolated, single-threaded Tokio LocalRuntime (similar to LocalSet)
-        // and run the cooperative Reactor loop directly on it
         let rt = LocalRuntime::new().unwrap();
         rt.block_on(async move {
             loop {
@@ -92,13 +81,12 @@ impl Worker {
                         morsel,
                         scan_message,
                     } => {
-                        let pipeline_id = pipeline.id;
                         if let Err(e) = self.execute_vectorized_quantum(&pipeline, scan_message) {
                             eprintln!("Error executing pipeline: {:?}", e);
                         }
-                        self.dispatcher
-                            .mark_morsel_complete(pipeline_id, morsel)
-                            .await?;
+
+                        // Check and execute .combine() locally if this thread is the last worker
+                        self.mark_morsel_complete_local(&pipeline, morsel).await?;
                         is_done = true;
                     }
                     DispatchResult::Wait => {
@@ -118,8 +106,23 @@ impl Worker {
         Ok(())
     }
 
-    /// Reads compressed body bytes, decompresses them using Zstd, and decodes the FlatBuffer
-    /// columns directly into a structured RecordBatch locally on the pinned worker core.
+    /// Triggers local combine() and marks the pipeline complete
+    async fn mark_morsel_complete_local(&self, pipeline: &Pipeline, morsel: Morsel) -> Result<()> {
+        let is_last = self
+            .dispatcher
+            .check_and_decrement_active_tasks(pipeline.id)?;
+        if is_last {
+            pipeline.sink.combine()?;
+            self.dispatcher.mark_pipeline_complete(pipeline.id).await?;
+        } else {
+            self.dispatcher
+                .mark_morsel_complete(pipeline.id, morsel)
+                .await?;
+        }
+        Ok(())
+    }
+
+    /// Local-Core Decompression & Decoding (CPU-bound execution path)
     fn decompress_and_decode(
         compressed_data: Buffer,
         metadata_bytes: Buffer,
@@ -146,26 +149,19 @@ impl Worker {
             Buffer::from(output)
         };
 
-        let mut batch_decoder =
-            ipc::record_batch::RecordBatchDecoder::new(&decompressed_buf, fb_batch, schema);
+        let mut batch_decoder = RecordBatchDecoder::new(&decompressed_buf, fb_batch, schema);
         batch_decoder.try_decode()
     }
 
-    /// Processes the page, decompresses if needed, and pushes through operators.
     fn execute_vectorized_quantum(&self, pipeline: &Pipeline, message: ScanMessage) -> Result<()> {
         let mut sink_ctx = SinkContext {
             core_id: self.core_id.id,
         };
         let mut batch = match message {
             ScanMessage::Batch(b) => b,
-            ScanMessage::CompressedPage {
-                data: compressed_data,
-                meta: metadata_bytes,
-            } => Self::decompress_and_decode(
-                compressed_data,
-                metadata_bytes,
-                pipeline.schema.clone(),
-            )?,
+            ScanMessage::CompressedPage { data, meta } => {
+                Self::decompress_and_decode(data, meta, pipeline.schema.clone())?
+            }
         };
 
         let mut is_passed = true;
@@ -180,7 +176,9 @@ impl Worker {
         }
 
         if is_passed {
-            _ = pipeline.sink.sink(&mut sink_ctx, batch)?;
+            match pipeline.sink.sink(&mut sink_ctx, batch)? {
+                SinkResult::Finished | SinkResult::NeedMoreInput => {}
+            }
         }
 
         Ok(())
@@ -190,6 +188,10 @@ impl Worker {
 pub struct Scheduler {
     pub numa_nodes: usize,
     pub cores_per_node: usize,
+    pub dispatcher: Arc<Dispatcher>,
+    pub mailboxes: Arc<Vec<MailBoxSender>>,
+    /// Handles to keep the background Reactor threads alive for the lifetime of the engine
+    pub thread_handles: Vec<std::thread::JoinHandle<Result<()>>>,
 }
 
 impl Scheduler {
@@ -197,32 +199,19 @@ impl Scheduler {
         let topo = NumaTopology::detect();
         let numa_nodes = topo.numa_nodes_count();
         let total_cores = topo.cores_count();
-
         let cores_per_node = (total_cores + numa_nodes - 1) / numa_nodes;
 
-        Self {
-            numa_nodes,
-            cores_per_node,
-        }
-    }
-    /// Spawns parallel worker tasks on Tokio, submitting the query pipeline DAG
-    pub fn execute_job(&self, pipelines: Vec<Pipeline>) -> Result<()> {
-        let dispatcher = Arc::new(Dispatcher::new(self.numa_nodes));
-        for pipeline in pipelines {
-            dispatcher.register(pipeline)?;
-        }
-
-        let topo = NumaTopology::detect();
-        let total_workers = self.cores_per_node * self.numa_nodes;
+        let total_workers = cores_per_node * numa_nodes;
         let mut mailbox_txs = Vec::with_capacity(total_workers);
         let mut mailbox_rxs = Vec::with_capacity(total_workers);
-
         for _ in 0..total_workers {
             let (tx, rx) = unbounded_channel();
             mailbox_txs.push(MailBoxSender { sender: tx });
-            mailbox_rxs.push(rx)
+            mailbox_rxs.push(rx);
         }
 
+        let mailboxes = Arc::new(mailbox_txs);
+        let dispatcher = Arc::new(Dispatcher::new(numa_nodes));
         let active_core_ids = core_affinity::get_core_ids().unwrap_or_default();
         let mut thread_handles = Vec::new();
         for id in 0..total_workers {
@@ -233,19 +222,38 @@ impl Scheduler {
                 numa_node: worker_numa,
                 dispatcher: dispatcher.clone(),
                 mailbox_rx: mailbox_rxs.remove(0),
-                all_mailboxes: mailbox_txs.clone(),
+                all_mailboxes: mailboxes.as_ref().clone(),
             };
             let handle = std::thread::spawn(move || worker.run_loop());
-
             thread_handles.push(handle);
         }
 
-        // Block caller thread until all worker threads complete
-        for handle in thread_handles {
-            handle
-                .join()
-                .map_err(|e| anyhow!("Worker thread panicked: {:?}", e))??;
+        Self {
+            numa_nodes,
+            cores_per_node,
+            dispatcher,
+            mailboxes,
+            thread_handles,
         }
+    }
+
+    /// Submits a query pipeline DAG to the permanently running background reactor pool,
+    /// blocking the caller thread safely until the query completes!
+    pub fn execute_job(&self, pipelines: Vec<Pipeline>) -> Result<()> {
+        let (tx, rx) = mpsc::channel();
+
+        for pipeline in pipelines {
+            let id = pipeline.id;
+            let deps = pipeline.dependencies.clone();
+            self.dispatcher
+                .register(id, deps, Arc::new(pipeline), tx.clone())?;
+        }
+
+        // Drop local sender so receiver closes when last dispatcher task unregisters
+        drop(tx);
+
+        // Block caller thread until query completion
+        let _ = rx.recv();
 
         Ok(())
     }
@@ -255,8 +263,7 @@ impl Scheduler {
 mod tests {
     use super::*;
     use crate::arrow::{ArrayRef, DataType, Field, RecordBatch, Schema, array::PrimitiveArray};
-    use crate::execution::Morsel;
-    use crate::execution::pipeline::{PhysicalSink, SinkResult};
+    use crate::execution::pipeline::{PhysicalSink, SinkContext, SinkResult};
     use std::sync::Mutex;
 
     struct MockSink {
@@ -284,8 +291,6 @@ mod tests {
     #[test]
     fn test_scheduler_end_to_end_parallel_job() {
         let scheduler = Scheduler::new();
-        assert!(scheduler.numa_nodes >= 1);
-        assert!(scheduler.cores_per_node >= 1);
 
         // Setup shared mock buffers
         let accumulated_state = Arc::new(Mutex::new(Vec::new()));
@@ -302,10 +307,13 @@ mod tests {
         };
 
         // Initialize and register inside dispatcher
-        let dispatcher = Arc::new(Dispatcher::new(scheduler.numa_nodes));
-        dispatcher.register(pipeline).unwrap();
+        let (tx, rx) = std::sync::mpsc::channel();
+        scheduler
+            .dispatcher
+            .register(100, vec![], Arc::new(pipeline), tx)
+            .unwrap();
 
-        // Feed mock page buffers into dispatcher queues!
+        // Feed mock page page buffers into dispatcher queues!
         let mut row_offset = 0;
         let mut count = 0;
         while row_offset < 30 {
@@ -326,43 +334,18 @@ mod tests {
             let array: ArrayRef = Arc::new(PrimitiveArray::from(values));
             let batch = RecordBatch::try_new(schema, vec![array]).unwrap();
 
-            dispatcher
+            scheduler
+                .dispatcher
                 .push_scan_message(100, numa_node, morsel, ScanMessage::Batch(batch))
                 .unwrap();
             row_offset += 10;
             count += 1;
         }
 
-        // Spawn threads manually for exact execution
-        let mut thread_handles = Vec::new();
-        let total_workers = scheduler.cores_per_node * scheduler.numa_nodes;
-        let active_core_ids = core_affinity::get_core_ids().unwrap_or_default();
+        scheduler.dispatcher.finish_pushing(100, count).unwrap();
 
-        let mut mailbox_txs = Vec::with_capacity(total_workers);
-        let mut mailbox_rxs = Vec::with_capacity(total_workers);
-        for _ in 0..total_workers {
-            let (tx, rx) = unbounded_channel();
-            mailbox_txs.push(MailBoxSender { sender: tx });
-            mailbox_rxs.push(rx)
-        }
-
-        for id in 0..total_workers {
-            let core_id = active_core_ids.get(id).unwrap();
-            let worker_numa = NumaTopology::detect().numa_node(core_id.id);
-            let mut worker = Worker {
-                core_id: *core_id,
-                numa_node: worker_numa,
-                dispatcher: dispatcher.clone(),
-                mailbox_rx: mailbox_rxs.remove(0),
-                all_mailboxes: mailbox_txs.clone(),
-            };
-            let handle = std::thread::spawn(move || worker.run_loop());
-            thread_handles.push(handle);
-        }
-
-        for handle in thread_handles {
-            handle.join().unwrap().unwrap();
-        }
+        // Wait for background worker threads to automatically consume and finish the job!
+        let _ = rx.recv();
 
         let mut final_results = accumulated_state.lock().unwrap().clone();
         final_results.sort(); // Sort because parallel workers process in arbitrary order!
@@ -374,9 +357,6 @@ mod tests {
 
     #[test]
     fn test_inter_core_mailbox_submissions() {
-        let scheduler = Scheduler::new();
-        let _total_workers = scheduler.numa_nodes * scheduler.cores_per_node;
-
         let (tx, mut rx) = unbounded_channel();
         let sender = MailBoxSender { sender: tx };
 

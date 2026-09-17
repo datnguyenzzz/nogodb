@@ -2,7 +2,8 @@ use std::{
     collections::{HashMap, HashSet, VecDeque},
     sync::{
         Arc, Mutex,
-        atomic::{AtomicUsize, Ordering},
+        atomic::{self, AtomicUsize, Ordering},
+        mpsc,
     },
 };
 
@@ -15,7 +16,8 @@ use crate::execution::{
 
 /// Represents the dispatcher's response to an idle worker thread requesting work.
 pub enum DispatchResult {
-    /// Executing this specific Morsel of this Pipeline, loaded with its pre-fetched ScanMessage
+    /// Executing this specific Morsel of this Pipeline blueprint,
+    /// loaded with its pre-fetched ScanMessage
     ProcessMorsel {
         pipeline: Arc<Pipeline>,
         morsel: Morsel,
@@ -34,38 +36,26 @@ pub struct WorkQueue {
     pub numa_queues: Vec<VecDeque<(Morsel, ScanMessage)>>,
     /// Number of active/in-flight tasks currently being processed on CPU cores
     pub active_tasks: AtomicUsize,
-    pub total_morsels: usize,
+    /// total morsels needed to be processed by this pipeline. Only updated
+    /// when the scanning process is fully finished (via [Dispatcher].finish_pushing)
+    pub total_morsels: Option<usize>,
+    pub completed_morsels: AtomicUsize,
 }
 
 pub struct DispatcherState {
     pub pipelines: HashMap<PipelineID, Arc<Pipeline>>,
+    pub dependencies: HashMap<PipelineID, Vec<PipelineID>>,
     pub work_queues: HashMap<PipelineID, WorkQueue>,
     pub completed_pipelines: HashSet<PipelineID>,
+    /// Synchronous oneshot completion sender to unblock the caller thread once the query finishes
+    pub completion_tx: Option<mpsc::Sender<()>>,
 }
 
 /// The central, thread-safe Coordinator driving the Morsel Parallel execution DAG.
-///
-/// ```text
-///        [ I/O Scan data ]              [ Scheduler ]
-///       (Un-pinned thread)                    │
-///               |                             ▼  (Register Pipelines & Dependency DAG)
-///               └----------------------▶[ DISPATCHER ]
-///                                             │
-///                 ┌---------------------------┼---------------------------┐
-///                 ▼                           ▼                           ▼
-///          [ NUMA 0 Queue ]            [ NUMA 1 Queue ]            [ NUMA 2 Queue ]
-///         (Morsel, Morsel...)         (Morsel, Morsel...)         (Morsel, Morsel...)
-///                 ▲                           ▲                           ▲
-///                 │ (Pull Local Work First)   │                           │
-///           [ Worker 0 ]                [ Worker 1 ]                [ Worker 2 ]
-///        (Pinned to Core 0)          (Pinned to Core 1)          (Pinned to Core 2)
-///                 │                           │                           │
-///                 └------(If Local Empty, Steal from other Node)----------┘
-/// ```
 pub struct Dispatcher {
     pub numa_nodes: usize,
     pub state: Mutex<DispatcherState>,
-    // join-id <-> [min_val, max_val]
+    /// Thread-safe map of active join key boundaries: join_id -> (min, max)
     pub join_bounds: Mutex<HashMap<usize, (i64, i64)>>,
 }
 
@@ -75,20 +65,20 @@ impl Dispatcher {
             numa_nodes,
             state: Mutex::new(DispatcherState {
                 pipelines: HashMap::new(),
+                dependencies: HashMap::new(),
                 work_queues: HashMap::new(),
                 completed_pipelines: HashSet::new(),
+                completion_tx: None,
             }),
             join_bounds: Mutex::new(HashMap::new()),
         }
     }
 
-    /// Queries the active join key boundaries for a specific join ID.
     pub fn get_join_bounds(&self, join_id: usize) -> Option<(i64, i64)> {
         let guard = self.join_bounds.lock().unwrap();
         guard.get(&join_id).copied()
     }
 
-    /// Publishes/updates the join key boundaries for a specific join ID.
     pub fn publish_join_bounds(&self, join_id: usize, min_val: i64, max_val: i64) {
         let mut guard = self.join_bounds.lock().unwrap();
         guard.insert(join_id, (min_val, max_val));
@@ -106,26 +96,62 @@ impl Dispatcher {
         let mut state = self.state.lock().unwrap();
         if let Some(queue) = state.work_queues.get_mut(&pipeline_id) {
             queue.numa_queues[numa_node % self.numa_nodes].push_back((morsel, message));
-            queue.total_morsels += 1;
+        }
+        Ok(())
+    }
+
+    /// Signals that the I/O thread has finished scanning and pushing all morsels for a pipeline.
+    pub fn finish_pushing(&self, pipeline_id: usize, total: usize) -> Result<()> {
+        let mut state = self.state.lock().unwrap();
+        let mut is_finished = false;
+
+        if let Some(queue) = state.work_queues.get_mut(&pipeline_id) {
+            queue.total_morsels = Some(total);
+            let completed = queue.completed_morsels.load(Ordering::SeqCst);
+            if completed == total {
+                is_finished = true;
+            }
+        }
+
+        if is_finished {
+            state.dependencies.remove(&pipeline_id);
+            state.work_queues.remove(&pipeline_id);
+            state.pipelines.remove(&pipeline_id);
+            state.completed_pipelines.insert(pipeline_id);
+
+            if state.dependencies.is_empty() {
+                if let Some(tx) = state.completion_tx.take() {
+                    let _ = tx.send(());
+                }
+            }
         }
         Ok(())
     }
 
     /// Registers an executable pipeline inside the coordination DAG, instantiating
     /// an empty, ready-to-run WorkQueue. Slices are pushed dynamically via push_scan_message.
-    pub fn register(&self, pipeline: Pipeline) -> Result<()> {
+    pub fn register(
+        &self,
+        pipeline_id: PipelineID,
+        dependencies: Vec<PipelineID>,
+        pipeline: Arc<Pipeline>,
+        completion_tx: mpsc::Sender<()>,
+    ) -> Result<()> {
         let numa_queues = vec![VecDeque::new(); self.numa_nodes];
-        let pipeline_id = pipeline.id;
         let mut state = self.state.lock().unwrap();
-        state.pipelines.insert(pipeline_id, Arc::new(pipeline));
+
+        state.pipelines.insert(pipeline_id, pipeline);
+        state.dependencies.insert(pipeline_id, dependencies);
         state.work_queues.insert(
             pipeline_id,
             WorkQueue {
                 numa_queues,
                 active_tasks: AtomicUsize::new(0),
-                total_morsels: 0,
+                total_morsels: None,
+                completed_morsels: AtomicUsize::new(0),
             },
         );
+        state.completion_tx = Some(completion_tx);
 
         Ok(())
     }
@@ -133,17 +159,17 @@ impl Dispatcher {
     /// Pulls the next available Morsel. Prefers local NUMA node; falls back to Work-Stealing
     pub async fn pull_work(&self, worker_numa_node: usize) -> Result<DispatchResult> {
         let mut state = self.state.lock().unwrap();
-        if state.pipelines.is_empty() {
+        if state.dependencies.is_empty() {
+            // Signal completion to unblock the caller thread!
+            if let Some(tx) = state.completion_tx.take() {
+                let _ = tx.send(());
+            }
             return Ok(DispatchResult::Finished);
         }
 
         let mut runnable_pipeline_ids = Vec::<PipelineID>::new();
-        for (&id, pipeline) in &state.pipelines {
-            if pipeline
-                .dependencies
-                .iter()
-                .all(|d| state.completed_pipelines.contains(d))
-            {
+        for (&id, deps) in &state.dependencies {
+            if deps.iter().all(|d| state.completed_pipelines.contains(d)) {
                 runnable_pipeline_ids.push(id)
             }
         }
@@ -158,11 +184,11 @@ impl Dispatcher {
         for id in &runnable_pipeline_ids {
             let queue = state.work_queues.get_mut(id).unwrap();
             if let Some((morsel, message)) = queue.numa_queues[worker_numa_node].pop_front() {
-                queue
-                    .active_tasks
-                    .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                queue.active_tasks.fetch_add(1, atomic::Ordering::SeqCst);
+
+                let pipeline = state.pipelines.get(id).cloned().unwrap();
                 return Ok(DispatchResult::ProcessMorsel {
-                    pipeline: state.pipelines.get(id).unwrap().clone(),
+                    pipeline,
                     morsel,
                     scan_message: message,
                 });
@@ -177,8 +203,10 @@ impl Dispatcher {
                 }
                 if let Some((morsel, message)) = queue.numa_queues[stolen_numa].pop_front() {
                     queue.active_tasks.fetch_add(1, Ordering::SeqCst);
+
+                    let pipeline = state.pipelines.get(id).cloned().unwrap();
                     return Ok(DispatchResult::ProcessMorsel {
-                        pipeline: state.pipelines.get(id).unwrap().clone(),
+                        pipeline,
                         morsel,
                         scan_message: message,
                     });
@@ -201,32 +229,96 @@ impl Dispatcher {
         if has_active_tasks {
             Ok(DispatchResult::Wait)
         } else {
+            let mut completed_targets = Vec::with_capacity(runnable_pipeline_ids.len());
             for id in runnable_pipeline_ids {
-                if let Some(pipeline) = state.pipelines.get(&id) {
-                    pipeline.sink.combine()?;
+                let queue = state.work_queues.get(&id).unwrap();
+                if let Some(total) = queue.total_morsels {
+                    let completed = queue.completed_morsels.load(Ordering::SeqCst);
+                    if completed == total {
+                        completed_targets.push(id);
+                    }
                 }
-                state.pipelines.remove(&id);
-                state.work_queues.remove(&id);
-                state.completed_pipelines.insert(id);
             }
-            Ok(DispatchResult::Wait)
+
+            if completed_targets.is_empty() {
+                Ok(DispatchResult::Wait)
+            } else {
+                for id in completed_targets {
+                    state.dependencies.remove(&id);
+                    state.work_queues.remove(&id);
+                    state.pipelines.remove(&id);
+                    state.completed_pipelines.insert(id);
+                }
+
+                if state.dependencies.is_empty() {
+                    if let Some(tx) = state.completion_tx.take() {
+                        let _ = tx.send(());
+                    }
+                    Ok(DispatchResult::Finished)
+                } else {
+                    Ok(DispatchResult::Wait)
+                }
+            }
         }
+    }
+
+    /// Checks if this was the last active task of a pipeline, decrementing the active counter.
+    /// Returns `true` if this thread is the absolute final worker, signifying that it is
+    /// safe to run .combine() locally in-thread
+    pub fn check_and_decrement_active_tasks(&self, pipeline_id: usize) -> Result<bool> {
+        let mut state = self.state.lock().unwrap();
+        if let Some(queue) = state.work_queues.get_mut(&pipeline_id) {
+            let active = queue.active_tasks.load(Ordering::SeqCst);
+            let completed = queue.completed_morsels.load(Ordering::SeqCst) + 1;
+
+            if let Some(total) = queue.total_morsels {
+                if completed == total && active == 1 {
+                    return Ok(true);
+                }
+            }
+        }
+        Ok(false)
+    }
+
+    pub async fn mark_pipeline_complete(&self, pipeline_id: usize) -> Result<()> {
+        let mut state = self.state.lock().unwrap();
+        state.dependencies.remove(&pipeline_id);
+        state.work_queues.remove(&pipeline_id);
+        state.pipelines.remove(&pipeline_id);
+        state.completed_pipelines.insert(pipeline_id);
+
+        if state.dependencies.is_empty() {
+            if let Some(tx) = state.completion_tx.take() {
+                let _ = tx.send(());
+            }
+        }
+        Ok(())
     }
 
     pub async fn mark_morsel_complete(&self, pipeline_id: usize, _morsel: Morsel) -> Result<()> {
         let mut state = self.state.lock().unwrap();
+        let mut is_finished = false;
         if let Some(queue) = state.work_queues.get_mut(&pipeline_id) {
-            let active = queue.active_tasks.fetch_sub(1, Ordering::SeqCst);
+            queue.active_tasks.fetch_sub(1, Ordering::SeqCst);
+            let completed = queue.completed_morsels.fetch_add(1, Ordering::SeqCst) + 1;
 
-            let all_queues_empty = queue.numa_queues.iter().all(|q| q.is_empty());
-            if all_queues_empty && active == 1 {
-                if let Some(pipeline) = state.pipelines.get(&pipeline_id) {
-                    pipeline.sink.combine()?;
+            if let Some(total) = queue.total_morsels {
+                if completed == total {
+                    is_finished = true;
                 }
+            }
+        }
 
-                state.pipelines.remove(&pipeline_id);
-                state.work_queues.remove(&pipeline_id);
-                state.completed_pipelines.insert(pipeline_id);
+        if is_finished {
+            state.dependencies.remove(&pipeline_id);
+            state.work_queues.remove(&pipeline_id);
+            state.pipelines.remove(&pipeline_id);
+            state.completed_pipelines.insert(pipeline_id);
+
+            if state.dependencies.is_empty() {
+                if let Some(tx) = state.completion_tx.take() {
+                    let _ = tx.send(());
+                }
             }
         }
         Ok(())
@@ -236,11 +328,11 @@ impl Dispatcher {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::arrow::RecordBatch;
-    use crate::execution::pipeline::{PhysicalSink, SinkContext, SinkResult};
+    use crate::arrow::{Field, RecordBatch, Schema};
+    use crate::execution::pipeline::{SinkContext, SinkResult};
 
     struct DummySink;
-    impl PhysicalSink for DummySink {
+    impl crate::execution::pipeline::PhysicalSink for DummySink {
         fn sink(&self, _ctx: &mut SinkContext, _input: RecordBatch) -> Result<SinkResult> {
             Ok(SinkResult::Finished)
         }
@@ -253,19 +345,31 @@ mod tests {
     async fn test_dispatcher_locality_stealing_and_dag() {
         // Create a 2-socket NUMA Dispatcher
         let dispatcher = Dispatcher::new(2);
+        let (tx, _rx) = std::sync::mpsc::channel();
 
-        // 1. Register Pipeline A (ID: 10, no dependencies)
-        let pipeline_a = Pipeline {
+        // Register dummy Pipeline A and B
+        let pipeline_a = Arc::new(Pipeline {
             id: 10,
             operators: vec![],
             sink: Box::new(DummySink),
             dependencies: vec![],
             partitions: 1,
-            schema: std::sync::Arc::new(crate::arrow::Schema::new(
-                Vec::<crate::arrow::Field>::new(),
-            )),
-        };
-        dispatcher.register(pipeline_a).unwrap();
+            schema: Arc::new(Schema::new(Vec::<Field>::new())),
+        });
+
+        let pipeline_b = Arc::new(Pipeline {
+            id: 20,
+            operators: vec![],
+            sink: Box::new(DummySink),
+            dependencies: vec![10],
+            partitions: 1,
+            schema: Arc::new(Schema::new(Vec::<Field>::new())),
+        });
+
+        // 1. Register Pipeline A (ID: 10, no dependencies)
+        dispatcher
+            .register(10, vec![], pipeline_a, tx.clone())
+            .unwrap();
 
         // Push mock data dynamically matching standard NUMA nodes!
         let morsel_a1 = Morsel {
@@ -296,19 +400,10 @@ mod tests {
             )
             .unwrap();
 
+        dispatcher.finish_pushing(10, 2).unwrap();
+
         // 2. Register Pipeline B (ID: 20, DEPENDS on A)
-        let mut pipeline_b = Pipeline {
-            id: 20,
-            operators: vec![],
-            sink: Box::new(DummySink),
-            dependencies: vec![],
-            partitions: 1,
-            schema: std::sync::Arc::new(crate::arrow::Schema::new(
-                Vec::<crate::arrow::Field>::new(),
-            )),
-        };
-        pipeline_b.add_dependency(10);
-        dispatcher.register(pipeline_b).unwrap();
+        dispatcher.register(20, vec![10], pipeline_b, tx).unwrap();
 
         // Push Pipeline B's mock data!
         let morsel_b1 = Morsel {
@@ -324,6 +419,8 @@ mod tests {
                 ScanMessage::Batch(RecordBatch::new_empty()),
             )
             .unwrap();
+
+        dispatcher.finish_pushing(20, 1).unwrap();
 
         // --- TEST 1: DAG Blocking ---
         // Request work on NUMA Node 0. Since A is not finished, B is blocked.

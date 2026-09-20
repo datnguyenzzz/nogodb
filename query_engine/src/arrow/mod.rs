@@ -6,6 +6,8 @@ use std::{mem, ops::Deref, slice, sync::Arc};
 
 use anyhow::{Result, anyhow};
 
+use crate::arrow::array::new_empty_array;
+
 // Arrow Data type \\
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -445,6 +447,17 @@ impl Schema {
 
         Ok(Self::new(new_fields))
     }
+
+    pub fn merge(schema_1: &SchemaRef, schema_2: &SchemaRef) -> Self {
+        let mut fields = Vec::with_capacity(schema_1.fields().len() + schema_2.fields().len());
+        for field in schema_1.fields() {
+            fields.push(field.clone());
+        }
+        for field in schema_2.fields() {
+            fields.push(field.clone());
+        }
+        Schema::new(fields)
+    }
 }
 
 pub type SchemaRef = Arc<Schema>;
@@ -521,10 +534,15 @@ pub struct RecordBatch {
 }
 
 impl RecordBatch {
-    pub fn new_empty() -> Self {
+    pub fn new_empty(schema: SchemaRef) -> Self {
+        let columns = schema
+            .fields()
+            .iter()
+            .map(|field| new_empty_array(field.data_type))
+            .collect();
         Self {
-            schema: SchemaRef::new(Schema::new(Vec::<Field>::new())),
-            columns: vec![],
+            schema: schema,
+            columns: columns,
             row_count: 0,
         }
     }

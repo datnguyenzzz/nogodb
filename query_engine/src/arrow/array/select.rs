@@ -4,8 +4,8 @@ use anyhow::{Result, anyhow, bail};
 
 use crate::{
     arrow::{
-        Array, ArrayRef, DataType, RecordBatch,
-        array::{BooleanArray, PrimitiveArray, StringArray},
+        Array, ArrayRef, DataType, RecordBatch, SchemaRef,
+        array::{BooleanArray, NativeType, PrimitiveArray, StringArray},
     },
     dispatch_native_type,
 };
@@ -191,6 +191,120 @@ pub fn filter(value: &dyn Array, predicate: &BooleanArray) -> Result<ArrayRef> {
 pub fn filter_record_batch(batch: &RecordBatch, predicate: &BooleanArray) -> Result<RecordBatch> {
     let pred = FilterPredicate::new(predicate);
     pred.filter_record_batch(batch)
+}
+
+/// Concatenates multiple [Array] slice references of the same type
+/// into a single contiguous [ArrayRef]
+pub fn concat(arrays: &[&dyn Array]) -> Result<ArrayRef> {
+    if arrays.is_empty() {
+        return Err(anyhow!("Cannot concatenate an empty list of arrays"));
+    }
+
+    if arrays.len() == 1 {
+        return Ok(arrays[0].slice(0, arrays[0].len()));
+    }
+
+    let dt = arrays[0].data_type();
+    let mut total_len = 0;
+    for &arr in arrays {
+        if arr.data_type() != dt {
+            return Err(anyhow!(
+                "Mismatched DataTypes in concat: expected {:?}, found {:?}",
+                dt,
+                arr.data_type()
+            ));
+        }
+        total_len += arr.len();
+    }
+
+    match dt {
+        DataType::Boolean => concat_boolean(arrays, total_len),
+        DataType::Utf8 => concat_string(arrays, total_len),
+        DataType::Int8 => concat_primitive::<i8>(arrays, total_len),
+        DataType::Int16 => concat_primitive::<i16>(arrays, total_len),
+        DataType::Int32 => concat_primitive::<i32>(arrays, total_len),
+        DataType::Int64 => concat_primitive::<i64>(arrays, total_len),
+        DataType::Float32 => concat_primitive::<f32>(arrays, total_len),
+        DataType::Float64 => concat_primitive::<f64>(arrays, total_len),
+    }
+}
+
+fn concat_string(arrays: &[&dyn Array], total_len: usize) -> Result<ArrayRef> {
+    let mut values = Vec::with_capacity(total_len);
+    for &arr in arrays {
+        let typed_arr = arr.as_any().downcast_ref::<StringArray>().unwrap();
+        for i in 0..typed_arr.len() {
+            if !typed_arr.is_null(i) {
+                values.push(Some(typed_arr.value(i)));
+            } else {
+                values.push(None);
+            }
+        }
+    }
+
+    let result = StringArray::from(values);
+    Ok(Arc::new(result) as ArrayRef)
+}
+
+fn concat_boolean(arrays: &[&dyn Array], total_len: usize) -> Result<ArrayRef> {
+    let mut values = Vec::with_capacity(total_len);
+    for &arr in arrays {
+        let typed_arr = arr.as_any().downcast_ref::<BooleanArray>().unwrap();
+        for i in 0..typed_arr.len() {
+            if !typed_arr.is_null(i) {
+                values.push(Some(typed_arr.value(i)));
+            } else {
+                values.push(None);
+            }
+        }
+    }
+
+    let result = BooleanArray::from(values);
+    Ok(Arc::new(result) as ArrayRef)
+}
+
+fn concat_primitive<T>(arrays: &[&dyn Array], total_len: usize) -> Result<ArrayRef>
+where
+    T: NativeType + 'static,
+    PrimitiveArray<T>: Array,
+{
+    let mut values = Vec::with_capacity(total_len);
+    for &arr in arrays {
+        let typed_arr = arr.as_any().downcast_ref::<PrimitiveArray<T>>().unwrap();
+        for i in 0..typed_arr.len() {
+            if !typed_arr.is_null(i) {
+                values.push(Some(typed_arr.value(i)));
+            } else {
+                values.push(None);
+            }
+        }
+    }
+
+    let result = PrimitiveArray::<T>::from(values);
+    Ok(Arc::new(result) as ArrayRef)
+}
+
+pub fn concat_batches<'a>(
+    schema: &SchemaRef,
+    input_batches: impl IntoIterator<Item = &'a RecordBatch>,
+) -> Result<RecordBatch> {
+    let batches: Vec<&RecordBatch> = input_batches.into_iter().collect();
+    if batches.is_empty() {
+        return Ok(RecordBatch::new_empty(schema.clone()));
+    }
+
+    let field_num = schema.fields().len();
+    let mut arrays = Vec::with_capacity(field_num);
+    for i in 0..field_num {
+        arrays.push(concat(
+            &batches
+                .iter()
+                .map(|batch| batch.column(i).as_ref())
+                .collect::<Vec<_>>(),
+        )?);
+    }
+
+    RecordBatch::try_new(schema.clone(), arrays)
 }
 
 #[cfg(test)]

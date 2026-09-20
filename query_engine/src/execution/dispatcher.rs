@@ -55,8 +55,8 @@ pub struct DispatcherState {
 pub struct Dispatcher {
     pub numa_nodes: usize,
     pub state: Mutex<DispatcherState>,
-    /// Thread-safe map of active join key boundaries: join_id -> (min, max)
-    pub join_bounds: Mutex<HashMap<usize, (i64, i64)>>,
+    /// Thread-safe map of active join key boundaries: join_id -> col_id - (min, max)
+    pub join_bounds: Mutex<HashMap<usize, HashMap<usize, (i64, i64)>>>,
 }
 
 impl Dispatcher {
@@ -74,14 +74,17 @@ impl Dispatcher {
         }
     }
 
-    pub fn get_join_bounds(&self, join_id: usize) -> Option<(i64, i64)> {
+    pub fn get_join_bounds(&self, join_id: usize, col_idx: usize) -> Option<(i64, i64)> {
         let guard = self.join_bounds.lock().unwrap();
-        guard.get(&join_id).copied()
+        guard.get(&join_id)?.get(&col_idx).copied()
     }
 
-    pub fn publish_join_bounds(&self, join_id: usize, min_val: i64, max_val: i64) {
+    pub fn publish_join_bounds(&self, join_id: usize, col_idx: usize, min_val: i64, max_val: i64) {
         let mut guard = self.join_bounds.lock().unwrap();
-        guard.insert(join_id, (min_val, max_val));
+        guard
+            .entry(join_id)
+            .or_insert_with(HashMap::new)
+            .insert(col_idx, (min_val, max_val));
     }
 
     /// Pushes a single pre-fetched [ScanMessage] (and its [Morsel]) dynamically
@@ -126,6 +129,11 @@ impl Dispatcher {
             }
         }
         Ok(())
+    }
+
+    pub fn get_pipeline(&self, id: PipelineID) -> Arc<Pipeline> {
+        let state = self.state.lock().unwrap();
+        state.pipelines.get(&id).unwrap().clone()
     }
 
     /// Registers an executable pipeline inside the coordination DAG, instantiating
@@ -339,6 +347,9 @@ mod tests {
         fn combine(&self) -> Result<()> {
             Ok(())
         }
+        fn as_any(&self) -> &dyn std::any::Any {
+            self
+        }
     }
 
     #[tokio::test]
@@ -368,7 +379,7 @@ mod tests {
 
         // 1. Register Pipeline A (ID: 10, no dependencies)
         dispatcher
-            .register(10, vec![], pipeline_a, tx.clone())
+            .register(10, vec![], pipeline_a.clone(), tx.clone())
             .unwrap();
 
         // Push mock data dynamically matching standard NUMA nodes!
@@ -382,7 +393,7 @@ mod tests {
                 10,
                 0,
                 morsel_a1,
-                ScanMessage::Batch(RecordBatch::new_empty()),
+                ScanMessage::Batch(RecordBatch::new_empty(pipeline_a.schema.clone())),
             )
             .unwrap();
 
@@ -396,14 +407,16 @@ mod tests {
                 10,
                 1,
                 morsel_a2,
-                ScanMessage::Batch(RecordBatch::new_empty()),
+                ScanMessage::Batch(RecordBatch::new_empty(pipeline_a.schema.clone())),
             )
             .unwrap();
 
         dispatcher.finish_pushing(10, 2).unwrap();
 
         // 2. Register Pipeline B (ID: 20, DEPENDS on A)
-        dispatcher.register(20, vec![10], pipeline_b, tx).unwrap();
+        dispatcher
+            .register(20, vec![10], pipeline_b.clone(), tx)
+            .unwrap();
 
         // Push Pipeline B's mock data!
         let morsel_b1 = Morsel {
@@ -416,7 +429,7 @@ mod tests {
                 20,
                 0,
                 morsel_b1,
-                ScanMessage::Batch(RecordBatch::new_empty()),
+                ScanMessage::Batch(RecordBatch::new_empty(pipeline_b.schema.clone())),
             )
             .unwrap();
 

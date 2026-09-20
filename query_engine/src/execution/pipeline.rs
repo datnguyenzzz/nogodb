@@ -1,3 +1,5 @@
+use std::any::Any;
+
 use anyhow::Result;
 
 use crate::arrow::{Buffer, RecordBatch, SchemaRef};
@@ -20,11 +22,18 @@ pub enum SinkResult {
 
 pub struct SinkContext {
     pub core_id: usize,
+    pub pipeline_id: PipelineID,
+}
+
+pub struct OperatorContext {
+    pub core_id: usize,
+    pub pipeline_id: PipelineID,
 }
 
 pub trait PhysicalOperator: Send + Sync {
     /// Performs in-place vectorized transformations
-    fn execute(&self, input: &RecordBatch) -> Result<Option<RecordBatch>>;
+    fn execute(&self, ctx: &OperatorContext, input: &RecordBatch) -> Result<Option<RecordBatch>>;
+    fn as_any(&self) -> &dyn Any;
 }
 
 pub trait PhysicalSink: Send + Sync {
@@ -33,6 +42,7 @@ pub trait PhysicalSink: Send + Sync {
     /// Combines thread-local partition states into a finalized global
     /// state once all threads finish
     fn combine(&self) -> Result<()>;
+    fn as_any(&self) -> &dyn Any;
 }
 
 pub type PipelineID = usize;

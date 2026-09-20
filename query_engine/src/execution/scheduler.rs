@@ -10,34 +10,48 @@ use tokio::{
     task,
 };
 
-use crate::arrow::{
-    Buffer, RecordBatch, SchemaRef,
-    ipc::{self, record_batch::RecordBatchDecoder},
-};
 use crate::execution::{
     Morsel,
     dispatcher::{DispatchResult, Dispatcher},
     numa_topology::NumaTopology,
-    pipeline::{Pipeline, ScanMessage, SinkContext, SinkResult},
+    pipeline::{OperatorContext, Pipeline, ScanMessage, SinkContext, SinkResult},
+};
+use crate::{
+    arrow::{
+        Buffer, RecordBatch, SchemaRef,
+        ipc::{self, record_batch::RecordBatchDecoder},
+    },
+    execution::{
+        hash_join::operators::{PhysicalBuildSink, PhysicalProbeOperator},
+        pipeline::PipelineID,
+    },
 };
 
 /// An Inter-Core message represented as a boxed closure to be
 /// executed on a remote Reactor core.
-pub type InterCoreMessage = Box<dyn FnOnce() -> Result<()> + Send>;
+pub enum InterCoreMessage {
+    JoinBuildShuffle {
+        pipeline_id: PipelineID,
+        batch: RecordBatch,
+    },
+    JoinProbeShuffle {
+        pipeline_id: PipelineID,
+        batch: RecordBatch,
+        /// Return channel to send joined RecordBatches back to the originating core
+        response_tx: UnboundedSender<RecordBatch>,
+    },
+}
 
 /// A Thread-safe mailbox sender handle to submit tasks/messages
 #[derive(Clone)]
 pub struct MailBoxSender {
-    sender: UnboundedSender<InterCoreMessage>,
+    pub sender: UnboundedSender<InterCoreMessage>,
 }
 
 impl MailBoxSender {
-    pub fn submit<F>(&self, f: F) -> Result<()>
-    where
-        F: FnOnce() -> Result<()> + Send + 'static,
-    {
+    pub fn submit(&self, msg: InterCoreMessage) -> Result<()> {
         self.sender
-            .send(Box::new(f))
+            .send(msg)
             .map_err(|_| anyhow!("Failed to submit task to target Core Mailbox"))
     }
 }
@@ -66,11 +80,31 @@ impl Worker {
                 // lightweight (such as pointer look up, ...), it should be ok
                 // (until it isn't :-) )
                 while let Ok(msg) = self.mailbox_rx.try_recv() {
-                    if let Err(e) = msg() {
-                        eprintln!(
-                            "Error executing inter-core message on Core {}: {:?}",
-                            self.core_id.id, e
-                        );
+                    match msg {
+                        InterCoreMessage::JoinBuildShuffle { pipeline_id, batch } => {
+                            let pipeline = self.dispatcher.get_pipeline(pipeline_id);
+                            if let Some(join_build_sink) =
+                                pipeline.sink.as_any().downcast_ref::<PhysicalBuildSink>()
+                            {
+                                join_build_sink.push_batch_local(batch);
+                            }
+                        }
+
+                        InterCoreMessage::JoinProbeShuffle {
+                            pipeline_id,
+                            batch,
+                            response_tx,
+                        } => {
+                            let pipeline = self.dispatcher.get_pipeline(pipeline_id);
+                            for op in &pipeline.operators {
+                                if let Some(probe_op) =
+                                    op.as_any().downcast_ref::<PhysicalProbeOperator>()
+                                {
+                                    probe_op.probe_and_respond_local(&batch, response_tx)?;
+                                    break;
+                                }
+                            }
+                        }
                     }
                     is_done = true;
                 }
@@ -156,6 +190,11 @@ impl Worker {
     fn execute_vectorized_quantum(&self, pipeline: &Pipeline, message: ScanMessage) -> Result<()> {
         let mut sink_ctx = SinkContext {
             core_id: self.core_id.id,
+            pipeline_id: pipeline.id,
+        };
+        let op_ctx = OperatorContext {
+            core_id: self.core_id.id,
+            pipeline_id: pipeline.id,
         };
         let mut batch = match message {
             ScanMessage::Batch(b) => b,
@@ -167,7 +206,7 @@ impl Worker {
         let mut is_passed = true;
 
         for op in &pipeline.operators {
-            if let Some(next_batch) = op.execute(&batch)? {
+            if let Some(next_batch) = op.execute(&op_ctx, &batch)? {
                 batch = next_batch
             } else {
                 is_passed = false;
@@ -286,6 +325,9 @@ mod tests {
         fn combine(&self) -> Result<()> {
             Ok(())
         }
+        fn as_any(&self) -> &dyn std::any::Any {
+            self
+        }
     }
 
     #[test]
@@ -360,23 +402,22 @@ mod tests {
         let (tx, mut rx) = unbounded_channel();
         let sender = MailBoxSender { sender: tx };
 
-        // Symmetrically submit a closure to Core's mailbox!
-        let trigger = Arc::new(Mutex::new(false));
-        let trigger_clone = trigger.clone();
-
+        // Symmetrically submit a typed JoinBuildShuffle message to Core's mailbox!
         sender
-            .submit(move || {
-                let mut guard = trigger_clone.lock().unwrap();
-                *guard = true;
-                Ok(())
+            .submit(InterCoreMessage::JoinBuildShuffle {
+                pipeline_id: 100,
+                batch: RecordBatch::new_empty(Arc::new(Schema::new(Vec::<Field>::new()))),
             })
             .unwrap();
 
         // Pull message on receiver
         let msg = rx.try_recv().unwrap();
-        msg().unwrap();
 
-        // Verify state mutated lock-free!
-        assert!(*trigger.lock().unwrap());
+        match msg {
+            InterCoreMessage::JoinBuildShuffle { pipeline_id, .. } => {
+                assert_eq!(pipeline_id, 100);
+            }
+            _ => panic!("Expected JoinBuildShuffle message"),
+        }
     }
 }

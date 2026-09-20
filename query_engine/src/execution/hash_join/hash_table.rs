@@ -164,7 +164,11 @@ impl HashTable {
         }
     }
 
-    fn hash_row_keys(batch: &RecordBatch, col_indexes: &[usize], row_idx: usize) -> Option<u64> {
+    pub fn hash_row_keys(
+        batch: &RecordBatch,
+        col_indexes: &[usize],
+        row_idx: usize,
+    ) -> Option<u64> {
         let mut combined_hash = 0u64;
         for &col_idx in col_indexes {
             let col = batch.column(col_idx);

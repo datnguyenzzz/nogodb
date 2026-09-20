@@ -7,7 +7,10 @@ use crate::{
         DataType, RecordBatch,
         array::{BooleanArray, select::filter_record_batch},
     },
-    execution::{physical_plan::PhysicalExpr, pipeline::PhysicalOperator},
+    execution::{
+        physical_plan::PhysicalExpr,
+        pipeline::{OperatorContext, PhysicalOperator},
+    },
 };
 
 pub struct PhysicalFilter {
@@ -15,7 +18,7 @@ pub struct PhysicalFilter {
 }
 
 impl PhysicalOperator for PhysicalFilter {
-    fn execute(&self, input: &RecordBatch) -> Result<Option<RecordBatch>> {
+    fn execute(&self, _ctx: &OperatorContext, input: &RecordBatch) -> Result<Option<RecordBatch>> {
         let eval = self.predicate.evaluate(input)?;
         if *eval.data_type() != DataType::Boolean {
             return Err(anyhow!(
@@ -26,6 +29,10 @@ impl PhysicalOperator for PhysicalFilter {
 
         let eval = eval.as_any().downcast_ref::<BooleanArray>().unwrap();
         Ok(Some(filter_record_batch(input, eval).unwrap()))
+    }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
     }
 }
 
@@ -71,9 +78,13 @@ mod tests {
         });
 
         let filter_op = PhysicalFilter { predicate };
+        let ctx = &OperatorContext {
+            core_id: 0,
+            pipeline_id: 0,
+        };
 
         // Execute the vectorized physical filter!
-        let filtered_batch = filter_op.execute(&batch).unwrap().unwrap();
+        let filtered_batch = filter_op.execute(ctx, &batch).unwrap().unwrap();
 
         assert_eq!(filtered_batch.num_rows(), 2); // 45 and 32 matched
         assert_eq!(filtered_batch.num_columns(), 2);

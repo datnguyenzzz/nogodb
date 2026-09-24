@@ -20,6 +20,11 @@ pub enum SinkResult {
     Finished,
 }
 
+pub enum CombineResult {
+    Materialised(RecordBatch),
+    Empty,
+}
+
 pub struct SinkContext {
     pub core_id: usize,
     pub pipeline_id: PipelineID,
@@ -41,7 +46,7 @@ pub trait PhysicalSink: Send + Sync {
     fn sink(&self, ctx: &mut SinkContext, input: RecordBatch) -> Result<SinkResult>;
     /// Combines thread-local partition states into a finalized global
     /// state once all threads finish
-    fn combine(&self) -> Result<()>;
+    fn combine(&self) -> Result<CombineResult>;
     fn as_any(&self) -> &dyn Any;
 }
 
@@ -50,6 +55,7 @@ pub type PipelineID = usize;
 /// A linear pipeline of execution: Source -> [Operators...] -> Sink
 pub struct Pipeline {
     pub id: PipelineID,
+    pub downstream_id: Option<PipelineID>,
     pub operators: Vec<Box<dyn PhysicalOperator>>,
     pub sink: Box<dyn PhysicalSink>,
     pub dependencies: Vec<PipelineID>,

@@ -1,3 +1,4 @@
+pub mod aggregate;
 pub mod dispatcher;
 pub mod hash_join;
 pub mod numa_topology;

@@ -3,7 +3,7 @@ use anyhow::Result;
 use crate::{
     arrow::{
         Array, DataType, RecordBatch,
-        array::{PrimitiveArray, StringArray},
+        array::{BooleanArray, PrimitiveArray, StringArray},
     },
     execution::hash_join::{hash_combine, hash64},
 };
@@ -147,6 +147,13 @@ impl HashTable {
                     .unwrap();
                 Some(arr.value(row_idx))
             }
+            DataType::Float32 => {
+                let arr = array
+                    .as_any()
+                    .downcast_ref::<PrimitiveArray<f32>>()
+                    .unwrap();
+                Some(arr.value(row_idx).to_bits() as i64)
+            }
             DataType::Float64 => {
                 let arr = array
                     .as_any()
@@ -160,7 +167,13 @@ impl HashTable {
                 // Hash the string slice into a high-entropy i64
                 Some(Self::hash_string_to_i64(val))
             }
-            _ => None,
+            DataType::Boolean => {
+                let arr = array.as_any().downcast_ref::<BooleanArray>().unwrap();
+                match arr.value(row_idx) {
+                    true => Some(1),
+                    false => Some(0),
+                }
+            }
         }
     }
 

@@ -1,6 +1,5 @@
 use std::{
-    collections::{HashMap, HashSet, VecDeque},
-    sync::{
+    collections::{HashMap, HashSet, VecDeque}, mem, sync::{
         Arc, Mutex,
         atomic::{self, AtomicUsize, Ordering},
         mpsc,
@@ -9,10 +8,10 @@ use std::{
 
 use anyhow::Result;
 
-use crate::execution::{
+use crate::{arrow::RecordBatch, execution::{
     Morsel,
     pipeline::{Pipeline, PipelineID, ScanMessage},
-};
+}};
 
 /// Represents the dispatcher's response to an idle worker thread requesting work.
 pub enum DispatchResult {
@@ -49,6 +48,7 @@ pub struct DispatcherState {
     pub completed_pipelines: HashSet<PipelineID>,
     /// Synchronous oneshot completion sender to unblock the caller thread once the query finishes
     pub completion_tx: Option<mpsc::Sender<()>>,
+    pub final_results: Vec<RecordBatch>,
 }
 
 /// The central, thread-safe Coordinator driving the Morsel Parallel execution DAG.
@@ -69,6 +69,7 @@ impl Dispatcher {
                 work_queues: HashMap::new(),
                 completed_pipelines: HashSet::new(),
                 completion_tx: None,
+                final_results: vec![],
             }),
             join_bounds: Mutex::new(HashMap::new()),
         }
@@ -331,21 +332,31 @@ impl Dispatcher {
         }
         Ok(())
     }
+
+    pub fn collect_final_result(&self, batch: RecordBatch) {
+        let mut state = self.state.lock().unwrap();
+        state.final_results.push(batch);
+    }
+
+    pub fn take_final_results(&self) -> Vec<RecordBatch> {
+        let mut state = self.state.lock().unwrap();
+        mem::take(&mut state.final_results)
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::arrow::{Field, RecordBatch, Schema};
-    use crate::execution::pipeline::{SinkContext, SinkResult};
+    use crate::execution::pipeline::{CombineResult, SinkContext, SinkResult};
 
     struct DummySink;
     impl crate::execution::pipeline::PhysicalSink for DummySink {
         fn sink(&self, _ctx: &mut SinkContext, _input: RecordBatch) -> Result<SinkResult> {
             Ok(SinkResult::Finished)
         }
-        fn combine(&self) -> Result<()> {
-            Ok(())
+        fn combine(&self) -> Result<CombineResult> {
+            Ok(CombineResult::Empty)
         }
         fn as_any(&self) -> &dyn std::any::Any {
             self
@@ -361,6 +372,7 @@ mod tests {
         // Register dummy Pipeline A and B
         let pipeline_a = Arc::new(Pipeline {
             id: 10,
+            downstream_id: Some(5),
             operators: vec![],
             sink: Box::new(DummySink),
             dependencies: vec![],
@@ -370,6 +382,7 @@ mod tests {
 
         let pipeline_b = Arc::new(Pipeline {
             id: 20,
+            downstream_id: Some(10),
             operators: vec![],
             sink: Box::new(DummySink),
             dependencies: vec![10],

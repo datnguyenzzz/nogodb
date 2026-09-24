@@ -8,11 +8,16 @@ use tokio::sync::mpsc::{UnboundedSender, unbounded_channel};
 
 use crate::{
     arrow::{
-        Array, ArrayRef, DataType, RecordBatch, Schema, array::{BooleanArray, PrimitiveArray, StringArray, select},
-    }, execution::{
+        Array, ArrayRef, DataType, RecordBatch, Schema,
+        array::{BooleanArray, PrimitiveArray, StringArray, select},
+    },
+    execution::{
         dispatcher::Dispatcher,
         hash_join::{hash_combine, hash_table::HashTable, hash64},
-        pipeline::{OperatorContext, PhysicalOperator, PhysicalSink, SinkContext, SinkResult},
+        pipeline::{
+            CombineResult::{self, Empty},
+            OperatorContext, PhysicalOperator, PhysicalSink, SinkContext, SinkResult,
+        },
         scheduler::{InterCoreMessage, MailBoxSender},
     },
 };
@@ -96,7 +101,7 @@ impl PhysicalSink for PhysicalBuildSink {
         Ok(SinkResult::NeedMoreInput)
     }
 
-    fn combine(&self) -> Result<()> {
+    fn combine(&self) -> Result<CombineResult> {
         let mut local_batches = self.local_batches.lock().unwrap();
         let mut local_table = self.local_hash_table.lock().unwrap();
 
@@ -141,7 +146,7 @@ impl PhysicalSink for PhysicalBuildSink {
         }
 
         *local_table = Some(table);
-        Ok(())
+        Ok(Empty)
     }
 
     fn as_any(&self) -> &dyn std::any::Any {
@@ -289,9 +294,7 @@ impl PhysicalProbeOperator {
                             builder.push(Some(col.value(row_idx)));
                         }
                     }
-                    output_columns.push(
-                        Arc::new(BooleanArray::from(builder)) as ArrayRef
-                    );
+                    output_columns.push(Arc::new(BooleanArray::from(builder)) as ArrayRef);
                 }
                 DataType::Utf8 => {
                     let mut builder = Vec::with_capacity(num_matches);

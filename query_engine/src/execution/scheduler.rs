@@ -12,9 +12,10 @@ use tokio::{
 
 use crate::execution::{
     Morsel,
+    aggregate::PhysicalAggregateSink,
     dispatcher::{DispatchResult, Dispatcher},
     numa_topology::NumaTopology,
-    pipeline::{OperatorContext, Pipeline, ScanMessage, SinkContext, SinkResult},
+    pipeline::{CombineResult, OperatorContext, Pipeline, ScanMessage, SinkContext, SinkResult},
 };
 use crate::{
     arrow::{
@@ -39,6 +40,10 @@ pub enum InterCoreMessage {
         batch: RecordBatch,
         /// Return channel to send joined RecordBatches back to the originating core
         response_tx: UnboundedSender<RecordBatch>,
+    },
+    AggregateShuffle {
+        pipeline_id: PipelineID,
+        batch: RecordBatch,
     },
 }
 
@@ -68,6 +73,7 @@ pub struct Worker {
 
 impl Worker {
     pub fn run_loop(&mut self) -> Result<()> {
+        // pin this worker thread to the target core
         core_affinity::set_for_current(self.core_id);
 
         let rt = LocalRuntime::new().unwrap();
@@ -103,6 +109,16 @@ impl Worker {
                                     probe_op.probe_and_respond_local(&batch, response_tx)?;
                                     break;
                                 }
+                            }
+                        }
+                        InterCoreMessage::AggregateShuffle { pipeline_id, batch } => {
+                            let pipeline = self.dispatcher.get_pipeline(pipeline_id);
+                            if let Some(agg_sink) = pipeline
+                                .sink
+                                .as_any()
+                                .downcast_ref::<PhysicalAggregateSink>()
+                            {
+                                agg_sink.accumulate_local(self.core_id.id, batch)?;
                             }
                         }
                     }
@@ -146,7 +162,28 @@ impl Worker {
             .dispatcher
             .check_and_decrement_active_tasks(pipeline.id)?;
         if is_last {
-            pipeline.sink.combine()?;
+            let res = pipeline.sink.combine()?;
+            if let CombineResult::Materialised(batch) = res {
+                if let Some(downstream) = pipeline.downstream_id {
+                    // push to the next pipeline. The sink's output RecordBatch already 
+                    // physically resides in self.numa_node's local RAM of this worker
+                    let next_morsel = Morsel {
+                        start_row: 0,
+                        num_rows: batch.num_rows(),
+                        numa_node: self.numa_node,
+                    };
+                    self.dispatcher.push_scan_message(
+                        downstream,
+                        self.numa_node,
+                        next_morsel,
+                        ScanMessage::Batch(batch),
+                    )?;
+                } else {
+                    // root pipeline terminated, collect final result
+                    self.dispatcher.collect_final_result(batch);
+                }
+            }
+
             self.dispatcher.mark_pipeline_complete(pipeline.id).await?;
         } else {
             self.dispatcher
@@ -278,7 +315,7 @@ impl Scheduler {
 
     /// Submits a query pipeline DAG to the permanently running background reactor pool,
     /// blocking the caller thread safely until the query completes!
-    pub fn execute_job(&self, pipelines: Vec<Pipeline>) -> Result<()> {
+    pub fn execute_job(&self, pipelines: Vec<Pipeline>) -> Result<Vec<RecordBatch>> {
         let (tx, rx) = mpsc::channel();
 
         for pipeline in pipelines {
@@ -294,7 +331,7 @@ impl Scheduler {
         // Block caller thread until query completion
         let _ = rx.recv();
 
-        Ok(())
+        Ok(self.dispatcher.take_final_results())
     }
 }
 
@@ -302,7 +339,7 @@ impl Scheduler {
 mod tests {
     use super::*;
     use crate::arrow::{ArrayRef, DataType, Field, RecordBatch, Schema, array::PrimitiveArray};
-    use crate::execution::pipeline::{PhysicalSink, SinkContext, SinkResult};
+    use crate::execution::pipeline::{CombineResult, PhysicalSink, SinkContext, SinkResult};
     use std::sync::Mutex;
 
     struct MockSink {
@@ -322,8 +359,8 @@ mod tests {
             }
             Ok(SinkResult::NeedMoreInput)
         }
-        fn combine(&self) -> Result<()> {
-            Ok(())
+        fn combine(&self) -> Result<CombineResult> {
+            Ok(CombineResult::Empty)
         }
         fn as_any(&self) -> &dyn std::any::Any {
             self
@@ -339,6 +376,7 @@ mod tests {
 
         let pipeline = Pipeline {
             id: 100,
+            downstream_id: Some(50),
             operators: vec![],
             sink: Box::new(MockSink {
                 accumulated: accumulated_state.clone(),
@@ -419,5 +457,76 @@ mod tests {
             }
             _ => panic!("Expected JoinBuildShuffle message"),
         }
+    }
+
+    struct FinalMaterializingSink {
+        output_batch: Mutex<Option<RecordBatch>>,
+    }
+
+    impl PhysicalSink for FinalMaterializingSink {
+        fn sink(&self, _ctx: &mut SinkContext, _input: RecordBatch) -> Result<SinkResult> {
+            Ok(SinkResult::Finished)
+        }
+        fn combine(&self) -> Result<CombineResult> {
+            let mut guard = self.output_batch.lock().unwrap();
+            let batch = guard.take().unwrap();
+            Ok(CombineResult::Materialised(batch))
+        }
+        fn as_any(&self) -> &dyn std::any::Any {
+            self
+        }
+    }
+
+    #[test]
+    fn test_scheduler_root_pipeline_collect_final_result() {
+        let scheduler = Scheduler::new();
+
+        let schema = Arc::new(Schema::new(vec![Field {
+            name: "id".to_string(),
+            data_type: DataType::Int32,
+            nullable: false,
+        }]));
+        let id_col: ArrayRef = Arc::new(PrimitiveArray::from(vec![42i32]));
+        let expected_batch = RecordBatch::try_new(schema.clone(), vec![id_col]).unwrap();
+
+        let pipeline = Pipeline {
+            id: 200,
+            downstream_id: None, // ROOT PIPELINE!
+            operators: vec![],
+            sink: Box::new(FinalMaterializingSink {
+                output_batch: Mutex::new(Some(expected_batch)),
+            }),
+            dependencies: vec![],
+            partitions: 1,
+            schema: schema.clone(),
+        };
+
+        let (tx, rx) = std::sync::mpsc::channel();
+        scheduler
+            .dispatcher
+            .register(200, vec![], Arc::new(pipeline), tx)
+            .unwrap();
+
+        // Push a single morsel to trigger execution
+        let morsel = Morsel {
+            start_row: 0,
+            num_rows: 1,
+            numa_node: 0,
+        };
+        scheduler
+            .dispatcher
+            .push_scan_message(200, 0, morsel, ScanMessage::Batch(RecordBatch::new_empty(schema)))
+            .unwrap();
+        scheduler.dispatcher.finish_pushing(200, 1).unwrap();
+
+        // Wait for background worker threads to automatically consume and finish the job!
+        let _ = rx.recv();
+
+        // Extract and verify the final collected results from the root pipeline!
+        let results = scheduler.dispatcher.take_final_results();
+
+        assert_eq!(results.len(), 1);
+        let out_id = results[0].column(0).as_any().downcast_ref::<PrimitiveArray<i32>>().unwrap();
+        assert_eq!(out_id.value(0), 42);
     }
 }

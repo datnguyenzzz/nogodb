@@ -1,5 +1,7 @@
 use std::{
-    collections::{HashMap, HashSet, VecDeque}, mem, sync::{
+    collections::{HashMap, HashSet, VecDeque},
+    mem,
+    sync::{
         Arc, Mutex,
         atomic::{self, AtomicUsize, Ordering},
         mpsc,
@@ -8,10 +10,13 @@ use std::{
 
 use anyhow::Result;
 
-use crate::{arrow::RecordBatch, execution::{
-    Morsel,
-    pipeline::{Pipeline, PipelineID, ScanMessage},
-}};
+use crate::{
+    arrow::RecordBatch,
+    execution::{
+        Morsel,
+        pipeline::{Pipeline, PipelineID, ScanMessage},
+    },
+};
 
 /// Represents the dispatcher's response to an idle worker thread requesting work.
 pub enum DispatchResult {
@@ -341,6 +346,39 @@ impl Dispatcher {
     pub fn take_final_results(&self) -> Vec<RecordBatch> {
         let mut state = self.state.lock().unwrap();
         mem::take(&mut state.final_results)
+    }
+
+    /// Early-terminates and cancels a pipeline immediately across all cores
+    pub fn cancel_pipeline(&self, id: PipelineID) -> Result<()> {
+        let mut state = self.state.lock().unwrap();
+        if let Some(queue) = state.work_queues.get_mut(&id) {
+            for numa_queue in &mut queue.numa_queues {
+                numa_queue.clear();
+            }
+            let completed = queue.completed_morsels.load(Ordering::SeqCst);
+            queue.total_morsels = Some(completed);
+        }
+
+        let has_active = state
+            .work_queues
+            .get(&id)
+            .map(|q| q.active_tasks.load(Ordering::SeqCst) > 0)
+            .unwrap_or(false);
+
+        if !has_active {
+            state.dependencies.remove(&id);
+            state.work_queues.remove(&id);
+            state.pipelines.remove(&id);
+            state.completed_pipelines.insert(id);
+
+            if state.dependencies.is_empty() {
+                if let Some(tx) = state.completion_tx.take() {
+                    let _ = tx.send(());
+                }
+            }
+        }
+
+        Ok(())
     }
 }
 

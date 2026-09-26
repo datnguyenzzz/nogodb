@@ -165,7 +165,7 @@ impl Worker {
             let res = pipeline.sink.combine()?;
             if let CombineResult::Materialised(batch) = res {
                 if let Some(downstream) = pipeline.downstream_id {
-                    // push to the next pipeline. The sink's output RecordBatch already 
+                    // push to the next pipeline. The sink's output RecordBatch already
                     // physically resides in self.numa_node's local RAM of this worker
                     let next_morsel = Morsel {
                         start_row: 0,
@@ -515,7 +515,12 @@ mod tests {
         };
         scheduler
             .dispatcher
-            .push_scan_message(200, 0, morsel, ScanMessage::Batch(RecordBatch::new_empty(schema)))
+            .push_scan_message(
+                200,
+                0,
+                morsel,
+                ScanMessage::Batch(RecordBatch::new_empty(schema)),
+            )
             .unwrap();
         scheduler.dispatcher.finish_pushing(200, 1).unwrap();
 
@@ -526,7 +531,11 @@ mod tests {
         let results = scheduler.dispatcher.take_final_results();
 
         assert_eq!(results.len(), 1);
-        let out_id = results[0].column(0).as_any().downcast_ref::<PrimitiveArray<i32>>().unwrap();
+        let out_id = results[0]
+            .column(0)
+            .as_any()
+            .downcast_ref::<PrimitiveArray<i32>>()
+            .unwrap();
         assert_eq!(out_id.value(0), 42);
     }
 }

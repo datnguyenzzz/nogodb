@@ -1,6 +1,7 @@
 pub mod aggregate;
 pub mod dispatcher;
 pub mod hash_join;
+pub mod limit;
 pub mod numa_topology;
 pub mod operators;
 pub mod physical_plan;

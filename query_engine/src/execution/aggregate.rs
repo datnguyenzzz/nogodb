@@ -1,15 +1,26 @@
 use std::{
-    cmp, collections::HashMap, mem, sync::{Arc, Mutex},
+    cmp,
+    collections::HashMap,
+    mem,
+    sync::{Arc, Mutex},
 };
 
 use anyhow::Result;
 
 use crate::{
     arrow::{
-        ArrayRef, DataType, Field, RecordBatch, Schema, array::{PrimitiveArray, select},
-    }, execution::{
-        hash_join::{hash_combine, hash_table::HashTable, hash64}, pipeline::{CombineResult::{self, Materialised}, PhysicalSink, SinkContext, SinkResult}, scheduler::{InterCoreMessage, MailBoxSender},
-    }, planner::AggregationFn,
+        ArrayRef, DataType, Field, RecordBatch, Schema,
+        array::{PrimitiveArray, select},
+    },
+    execution::{
+        hash_join::{hash_combine, hash_table::HashTable, hash64},
+        pipeline::{
+            CombineResult::{self, Materialised},
+            PhysicalSink, SinkContext, SinkResult,
+        },
+        scheduler::{InterCoreMessage, MailBoxSender},
+    },
+    planner::AggregationFn,
 };
 
 pub struct AggState {
@@ -296,14 +307,18 @@ impl PhysicalSink for PhysicalAggregateSink {
             }
         }
 
-        let mut final_columns: Vec<ArrayRef> = Vec::with_capacity(self.group_col_indexes.len() + self.agg_decls.len());
+        let mut final_columns: Vec<ArrayRef> =
+            Vec::with_capacity(self.group_col_indexes.len() + self.agg_decls.len());
         for keys in group_keys {
             final_columns.push(Arc::new(PrimitiveArray::from(keys)))
         }
         for (i, metric) in metrics.into_iter().enumerate() {
             let decl = &self.agg_decls[i];
             if decl.op == AggregationFn::Avg || matches!(decl.data_type, DataType::Float64) {
-                let float_values: Vec<f64> = metric.into_iter().map(|bits| f64::from_bits(bits as u64)).collect();
+                let float_values: Vec<f64> = metric
+                    .into_iter()
+                    .map(|bits| f64::from_bits(bits as u64))
+                    .collect();
                 final_columns.push(Arc::new(PrimitiveArray::from(float_values)));
             } else {
                 final_columns.push(Arc::new(PrimitiveArray::from(metric)));
@@ -312,21 +327,22 @@ impl PhysicalSink for PhysicalAggregateSink {
 
         let mut fields = Vec::with_capacity(final_columns.len());
         for (i, _col_idx) in self.group_col_indexes.iter().enumerate() {
-            fields.push(Field{
-                name: format!("group_key_{}", i), 
+            fields.push(Field {
+                name: format!("group_key_{}", i),
                 data_type: DataType::Int64,
                 nullable: true,
             });
         }
 
         for (i, decl) in self.agg_decls.iter().enumerate() {
-            let data_type = if decl.op == AggregationFn::Avg || matches!(decl.data_type, DataType::Float64) {
-                DataType::Float64
-            } else {
-                DataType::Int64
-            };
-            fields.push(Field{
-                name: format!("agg_metric_{}", i), 
+            let data_type =
+                if decl.op == AggregationFn::Avg || matches!(decl.data_type, DataType::Float64) {
+                    DataType::Float64
+                } else {
+                    DataType::Int64
+                };
+            fields.push(Field {
+                name: format!("agg_metric_{}", i),
                 data_type,
                 nullable: true,
             });
@@ -341,8 +357,8 @@ impl PhysicalSink for PhysicalAggregateSink {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::arrow::{Field, Schema, array::PrimitiveArray, array::StringArray};
     use std::sync::Arc;
-    use crate::arrow::{Field, Schema, array::StringArray, array::PrimitiveArray};
     use tokio::sync::mpsc::unbounded_channel;
 
     #[test]
@@ -353,9 +369,21 @@ mod tests {
 
         // Input schema: department (String), salary (Int32), rating (Float64)
         let schema = Arc::new(Schema::new(vec![
-            Field { name: "dept".to_string(), data_type: DataType::Utf8, nullable: false },
-            Field { name: "salary".to_string(), data_type: DataType::Int32, nullable: false },
-            Field { name: "rating".to_string(), data_type: DataType::Float64, nullable: false },
+            Field {
+                name: "dept".to_string(),
+                data_type: DataType::Utf8,
+                nullable: false,
+            },
+            Field {
+                name: "salary".to_string(),
+                data_type: DataType::Int32,
+                nullable: false,
+            },
+            Field {
+                name: "rating".to_string(),
+                data_type: DataType::Float64,
+                nullable: false,
+            },
         ]));
 
         // Sample data:
@@ -363,7 +391,10 @@ mod tests {
         // Salary: 100, 200, 300, 400
         // Rating: 4.5, 3.0, 5.5, 5.0
         let col_dept: ArrayRef = Arc::new(StringArray::from(vec![
-            Some("Engineering"), Some("Sales"), Some("Engineering"), Some("Sales")
+            Some("Engineering"),
+            Some("Sales"),
+            Some("Engineering"),
+            Some("Sales"),
         ]));
         let col_salary: ArrayRef = Arc::new(PrimitiveArray::from(vec![100i32, 200, 300, 400]));
         let col_rating: ArrayRef = Arc::new(PrimitiveArray::from(vec![4.5f64, 3.0, 5.5, 5.0]));
@@ -372,19 +403,42 @@ mod tests {
 
         // Query: SELECT dept, COUNT(*), SUM(salary), MIN(salary), MAX(salary), AVG(rating) GROUP BY dept
         let agg_sink = PhysicalAggregateSink::new(
-            1, // total_cores
+            1,       // total_cores
             vec![0], // group_by dept
             mailboxes,
             vec![
-                AggregateDeclaration { col_idx: 1, op: AggregationFn::Count, data_type: DataType::Int32 },
-                AggregateDeclaration { col_idx: 1, op: AggregationFn::Sum, data_type: DataType::Int32 },
-                AggregateDeclaration { col_idx: 1, op: AggregationFn::Min, data_type: DataType::Int32 },
-                AggregateDeclaration { col_idx: 1, op: AggregationFn::Max, data_type: DataType::Int32 },
-                AggregateDeclaration { col_idx: 2, op: AggregationFn::Avg, data_type: DataType::Float64 },
+                AggregateDeclaration {
+                    col_idx: 1,
+                    op: AggregationFn::Count,
+                    data_type: DataType::Int32,
+                },
+                AggregateDeclaration {
+                    col_idx: 1,
+                    op: AggregationFn::Sum,
+                    data_type: DataType::Int32,
+                },
+                AggregateDeclaration {
+                    col_idx: 1,
+                    op: AggregationFn::Min,
+                    data_type: DataType::Int32,
+                },
+                AggregateDeclaration {
+                    col_idx: 1,
+                    op: AggregationFn::Max,
+                    data_type: DataType::Int32,
+                },
+                AggregateDeclaration {
+                    col_idx: 2,
+                    op: AggregationFn::Avg,
+                    data_type: DataType::Float64,
+                },
             ],
         );
 
-        let mut sink_ctx = SinkContext { core_id: 0, pipeline_id: 10 };
+        let mut sink_ctx = SinkContext {
+            core_id: 0,
+            pipeline_id: 10,
+        };
         agg_sink.sink(&mut sink_ctx, batch).unwrap();
 
         // Combine and materialize!
@@ -396,16 +450,36 @@ mod tests {
                 assert_eq!(result_batch.num_columns(), 6); // 1 group key + 5 metrics
 
                 // Symmetrically verify values for each group!
-                let out_count = result_batch.column(1).as_any().downcast_ref::<PrimitiveArray<i64>>().unwrap();
-                let out_sum = result_batch.column(2).as_any().downcast_ref::<PrimitiveArray<i64>>().unwrap();
-                let out_min = result_batch.column(3).as_any().downcast_ref::<PrimitiveArray<i64>>().unwrap();
-                let out_max = result_batch.column(4).as_any().downcast_ref::<PrimitiveArray<i64>>().unwrap();
-                let out_avg = result_batch.column(5).as_any().downcast_ref::<PrimitiveArray<f64>>().unwrap();
+                let out_count = result_batch
+                    .column(1)
+                    .as_any()
+                    .downcast_ref::<PrimitiveArray<i64>>()
+                    .unwrap();
+                let out_sum = result_batch
+                    .column(2)
+                    .as_any()
+                    .downcast_ref::<PrimitiveArray<i64>>()
+                    .unwrap();
+                let out_min = result_batch
+                    .column(3)
+                    .as_any()
+                    .downcast_ref::<PrimitiveArray<i64>>()
+                    .unwrap();
+                let out_max = result_batch
+                    .column(4)
+                    .as_any()
+                    .downcast_ref::<PrimitiveArray<i64>>()
+                    .unwrap();
+                let out_avg = result_batch
+                    .column(5)
+                    .as_any()
+                    .downcast_ref::<PrimitiveArray<f64>>()
+                    .unwrap();
 
                 // Because HashMap order is arbitrary, we test both rows:
                 for row in 0..2 {
                     assert_eq!(out_count.value(row), 2); // 2 employees in each dept
-                    
+
                     let sum_val = out_sum.value(row);
                     if sum_val == 400 {
                         // Engineering (100 + 300 = 400)

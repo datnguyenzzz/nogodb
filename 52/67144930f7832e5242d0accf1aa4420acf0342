@@ -1,0 +1,16 @@
+query_engine/src/execution/dispatcher.rs
+  h_42387b1c6b634c 18,350-381
+query_engine/src/execution/limit.rs
+  h_42387b1c6b634c 1-256
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "5267144930f7832e5242d0accf1aa4420acf0342",
+  "prompts": {},
+  "humans": {
+    "h_42387b1c6b634c": {
+      "author": "datnguyenzzz <thanh.nguyen@deliveryhero.com>"
+    }
+  }
+}

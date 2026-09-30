@@ -8,6 +8,7 @@ use crate::{
     execution::hash_join::{hash_combine, hash64},
 };
 
+// https://db.in.tum.de/~birler/papers/hashtable.pdf
 /// Bits 0-48: 48-bit Adjacency Array offset pointer
 /// Bits 49-64: 16-bit Register-Blocked Bloom Filter
 #[derive(Clone, Copy)]

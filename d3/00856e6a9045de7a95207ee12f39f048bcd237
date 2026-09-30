@@ -1,0 +1,18 @@
+query_engine/src/execution/mod.rs
+  h_42387b1c6b634c 1-3,6,13,22-155
+query_engine/src/execution/sort.rs
+  h_42387b1c6b634c 1-662
+query_engine/src/execution/hash_join/hash_table.rs
+  h_42387b1c6b634c 11
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "d300856e6a9045de7a95207ee12f39f048bcd237",
+  "prompts": {},
+  "humans": {
+    "h_42387b1c6b634c": {
+      "author": "datnguyenzzz <thanh.nguyen@deliveryhero.com>"
+    }
+  }
+}

@@ -2,7 +2,6 @@ use std::{
     io,
     sync::{Arc, Mutex, mpsc},
     thread,
-    time::Duration,
 };
 
 use anyhow::{Result, anyhow, bail};
@@ -150,10 +149,7 @@ impl Worker {
                     DispatchResult::Wait => {
                         // pipeline is blocked on active dependencies
                     }
-                    DispatchResult::Finished => {
-                        // Job completed, stay alive and await subsequent queries!
-                        tokio::time::sleep(Duration::from_millis(5)).await;
-                    }
+                    DispatchResult::Finished => break
                 }
 
                 if !is_done {

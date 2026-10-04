@@ -1,0 +1,14 @@
+query_engine/src/execution/scheduler.rs
+  h_42387b1c6b634c 152
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "afe427bffa6618f418eb97b501f06beda003f405",
+  "prompts": {},
+  "humans": {
+    "h_42387b1c6b634c": {
+      "author": "datnguyenzzz <thanh.nguyen@deliveryhero.com>"
+    }
+  }
+}

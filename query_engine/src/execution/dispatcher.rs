@@ -14,9 +14,12 @@ use crate::{
     arrow::RecordBatch,
     execution::{
         Morsel,
-        pipeline::{Pipeline, PipelineID, ScanMessage},
+        pipeline::{Pipeline, PipelineEvent, PipelineID, ScanMessage},
+        scan::ScanSource,
     },
 };
+
+pub const MAX_MORSELS_PER_NUMA_NODE: usize = 10_000;
 
 /// Represents the dispatcher's response to an idle worker thread requesting work.
 pub enum DispatchResult {
@@ -52,8 +55,9 @@ pub struct DispatcherState {
     pub work_queues: HashMap<PipelineID, WorkQueue>,
     pub completed_pipelines: HashSet<PipelineID>,
     /// Synchronous oneshot completion sender to unblock the caller thread once the query finishes
-    pub completion_tx: Option<mpsc::Sender<()>>,
+    pub completion_tx: Option<mpsc::Sender<PipelineEvent>>,
     pub final_results: Vec<RecordBatch>,
+    pub pending_sources: HashMap<PipelineID, Arc<ScanSource>>,
 }
 
 /// The central, thread-safe Coordinator driving the Morsel Parallel execution DAG.
@@ -75,6 +79,7 @@ impl Dispatcher {
                 completed_pipelines: HashSet::new(),
                 completion_tx: None,
                 final_results: vec![],
+                pending_sources: HashMap::new(),
             }),
             join_bounds: Mutex::new(HashMap::new()),
         }
@@ -123,14 +128,28 @@ impl Dispatcher {
         }
 
         if is_finished {
+            let pipeline_opt = state.pipelines.remove(&pipeline_id);
             state.dependencies.remove(&pipeline_id);
             state.work_queues.remove(&pipeline_id);
-            state.pipelines.remove(&pipeline_id);
             state.completed_pipelines.insert(pipeline_id);
+
+            if let Some(pipeline) = pipeline_opt {
+                if let Ok(crate::execution::pipeline::CombineResult::Materialised(batch)) =
+                    pipeline.sink.combine()
+                {
+                    if pipeline.downstream_id.is_none() {
+                        state.final_results.push(batch);
+                    }
+                }
+            }
+
+            if let Some(event_tx) = &state.completion_tx {
+                let _ = event_tx.send(PipelineEvent::PipelineFinished(pipeline_id));
+            }
 
             if state.dependencies.is_empty() {
                 if let Some(tx) = state.completion_tx.take() {
-                    let _ = tx.send(());
+                    let _ = tx.send(PipelineEvent::AllDone);
                 }
             }
         }
@@ -149,10 +168,14 @@ impl Dispatcher {
         pipeline_id: PipelineID,
         dependencies: Vec<PipelineID>,
         pipeline: Arc<Pipeline>,
-        completion_tx: mpsc::Sender<()>,
+        completion_tx: mpsc::Sender<PipelineEvent>,
     ) -> Result<()> {
         let numa_queues = vec![VecDeque::new(); self.numa_nodes];
         let mut state = self.state.lock().unwrap();
+
+        if let Some(source) = &pipeline.source {
+            state.pending_sources.insert(pipeline_id, source.clone());
+        }
 
         state.pipelines.insert(pipeline_id, pipeline);
         state.dependencies.insert(pipeline_id, dependencies);
@@ -176,7 +199,7 @@ impl Dispatcher {
         if state.dependencies.is_empty() {
             // Signal completion to unblock the caller thread!
             if let Some(tx) = state.completion_tx.take() {
-                let _ = tx.send(());
+                let _ = tx.send(PipelineEvent::AllDone);
             }
             return Ok(DispatchResult::Finished);
         }
@@ -262,11 +285,14 @@ impl Dispatcher {
                     state.work_queues.remove(&id);
                     state.pipelines.remove(&id);
                     state.completed_pipelines.insert(id);
+                    if let Some(event_tx) = &state.completion_tx {
+                        let _ = event_tx.send(PipelineEvent::PipelineFinished(id));
+                    }
                 }
 
                 if state.dependencies.is_empty() {
                     if let Some(tx) = state.completion_tx.take() {
-                        let _ = tx.send(());
+                        let _ = tx.send(PipelineEvent::AllDone);
                     }
                     Ok(DispatchResult::Finished)
                 } else {
@@ -301,9 +327,13 @@ impl Dispatcher {
         state.pipelines.remove(&pipeline_id);
         state.completed_pipelines.insert(pipeline_id);
 
+        if let Some(event_tx) = &state.completion_tx {
+            let _ = event_tx.send(PipelineEvent::PipelineFinished(pipeline_id));
+        }
+
         if state.dependencies.is_empty() {
             if let Some(tx) = state.completion_tx.take() {
-                let _ = tx.send(());
+                let _ = tx.send(PipelineEvent::AllDone);
             }
         }
         Ok(())
@@ -329,9 +359,13 @@ impl Dispatcher {
             state.pipelines.remove(&pipeline_id);
             state.completed_pipelines.insert(pipeline_id);
 
+            if let Some(event_tx) = &state.completion_tx {
+                let _ = event_tx.send(PipelineEvent::PipelineFinished(pipeline_id));
+            }
+
             if state.dependencies.is_empty() {
                 if let Some(tx) = state.completion_tx.take() {
-                    let _ = tx.send(());
+                    let _ = tx.send(PipelineEvent::AllDone);
                 }
             }
         }
@@ -371,14 +405,48 @@ impl Dispatcher {
             state.pipelines.remove(&id);
             state.completed_pipelines.insert(id);
 
+            if let Some(event_tx) = &state.completion_tx {
+                let _ = event_tx.send(PipelineEvent::PipelineFinished(id));
+            }
+
             if state.dependencies.is_empty() {
                 if let Some(tx) = state.completion_tx.take() {
-                    let _ = tx.send(());
+                    let _ = tx.send(PipelineEvent::AllDone);
                 }
             }
         }
 
         Ok(())
+    }
+
+    pub fn is_numa_queue_full(&self, pid: PipelineID, numa_node: usize) -> bool {
+        let state = self.state.lock().unwrap();
+        if let Some(queue) = state.work_queues.get(&pid) {
+            if numa_node < queue.numa_queues.len() {
+                return queue.numa_queues[numa_node].len() >= MAX_MORSELS_PER_NUMA_NODE;
+            }
+        }
+        false
+    }
+
+    pub fn take_ready_scan_sources(&self) -> Vec<(PipelineID, Arc<ScanSource>)> {
+        let mut state = self.state.lock().unwrap();
+        let mut ready_ids = Vec::new();
+        for (&id, deps) in &state.dependencies {
+            if deps.iter().all(|d| state.completed_pipelines.contains(d)) {
+                if state.pending_sources.contains_key(&id) {
+                    ready_ids.push(id);
+                }
+            }
+        }
+
+        let mut ready = Vec::with_capacity(ready_ids.len());
+        for id in ready_ids {
+            if let Some(source) = state.pending_sources.remove(&id) {
+                ready.push((id, source));
+            }
+        }
+        ready
     }
 }
 
@@ -411,6 +479,7 @@ mod tests {
         let pipeline_a = Arc::new(Pipeline {
             id: 10,
             downstream_id: Some(5),
+            source: None,
             operators: vec![],
             sink: Box::new(DummySink),
             dependencies: vec![],
@@ -421,6 +490,7 @@ mod tests {
         let pipeline_b = Arc::new(Pipeline {
             id: 20,
             downstream_id: Some(10),
+            source: None,
             operators: vec![],
             sink: Box::new(DummySink),
             dependencies: vec![10],

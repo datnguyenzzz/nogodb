@@ -9,6 +9,7 @@ pub mod limit;
 pub mod numa_topology;
 pub mod physical_plan;
 pub mod pipeline;
+pub mod scan;
 pub mod scheduler;
 pub mod sort;
 

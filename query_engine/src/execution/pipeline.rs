@@ -1,8 +1,11 @@
-use std::any::Any;
+use std::{any::Any, sync::Arc};
 
 use anyhow::Result;
 
-use crate::arrow::{Buffer, RecordBatch, SchemaRef};
+use crate::{
+    arrow::{Buffer, RecordBatch, SchemaRef},
+    execution::scan::ScanSource,
+};
 
 /// Represents the push-stream data payload received from the DataStorage layer
 #[derive(Clone)]
@@ -55,6 +58,7 @@ pub type PipelineID = usize;
 /// A linear pipeline of execution: Source -> [Operators...] -> Sink
 pub struct Pipeline {
     pub id: PipelineID,
+    pub source: Option<Arc<ScanSource>>,
     pub downstream_id: Option<PipelineID>,
     pub operators: Vec<Box<dyn PhysicalOperator>>,
     pub sink: Box<dyn PhysicalSink>,
@@ -68,4 +72,9 @@ impl Pipeline {
     pub fn add_dependency(&mut self, id: usize) {
         self.dependencies.push(id);
     }
+}
+
+pub enum PipelineEvent {
+    PipelineFinished(PipelineID),
+    AllDone,
 }

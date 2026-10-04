@@ -1,6 +1,8 @@
 use std::{
     io,
-    sync::{Arc, mpsc},
+    sync::{Arc, Mutex, mpsc},
+    thread,
+    time::Duration,
 };
 
 use anyhow::{Result, anyhow, bail};
@@ -15,7 +17,11 @@ use crate::execution::{
     aggregate::PhysicalAggregateSink,
     dispatcher::{DispatchResult, Dispatcher},
     numa_topology::NumaTopology,
-    pipeline::{CombineResult, OperatorContext, Pipeline, ScanMessage, SinkContext, SinkResult},
+    pipeline::{
+        CombineResult, OperatorContext, Pipeline, PipelineEvent, ScanMessage, SinkContext,
+        SinkResult,
+    },
+    scan::ScanSource,
 };
 use crate::{
     arrow::{
@@ -27,6 +33,8 @@ use crate::{
         pipeline::PipelineID,
     },
 };
+
+const IO_THREAD_COUNT: usize = 4;
 
 /// An Inter-Core message represented as a boxed closure to be
 /// executed on a remote Reactor core.
@@ -142,14 +150,17 @@ impl Worker {
                     DispatchResult::Wait => {
                         // pipeline is blocked on active dependencies
                     }
-                    DispatchResult::Finished => break,
+                    DispatchResult::Finished => {
+                        // Job completed, stay alive and await subsequent queries!
+                        tokio::time::sleep(Duration::from_millis(5)).await;
+                    }
                 }
 
                 if !is_done {
                     task::yield_now().await;
                 }
             }
-
+            #[allow(unreachable_code)]
             Ok::<(), anyhow::Error>(())
         })?;
 
@@ -261,13 +272,21 @@ impl Worker {
     }
 }
 
+pub struct ScanTask {
+    pub pipeline_id: usize,
+    pub source: Arc<ScanSource>,
+    pub dispatcher: Arc<Dispatcher>,
+}
+
 pub struct Scheduler {
     pub numa_nodes: usize,
     pub cores_per_node: usize,
     pub dispatcher: Arc<Dispatcher>,
     pub mailboxes: Arc<Vec<MailBoxSender>>,
     /// Handles to keep the background Reactor threads alive for the lifetime of the engine
-    pub thread_handles: Vec<std::thread::JoinHandle<Result<()>>>,
+    pub thread_handles: Vec<thread::JoinHandle<Result<()>>>,
+    /// Channel to submit scan tasks to the long-lived I/O thread pool
+    pub io_sender: mpsc::Sender<ScanTask>,
 }
 
 impl Scheduler {
@@ -304,12 +323,37 @@ impl Scheduler {
             thread_handles.push(handle);
         }
 
+        // spawn long-lived unpinned I/O thread pool
+        let (io_tx, io_rx) = mpsc::channel::<ScanTask>();
+        let shared_rx = Arc::new(Mutex::new(io_rx));
+        for io_id in 0..IO_THREAD_COUNT {
+            let rx = shared_rx.clone();
+            thread::Builder::new()
+                .name(format!("io-pool-worker-{}", io_id))
+                .spawn(move || {
+                    while let Ok(task) = {
+                        let guard = rx.lock().unwrap();
+                        guard.recv()
+                    } {
+                        if let Err(e) = task.source.execute(task.pipeline_id, task.dispatcher) {
+                            // Need to handle error here
+                            eprintln!(
+                                "Error in I/O scan task for pipeline {}: {:?}",
+                                task.pipeline_id, e
+                            );
+                        }
+                    }
+                })
+                .expect("Failed to spawn background I/O thread");
+        }
+
         Self {
             numa_nodes,
             cores_per_node,
             dispatcher,
             mailboxes,
             thread_handles,
+            io_sender: io_tx,
         }
     }
 
@@ -324,14 +368,34 @@ impl Scheduler {
             self.dispatcher
                 .register(id, deps, Arc::new(pipeline), tx.clone())?;
         }
+        self.trigger_ready_scans()?;
 
         // Drop local sender so receiver closes when last dispatcher task unregisters
         drop(tx);
 
         // Block caller thread until query completion
-        let _ = rx.recv();
+        while let Ok(event) = rx.recv() {
+            match event {
+                PipelineEvent::PipelineFinished(_pid) => {
+                    self.trigger_ready_scans()?;
+                }
+                PipelineEvent::AllDone => break,
+            }
+        }
 
         Ok(self.dispatcher.take_final_results())
+    }
+
+    pub fn trigger_ready_scans(&self) -> Result<()> {
+        let ready = self.dispatcher.take_ready_scan_sources();
+        for (pid, source) in ready {
+            self.io_sender.send(ScanTask {
+                pipeline_id: pid,
+                source,
+                dispatcher: self.dispatcher.clone(),
+            })?;
+        }
+        Ok(())
     }
 }
 
@@ -377,6 +441,7 @@ mod tests {
         let pipeline = Pipeline {
             id: 100,
             downstream_id: Some(50),
+            source: None,
             operators: vec![],
             sink: Box::new(MockSink {
                 accumulated: accumulated_state.clone(),
@@ -492,6 +557,7 @@ mod tests {
         let pipeline = Pipeline {
             id: 200,
             downstream_id: None, // ROOT PIPELINE!
+            source: None,
             operators: vec![],
             sink: Box::new(FinalMaterializingSink {
                 output_batch: Mutex::new(Some(expected_batch)),
@@ -525,7 +591,11 @@ mod tests {
         scheduler.dispatcher.finish_pushing(200, 1).unwrap();
 
         // Wait for background worker threads to automatically consume and finish the job!
-        let _ = rx.recv();
+        while let Ok(event) = rx.recv() {
+            if let PipelineEvent::AllDone = event {
+                break;
+            }
+        }
 
         // Extract and verify the final collected results from the root pipeline!
         let results = scheduler.dispatcher.take_final_results();

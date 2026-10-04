@@ -1,0 +1,22 @@
+query_engine/src/execution/dispatcher.rs
+  h_42387b1c6b634c 17-18,22-23,58,60,82,136-139,142,161,166-169,192,278-280,285,320-323,326,352-355,358,398-401,404,411-440,472,483
+query_engine/src/execution/pipeline.rs
+  h_42387b1c6b634c 1,5-7,61,76-79
+query_engine/src/execution/scan.rs
+  h_42387b1c6b634c 1-239
+query_engine/src/storage/mod.rs
+  h_42387b1c6b634c 4,9,21-23,30-81
+query_engine/src/execution/scheduler.rs
+  h_42387b1c6b634c 3-4,20-21,23,36-37,271-276,284-285,322-345,352,367,373-380,384-393,440,556
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "02e5bc8f6ce1cfcbc93a58ffb3d9d6fde92adba8",
+  "prompts": {},
+  "humans": {
+    "h_42387b1c6b634c": {
+      "author": "datnguyenzzz <thanh.nguyen@deliveryhero.com>"
+    }
+  }
+}

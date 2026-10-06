@@ -308,11 +308,11 @@ impl Dispatcher {
     pub fn check_and_decrement_active_tasks(&self, pipeline_id: usize) -> Result<bool> {
         let mut state = self.state.lock().unwrap();
         if let Some(queue) = state.work_queues.get_mut(&pipeline_id) {
-            let active = queue.active_tasks.load(Ordering::SeqCst);
-            let completed = queue.completed_morsels.load(Ordering::SeqCst) + 1;
+            let active = queue.active_tasks.fetch_sub(1, Ordering::SeqCst) - 1;
+            let completed = queue.completed_morsels.fetch_add(1, Ordering::SeqCst) + 1;
 
             if let Some(total) = queue.total_morsels {
-                if completed == total && active == 1 {
+                if completed == total && active == 0 {
                     return Ok(true);
                 }
             }
@@ -614,6 +614,68 @@ mod tests {
                 assert_eq!(morsel.numa_node, 0);
             }
             _ => panic!("Expected Pipeline B's morsel"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_check_and_decrement_active_tasks_multi_morsel() {
+        let dispatcher = Dispatcher::new(1);
+        let (tx, _rx) = std::sync::mpsc::channel();
+
+        let pipeline = Arc::new(Pipeline {
+            id: 99,
+            downstream_id: None,
+            source: None,
+            operators: vec![],
+            sink: Box::new(DummySink),
+            dependencies: vec![],
+            partitions: 1,
+            schema: Arc::new(Schema::new(Vec::<Field>::new())),
+        });
+
+        dispatcher.register(99, vec![], pipeline, tx).unwrap();
+
+        // Push 2 morsels into pipeline 99
+        let m1 = Morsel { start_row: 0, num_rows: 10, numa_node: 0 };
+        let m2 = Morsel { start_row: 10, num_rows: 10, numa_node: 0 };
+        let empty_schema = Arc::new(Schema::new(Vec::<Field>::new()));
+        dispatcher.push_scan_message(99, 0, m1, ScanMessage::Batch(RecordBatch::new_empty(empty_schema.clone()))).unwrap();
+        dispatcher.push_scan_message(99, 0, m2, ScanMessage::Batch(RecordBatch::new_empty(empty_schema))).unwrap();
+        dispatcher.finish_pushing(99, 2).unwrap();
+
+        // Pull work twice -> active_tasks becomes 2!
+        let _ = dispatcher.pull_work(0).await.unwrap();
+        let _ = dispatcher.pull_work(0).await.unwrap();
+
+        {
+            let state = dispatcher.state.lock().unwrap();
+            let q = state.work_queues.get(&99).unwrap();
+            assert_eq!(q.active_tasks.load(Ordering::SeqCst), 2);
+            assert_eq!(q.completed_morsels.load(Ordering::SeqCst), 0);
+        }
+
+        // Thread 1 completes morsel 1: should return FALSE (not the last!)
+        let is_last_1 = dispatcher.check_and_decrement_active_tasks(99).unwrap();
+        assert_eq!(is_last_1, false);
+
+        {
+            let state = dispatcher.state.lock().unwrap();
+            let q = state.work_queues.get(&99).unwrap();
+            // active_tasks decremented to 1! completed_morsels incremented to 1!
+            assert_eq!(q.active_tasks.load(Ordering::SeqCst), 1);
+            assert_eq!(q.completed_morsels.load(Ordering::SeqCst), 1);
+        }
+
+        // Thread 2 completes morsel 2: should return TRUE (the final worker!)
+        let is_last_2 = dispatcher.check_and_decrement_active_tasks(99).unwrap();
+        assert_eq!(is_last_2, true);
+
+        {
+            let state = dispatcher.state.lock().unwrap();
+            let q = state.work_queues.get(&99).unwrap();
+            // active_tasks decremented to 0! completed_morsels incremented to 2!
+            assert_eq!(q.active_tasks.load(Ordering::SeqCst), 0);
+            assert_eq!(q.completed_morsels.load(Ordering::SeqCst), 2);
         }
     }
 }

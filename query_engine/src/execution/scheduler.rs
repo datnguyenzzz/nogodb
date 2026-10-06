@@ -149,14 +149,13 @@ impl Worker {
                     DispatchResult::Wait => {
                         // pipeline is blocked on active dependencies
                     }
-                    DispatchResult::Finished => break
+                    DispatchResult::Finished => break,
                 }
 
                 if !is_done {
                     task::yield_now().await;
                 }
             }
-            #[allow(unreachable_code)]
             Ok::<(), anyhow::Error>(())
         })?;
 
@@ -192,10 +191,6 @@ impl Worker {
             }
 
             self.dispatcher.mark_pipeline_complete(pipeline.id).await?;
-        } else {
-            self.dispatcher
-                .mark_morsel_complete(pipeline.id, morsel)
-                .await?;
         }
         Ok(())
     }

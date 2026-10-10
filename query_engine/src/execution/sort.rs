@@ -20,6 +20,7 @@ use crate::{
     },
 };
 
+#[derive(Clone, Copy)]
 pub struct SortColumn {
     pub col_idx: usize,
     pub opt: SortOptions,

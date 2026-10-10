@@ -6,6 +6,8 @@ use std::{
         atomic::{self, AtomicUsize, Ordering},
         mpsc,
     },
+    thread,
+    time::Duration,
 };
 
 use anyhow::Result;
@@ -99,14 +101,21 @@ impl Dispatcher {
     }
 
     /// Pushes a single pre-fetched [ScanMessage] (and its [Morsel]) dynamically
-    /// into the target NUMA node's queue. Called asynchronously by the unpinned I/O thread.
+    /// into the target NUMA node's queue.
+    /// Note: This function will create a backpressure when the target queue is full
     pub fn push_scan_message(
         &self,
-        pipeline_id: usize,
+        pipeline_id: PipelineID,
         numa_node: usize,
         morsel: Morsel,
         message: ScanMessage,
     ) -> Result<()> {
+        while self.is_numa_queue_full(pipeline_id, numa_node) {
+            // backpressure while the worker queue is full
+            // Can we do better than just wait for arbitrary time ?
+            thread::sleep(Duration::from_micros(50));
+        }
+
         let mut state = self.state.lock().unwrap();
         if let Some(queue) = state.work_queues.get_mut(&pipeline_id) {
             queue.numa_queues[numa_node % self.numa_nodes].push_back((morsel, message));
@@ -636,11 +645,33 @@ mod tests {
         dispatcher.register(99, vec![], pipeline, tx).unwrap();
 
         // Push 2 morsels into pipeline 99
-        let m1 = Morsel { start_row: 0, num_rows: 10, numa_node: 0 };
-        let m2 = Morsel { start_row: 10, num_rows: 10, numa_node: 0 };
+        let m1 = Morsel {
+            start_row: 0,
+            num_rows: 10,
+            numa_node: 0,
+        };
+        let m2 = Morsel {
+            start_row: 10,
+            num_rows: 10,
+            numa_node: 0,
+        };
         let empty_schema = Arc::new(Schema::new(Vec::<Field>::new()));
-        dispatcher.push_scan_message(99, 0, m1, ScanMessage::Batch(RecordBatch::new_empty(empty_schema.clone()))).unwrap();
-        dispatcher.push_scan_message(99, 0, m2, ScanMessage::Batch(RecordBatch::new_empty(empty_schema))).unwrap();
+        dispatcher
+            .push_scan_message(
+                99,
+                0,
+                m1,
+                ScanMessage::Batch(RecordBatch::new_empty(empty_schema.clone())),
+            )
+            .unwrap();
+        dispatcher
+            .push_scan_message(
+                99,
+                0,
+                m2,
+                ScanMessage::Batch(RecordBatch::new_empty(empty_schema)),
+            )
+            .unwrap();
         dispatcher.finish_pushing(99, 2).unwrap();
 
         // Pull work twice -> active_tasks becomes 2!

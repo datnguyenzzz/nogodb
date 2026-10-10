@@ -53,6 +53,19 @@ pub trait PhysicalSink: Send + Sync {
     fn as_any(&self) -> &dyn Any;
 }
 
+// Note: We need it here plan_builder/mod.rs/PhysicalHashJoinNode/build(...):139
+impl<T: PhysicalSink + ?Sized + 'static> PhysicalSink for Arc<T> {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+    fn combine(&self) -> Result<CombineResult> {
+        (**self).combine()
+    }
+    fn sink(&self, ctx: &mut SinkContext, input: RecordBatch) -> Result<SinkResult> {
+        (**self).sink(ctx, input)
+    }
+}
+
 pub type PipelineID = usize;
 
 /// A linear pipeline of execution: Source -> [Operators...] -> Sink

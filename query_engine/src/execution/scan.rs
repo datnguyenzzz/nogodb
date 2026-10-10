@@ -1,4 +1,4 @@
-use std::{sync::Arc, thread, time::Duration};
+use std::sync::Arc;
 
 use anyhow::Result;
 
@@ -24,6 +24,22 @@ pub struct ScanSource {
 }
 
 impl ScanSource {
+    pub fn new(
+        table_name: String,
+        schema: SchemaRef,
+        storage: Arc<dyn DataStorage>,
+        pruners: Vec<DynamicJoinPruner>,
+        projections: Option<Vec<String>>,
+    ) -> Self {
+        Self {
+            table_name,
+            schema,
+            storage,
+            pruners,
+            projections,
+        }
+    }
+
     pub fn execute(&self, pid: PipelineID, dispatcher: Arc<Dispatcher>) -> Result<()> {
         let total_pages = self.storage.get_page_count(&self.table_name)?;
         let mut pushed_morsels = 0;
@@ -63,12 +79,6 @@ impl ScanSource {
 
             let page_rows = page.metadata.num_rows;
             let numa_node = page_id % dispatcher.numa_nodes;
-
-            while dispatcher.is_numa_queue_full(pid, numa_node) {
-                // backpressure while the worker queue is full
-                // Can we do better than just wait for arbitrary time ?
-                thread::sleep(Duration::from_micros(50));
-            }
 
             let morsel = Morsel {
                 start_row: global_row_offset,

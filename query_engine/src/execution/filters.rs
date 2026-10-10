@@ -8,13 +8,19 @@ use crate::{
         array::{BooleanArray, select::filter_record_batch},
     },
     execution::{
-        physical_plan::PhysicalExpr,
+        PhysicalExpr,
         pipeline::{OperatorContext, PhysicalOperator},
     },
 };
 
 pub struct PhysicalFilter {
     pub predicate: Arc<dyn PhysicalExpr>,
+}
+
+impl PhysicalFilter {
+    pub fn new(predicate: Arc<dyn PhysicalExpr>) -> Self {
+        Self { predicate }
+    }
 }
 
 impl PhysicalOperator for PhysicalFilter {
@@ -41,9 +47,7 @@ mod tests {
     use super::*;
     use crate::{
         arrow::{ArrayRef, Field, Schema, array::PrimitiveArray},
-        execution::physical_plan::{
-            PhysicalColumn, PhysicalComparison, PhysicalNullable, PhysicalValue,
-        },
+        execution::{PhysicalColumn, PhysicalComparison, PhysicalNullable, PhysicalValue},
         planner::ast::operators::BinaryOperator,
     };
 

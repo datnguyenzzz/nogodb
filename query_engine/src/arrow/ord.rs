@@ -19,6 +19,7 @@ pub enum Op {
     // NotDistinct,
 }
 
+#[derive(Clone, Copy)]
 /// Options that define the sort order of a given column
 pub struct SortOptions {
     /// Whether to sort in descending order

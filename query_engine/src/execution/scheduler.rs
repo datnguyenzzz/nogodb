@@ -163,7 +163,7 @@ impl Worker {
     }
 
     /// Triggers local combine() and marks the pipeline complete
-    async fn mark_morsel_complete_local(&self, pipeline: &Pipeline, morsel: Morsel) -> Result<()> {
+    async fn mark_morsel_complete_local(&self, pipeline: &Pipeline, _morsel: Morsel) -> Result<()> {
         let is_last = self
             .dispatcher
             .check_and_decrement_active_tasks(pipeline.id)?;

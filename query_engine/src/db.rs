@@ -5,6 +5,7 @@ use crate::{catalog::provider::CatalogProvider, execution::scheduler::Scheduler}
 pub struct Database {
     pub scheduler: Arc<Scheduler>,
     pub catalog_provider: Arc<CatalogProvider>,
+    pub storage: Arc<dyn crate::storage::DataStorage>,
 }
 
 impl Database {

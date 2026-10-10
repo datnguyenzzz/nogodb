@@ -4,7 +4,7 @@ use anyhow::Result;
 
 use crate::{
     db::Database,
-    execution::physical_plan::{PhysicalPlanGenerator, PlanBuilder},
+    execution::plan_builder::builder::{PhysicalPlanGenerator, PlanBuilder},
     optimiser::Optimiser,
     planner::planner::Planner,
     sql_parser::Parser,
@@ -37,8 +37,13 @@ impl Client {
             let plan = self.planner.plan_statment(statement).await?;
             let optimised_plan = self.optimiser.optimise(plan)?;
             let physical_node = self.physical_generator.create_plan(&optimised_plan)?;
-            let mut builder = PlanBuilder::new();
-            physical_node.build(&mut builder)?;
+            let mut builder = PlanBuilder::new(
+                self.db.storage.clone(),
+                self.db.scheduler.dispatcher.clone(),
+                self.db.scheduler.mailboxes.clone(),
+                self.db.scheduler.cores_per_node,
+            );
+            physical_node.build(&mut builder, None)?;
             self.db.scheduler.execute_job(builder.pipelines)?;
         }
 

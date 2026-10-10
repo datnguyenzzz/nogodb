@@ -164,6 +164,22 @@ pub struct PhysicalProbeOperator {
 }
 
 impl PhysicalProbeOperator {
+    pub fn new(
+        total_cores: usize,
+        probe_col_indexes: Vec<usize>,
+        mailboxes: Arc<Vec<MailBoxSender>>,
+        build_sink: Arc<PhysicalBuildSink>,
+        build_col_indexes: Vec<usize>,
+    ) -> Self {
+        Self {
+            total_cores,
+            probe_col_indexes,
+            mailboxes,
+            build_sink,
+            build_col_indexes,
+        }
+    }
+
     pub fn probe_and_respond_local(
         &self,
         probe_batch: &RecordBatch,

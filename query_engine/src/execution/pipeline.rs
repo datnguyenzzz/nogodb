@@ -3,7 +3,7 @@ use std::{any::Any, sync::Arc};
 use anyhow::Result;
 
 use crate::{
-    arrow::{Buffer, RecordBatch, SchemaRef},
+    arrow::{RecordBatch, SchemaRef},
     execution::scan::ScanSource,
 };
 
@@ -13,8 +13,8 @@ pub enum ScanMessage {
     /// Used for in-memory temporary tables, CTEs, or simply mock testing
     Batch(RecordBatch),
     CompressedPage {
-        data: Buffer,
-        meta: Buffer,
+        data: Vec<u8>,
+        projection: Option<Vec<usize>>,
     },
 }
 

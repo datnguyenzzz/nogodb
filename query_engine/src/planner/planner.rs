@@ -706,7 +706,7 @@ impl Planner {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use crate::arrow::DataType;
     use crate::catalog::TableMetadata;

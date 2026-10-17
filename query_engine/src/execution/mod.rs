@@ -1,3 +1,16 @@
+pub mod aggregate;
+pub mod dispatcher;
+pub mod filters;
+pub mod hash_join;
+pub mod limit;
+pub mod numa_topology;
+pub mod pipeline;
+pub mod plan_builder;
+pub mod scan;
+pub mod scheduler;
+pub mod sort;
+pub mod write_coordinator;
+
 use core::slice;
 use std::{
     cmp::{self, Ordering},
@@ -14,18 +27,6 @@ use crate::{
     },
     planner::ast::operators::BinaryOperator,
 };
-
-pub mod aggregate;
-pub mod dispatcher;
-pub mod filters;
-pub mod hash_join;
-pub mod limit;
-pub mod numa_topology;
-pub mod pipeline;
-pub mod plan_builder;
-pub mod scan;
-pub mod scheduler;
-pub mod sort;
 
 /// Represents a NUMA-aware dynamic execution block of roughly [`MORSEL_SIZE`] rows.
 #[derive(Clone, Copy)]

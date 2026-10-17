@@ -10,6 +10,7 @@ use crate::{
     arrow::{
         Array, ArrayRef, DataType, RecordBatch, Schema,
         array::{BooleanArray, PrimitiveArray, StringArray, select},
+        object::ColumnStat,
     },
     execution::{
         dispatcher::Dispatcher,
@@ -111,36 +112,137 @@ impl PhysicalSink for PhysicalBuildSink {
         // for background I/O pruning numeric data type only
         if !table.hashes.is_empty() {
             for &idx in &self.col_indexes {
-                let mut min = i64::MAX;
-                let mut max = i64::MIN;
-                let mut is_numeric = true;
+                let mut min_i64 = i64::MAX;
+                let mut max_i64 = i64::MIN;
+                let mut min_f64 = f64::MAX;
+                let mut max_f64 = f64::MIN;
+                let mut has_false = false;
+                let mut has_true = false;
+                let mut min_str = "";
+                let mut max_str = "";
+                let mut col_dt = None;
 
                 for batch in &table.build_batches {
                     let col = batch.column(idx);
+                    if col_dt.is_none() {
+                        col_dt = Some(col.data_type())
+                    } else {
+                        if let Some(dt) = col_dt {
+                            if dt != col.data_type() {
+                                return Err(anyhow!("Column {idx} has 2 different data type"));
+                            }
+                        }
+                    }
                     match col.data_type() {
-                        DataType::Int8
-                        | DataType::Int16
-                        | DataType::Int32
-                        | DataType::Int64
-                        | DataType::Float64 => {
+                        DataType::Int8 | DataType::Int16 | DataType::Int32 | DataType::Int64 => {
                             for row_idx in 0..batch.num_rows() {
                                 if let Some(key) =
                                     HashTable::extract_key_to_i64(col.as_ref(), row_idx)
                                 {
-                                    min = cmp::min(min, key);
-                                    max = cmp::max(max, key);
+                                    min_i64 = cmp::min(min_i64, key);
+                                    max_i64 = cmp::max(max_i64, key);
                                 }
                             }
                         }
-                        _ => {
-                            is_numeric = false;
-                            break;
+                        DataType::Float32 => {
+                            for row_idx in 0..batch.num_rows() {
+                                let v = col
+                                    .as_any()
+                                    .downcast_ref::<PrimitiveArray<f32>>()
+                                    .unwrap()
+                                    .value(row_idx) as f64;
+                                min_f64 = min_f64.min(v);
+                                max_f64 = max_f64.max(v);
+                            }
+                        }
+                        DataType::Float64 => {
+                            for row_idx in 0..batch.num_rows() {
+                                let v = col
+                                    .as_any()
+                                    .downcast_ref::<PrimitiveArray<f64>>()
+                                    .unwrap()
+                                    .value(row_idx);
+                                min_f64 = min_f64.min(v);
+                                max_f64 = max_f64.max(v);
+                            }
+                        }
+                        DataType::Boolean => {
+                            for row_idx in 0..batch.num_rows() {
+                                let v = col
+                                    .as_any()
+                                    .downcast_ref::<BooleanArray>()
+                                    .unwrap()
+                                    .value(row_idx);
+                                has_true |= v == true;
+                                has_false |= v == false;
+                            }
+                        }
+                        DataType::Utf8 => {
+                            for row_idx in 0..batch.num_rows() {
+                                let v = col
+                                    .as_any()
+                                    .downcast_ref::<StringArray>()
+                                    .unwrap()
+                                    .value(row_idx);
+                                if min_str.len() == 0 || v < min_str {
+                                    min_str = v
+                                }
+                                if max_str.len() == 0 || v > max_str {
+                                    max_str = v
+                                }
+                            }
                         }
                     }
                 }
-                if is_numeric && min <= max {
-                    self.dispatcher
-                        .publish_join_bounds(self.join_id, idx, min, max);
+
+                match col_dt {
+                    None => {}
+                    Some(dt) => match dt {
+                        DataType::Int8 | DataType::Int16 | DataType::Int32 | DataType::Int64 => {
+                            if min_i64 <= max_i64 {
+                                self.dispatcher.publish_join_bounds(
+                                    self.join_id,
+                                    idx,
+                                    ColumnStat::Int64 {
+                                        min: min_i64,
+                                        max: max_i64,
+                                    },
+                                );
+                            }
+                        }
+                        DataType::Float32 | DataType::Float64 => {
+                            if min_f64 <= max_f64 {
+                                self.dispatcher.publish_join_bounds(
+                                    self.join_id,
+                                    idx,
+                                    ColumnStat::Float64 {
+                                        min: min_f64,
+                                        max: max_f64,
+                                    },
+                                );
+                            }
+                        }
+                        DataType::Boolean => {
+                            self.dispatcher.publish_join_bounds(
+                                self.join_id,
+                                idx,
+                                ColumnStat::Bool {
+                                    has_true,
+                                    has_false,
+                                },
+                            );
+                        }
+                        DataType::Utf8 => {
+                            self.dispatcher.publish_join_bounds(
+                                self.join_id,
+                                idx,
+                                ColumnStat::Utf8 {
+                                    min: min_str.to_string(),
+                                    max: max_str.to_string(),
+                                },
+                            );
+                        }
+                    },
                 }
             }
         }

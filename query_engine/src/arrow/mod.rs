@@ -1,5 +1,7 @@
+pub mod aggregation;
 pub mod array;
 pub mod ipc;
+pub mod object;
 pub mod ord;
 
 use std::{mem, ops::Deref, slice, sync::Arc};

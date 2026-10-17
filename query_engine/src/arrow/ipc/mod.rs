@@ -8,7 +8,7 @@ use flatbuffers::{
     TableUnfinishedWIPOffset, UnionWIPOffset, VOffsetT, Vector, Verifiable, Verifier, WIPOffset,
 };
 
-use crate::arrow::{DataType, Field, Fields};
+use crate::arrow::{DataType, Field, Fields, ipc::record_batch::MessageType};
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default, Debug)]
 pub struct Precision(pub i16);
@@ -286,8 +286,7 @@ define_ipc_types! {
             VT_NULL_COUNT = 6,
             VT_SEGMENT_OFFSET = 8,
             VT_SEGMENT_LENGTH = 10,
-            VT_MIN_VAL = 12,
-            VT_MAX_VAL = 14,
+            VT_STATS_BYTE = 12,
         }
         functions {
             #[inline]
@@ -299,12 +298,8 @@ define_ipc_types! {
                 unsafe { self._tab.get::<i64>(FbMetaNode::VT_NULL_COUNT, Some(0)).unwrap() }
             }
             #[inline]
-            pub fn min_val(&self) -> i64 {
-                unsafe { self._tab.get::<i64>(FbMetaNode::VT_MIN_VAL, Some(0)).unwrap() }
-            }
-            #[inline]
-            pub fn max_val(&self) -> i64 {
-                unsafe { self._tab.get::<i64>(FbMetaNode::VT_MAX_VAL, Some(0)).unwrap() }
+            pub fn stats_byte(&self) -> Vector<'a, u8> {
+                unsafe { self._tab.get::<ForwardsUOffset<Vector<'a, u8>>>(FbMetaNode::VT_STATS_BYTE, None).unwrap() }
             }
         }
         builder_functions {
@@ -317,12 +312,8 @@ define_ipc_types! {
                 self.fbb.push_slot::<i64>(FbMetaNode::VT_NULL_COUNT, count, 0);
             }
             #[inline]
-            pub fn push_min_val(&mut self, val: i64) {
-                self.fbb.push_slot::<i64>(FbMetaNode::VT_MIN_VAL, val, 0);
-            }
-            #[inline]
-            pub fn push_max_val(&mut self, val: i64) {
-                self.fbb.push_slot::<i64>(FbMetaNode::VT_MAX_VAL, val, 0);
+            pub fn push_stats_byte(&mut self, bytes: WIPOffset<Vector<'fbb, u8>>) {
+                self.fbb.push_slot_always::<WIPOffset<_>>(FbMetaNode::VT_STATS_BYTE, bytes);
             }
         }
     },
@@ -421,7 +412,6 @@ define_ipc_types! {
             }
             #[inline]
             pub fn header_type(&self) -> u8 {
-                // 1 = Schema, 2 = RecordBatch
                 unsafe { self._tab.get::<u8>(FbMessage::VT_HEADER_TYPE, Some(0)).unwrap() }
             }
             #[inline]
@@ -438,10 +428,10 @@ define_ipc_types! {
             }
             #[inline]
             pub fn header_as_fb_record_batch(&self) -> Option<FbRecordBatch<'a>> {
-                if self.header_type() == 2 {
-                    self.header().map(|t| FbRecordBatch::from_table(t))
-                } else {
+                if self.header_type() == MessageType::Schema as u8 {
                     None
+                } else {
+                    self.header().map(|t| FbRecordBatch::from_table(t))
                 }
             }
             #[inline]

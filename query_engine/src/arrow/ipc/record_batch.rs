@@ -4,28 +4,34 @@ use std::{
 };
 
 use anyhow::{Result, anyhow};
-use flatbuffers::{FlatBufferBuilder, ForwardsUOffset, VectorIter, root};
+use flatbuffers::{FlatBufferBuilder, ForwardsUOffset, Vector, WIPOffset, root};
 
 use crate::arrow::{
-    ArrayRef, BooleanBuffer, Buffer, DataType, Field, NullBuffer, RecordBatch, Schema, SchemaRef,
+    ArrayRef, BooleanBuffer, Buffer, DataType, NullBuffer, RecordBatch, Schema, SchemaRef,
     array::{BooleanArray, PrimitiveArray, StringArray},
     ipc::{
         FbMessage, FbMessageBuilder, FbMetaNode, FbMetaNodeBuilder, FbMetaSegment,
         FbMetaSegmentBuilder, FbRecordBatch, FbRecordBatchBuilder,
         schema::{fb_to_schema, schema_to_fb_offset},
     },
+    object::{ColumnStat, compute_column_stat},
 };
 
 const ALIGNMENT: usize = 8 - 1;
 const CONTINUATION_MARKER: [u8; 4] = [0xff; 4];
 const PADDING: [u8; 8] = [0u8; 8];
 
+pub enum MessageType {
+    Schema = 1,
+    RecordBatch = 2,
+    MetaOnly = 3,
+}
+
 /// Arrow Writer
 /// Writes Arrow [`RecordBatch`] to bytes using the [IPC Streaming Format].
 /// https://arrow.apache.org/docs/format/Columnar.html#ipc-streaming-format
 pub struct Writer<W: Write> {
     writer: W,
-    schema_written: bool,
     compress: bool,
 }
 
@@ -38,35 +44,81 @@ impl<W: Write> Writer<W> {
     pub fn new(writer: W) -> Self {
         Self {
             writer,
-            schema_written: false,
             compress: true,
         }
     }
 
-    /// Write a record batch to the stream, propagating writing errors up safely
+    /// Write a record batch to the stream
     pub fn write(&mut self, batch: &RecordBatch) -> Result<()> {
-        if !self.schema_written {
-            self.write_schema(batch.schema())?;
-            self.schema_written = true;
-        }
-
-        self.write_record_batch(batch)?;
+        let (meta_buf, body_buf) = self.encode_batch(batch, self.compress)?;
+        self.write_buf(meta_buf, body_buf)?;
         Ok(())
     }
 
-    /// Serializes and compresses a `RecordBatch` into a standard, zero-deserialization Arrow IPC packet
-    fn write_record_batch(&mut self, batch: &RecordBatch) -> Result<()> {
+    /// Write only meta node (num rows, null count, Stats) to the stream
+    pub fn write_meta_node(
+        &mut self,
+        nodes: Vec<(i64, i64, ColumnStat)>,
+        num_rows: i32,
+    ) -> Result<()> {
+        let mut fbb = FlatBufferBuilder::new();
+        let fb_nodes = self.encode_node(&mut fbb, nodes);
+        let header_offset = {
+            let nodes_vec = fbb.create_vector(&fb_nodes);
+            let mut batch_builder = FbRecordBatchBuilder::new(&mut fbb);
+            batch_builder.push_length(num_rows);
+            batch_builder.push_nodes(nodes_vec);
+            batch_builder.finish()
+        };
+
+        let union_header = header_offset.as_union_value();
+
+        let mut message_builder = FbMessageBuilder::new(&mut fbb);
+        message_builder.push_version(1);
+        message_builder.push_header_type(MessageType::MetaOnly as u8);
+        message_builder.push_header(union_header);
+        message_builder.push_body_length(0);
+        let root = message_builder.finish();
+
+        fbb.finish(root, None);
+        let meta_fb = fbb.finished_data();
+
+        self.write_buf(Buffer::from(meta_fb.to_vec()), Buffer::from(vec![]))?;
+        Ok(())
+    }
+
+    fn encode_node<'a>(
+        &self,
+        mut fbb: &mut FlatBufferBuilder<'a>,
+        nodes: Vec<(i64, i64, ColumnStat)>,
+    ) -> Vec<WIPOffset<FbMetaNode<'a>>> {
+        let mut fb_nodes = Vec::new();
+        for (len, null_count, stat) in nodes {
+            let stat_offset = fbb.create_vector(&stat.encode());
+            let mut node_builder = FbMetaNodeBuilder::new(&mut fbb);
+            node_builder.push_length(len);
+            node_builder.push_null_count(null_count);
+            node_builder.push_stats_byte(stat_offset);
+            fb_nodes.push(node_builder.finish());
+        }
+
+        fb_nodes
+    }
+
+    /// Compresses and encodes a RecordBatch into its FlatBuffer metadata header buffer
+    /// and Zstd-compressed body buffer
+    fn encode_batch(&self, batch: &RecordBatch, compress: bool) -> Result<(Buffer, Buffer)> {
         let mut body_bytes: Vec<u8> = Vec::new();
-        // represents (column length, null count, min value, max value) of column
-        let mut nodes: Vec<(i64, i64, i64, i64)> = Vec::new();
-        // represents (offset, length) of a continous decoded block
+        // represents (column length, null count, [`ColumnStat`]) of column
+        let mut nodes: Vec<(i64, i64, ColumnStat)> = Vec::new();
+        // represents (offset, length) of a continuous decoded block
         let mut segments: Vec<(i64, i64)> = Vec::new();
 
-        let mut compress_and_encode = |segments: &mut Vec<(i64, i64)>, opt: Option<Buffer>| {
+        let mut compress_and_encode = |segments: &mut Vec<(i64, i64)>, buf: Option<Buffer>| {
             let start = body_bytes.len();
 
-            if let Some(buf) = opt {
-                if self.compress {
+            if let Some(buf) = buf {
+                if compress {
                     let uncompressed_len = buf.len();
                     let compressed = zstd::stream::encode_all(buf.as_slice(), 0)
                         .expect("Failed to compress buffer with Zstd");
@@ -77,7 +129,6 @@ impl<W: Write> Writer<W> {
                         body_bytes.extend_from_slice(&compressed);
                     } else {
                         // Compression was not effective; fall back to uncompressed and write -1 as prefix
-                        // this is Arrow IPC 's specification when writing uncompressed data
                         body_bytes.extend_from_slice(&(-1i64).to_le_bytes());
                         body_bytes.extend_from_slice(buf.as_slice());
                     }
@@ -100,91 +151,11 @@ impl<W: Write> Writer<W> {
 
         // Gather all nodes (logical properties) and segments (physical offsets)
         for col_ref in batch.columns() {
-            // calculate min/max of the column
-            let (min_val, max_val) = match col_ref.data_type() {
-                DataType::Int8 => {
-                    let prim = col_ref
-                        .as_any()
-                        .downcast_ref::<PrimitiveArray<i8>>()
-                        .unwrap();
-                    let min = prim.iter().flatten().min().unwrap_or(0) as i64;
-                    let max = prim.iter().flatten().max().unwrap_or(0) as i64;
-                    (min, max)
-                }
-                DataType::Int16 => {
-                    let prim = col_ref
-                        .as_any()
-                        .downcast_ref::<PrimitiveArray<i16>>()
-                        .unwrap();
-                    let min = prim.iter().flatten().min().unwrap_or(0) as i64;
-                    let max = prim.iter().flatten().max().unwrap_or(0) as i64;
-                    (min, max)
-                }
-                DataType::Int32 => {
-                    let prim = col_ref
-                        .as_any()
-                        .downcast_ref::<PrimitiveArray<i32>>()
-                        .unwrap();
-                    let min = prim.iter().flatten().min().unwrap_or(0) as i64;
-                    let max = prim.iter().flatten().max().unwrap_or(0) as i64;
-                    (min, max)
-                }
-                DataType::Int64 => {
-                    let prim = col_ref
-                        .as_any()
-                        .downcast_ref::<PrimitiveArray<i64>>()
-                        .unwrap();
-                    let min = prim.iter().flatten().min().unwrap_or(0) as i64;
-                    let max = prim.iter().flatten().max().unwrap_or(0) as i64;
-                    (min, max)
-                }
-                DataType::Float32 => {
-                    let prim = col_ref
-                        .as_any()
-                        .downcast_ref::<PrimitiveArray<f32>>()
-                        .unwrap();
-                    let min = prim
-                        .iter()
-                        .flatten()
-                        .filter(|&x| !x.is_nan())
-                        .min_by(|a, b| a.partial_cmp(b).unwrap())
-                        .unwrap_or(0.0);
-                    let max = prim
-                        .iter()
-                        .flatten()
-                        .filter(|&x| !x.is_nan())
-                        .max_by(|a, b| a.partial_cmp(b).unwrap())
-                        .unwrap_or(0.0);
-                    (min.to_bits() as i64, max.to_bits() as i64)
-                }
-                DataType::Float64 => {
-                    let prim = col_ref
-                        .as_any()
-                        .downcast_ref::<PrimitiveArray<f64>>()
-                        .unwrap();
-                    let min = prim
-                        .iter()
-                        .flatten()
-                        .filter(|&x| !x.is_nan())
-                        .min_by(|a, b| a.partial_cmp(b).unwrap())
-                        .unwrap_or(0.0);
-                    let max = prim
-                        .iter()
-                        .flatten()
-                        .filter(|&x| !x.is_nan())
-                        .max_by(|a, b| a.partial_cmp(b).unwrap())
-                        .unwrap_or(0.0);
-                    (min.to_bits() as i64, max.to_bits() as i64)
-                }
-                // TODO: We can support min-max pruner for utf-8 columns, can't we ?
-                _ => (0, 0),
-            };
-
+            let stats = compute_column_stat(col_ref.as_ref()).unwrap();
             nodes.push((
                 col_ref.len() as i64,
                 col_ref.nulls().map(|n| n.null_count()).unwrap_or_default() as i64,
-                min_val,
-                max_val,
+                stats,
             ));
 
             compress_and_encode(
@@ -197,30 +168,8 @@ impl<W: Write> Writer<W> {
             }
         }
 
-        self.assemble_and_write(batch.num_rows() as i32, body_bytes, nodes, segments)?;
-        Ok(())
-    }
-
-    /// Assemble the IPC Metadata and body message and write to the downstream
-    /// The body_bytes must be padding to 8-byte boundary for every buffers in it
-    fn assemble_and_write(
-        &mut self,
-        rows: i32,
-        body_bytes: Vec<u8>,
-        nodes: Vec<(i64, i64, i64, i64)>,
-        segments: Vec<(i64, i64)>,
-    ) -> Result<()> {
         let mut fbb = FlatBufferBuilder::new();
-
-        let mut fb_nodes = Vec::new();
-        for (len, null_count, min_val, max_val) in nodes {
-            let mut node_builder = FbMetaNodeBuilder::new(&mut fbb);
-            node_builder.push_length(len);
-            node_builder.push_null_count(null_count);
-            node_builder.push_min_val(min_val);
-            node_builder.push_max_val(max_val);
-            fb_nodes.push(node_builder.finish());
-        }
+        let fb_nodes = self.encode_node(&mut fbb, nodes);
 
         let mut fb_segments = Vec::new();
         for (offset, length) in segments {
@@ -235,10 +184,10 @@ impl<W: Write> Writer<W> {
             let segments_vec = fbb.create_vector(&fb_segments);
 
             let mut batch_builder = FbRecordBatchBuilder::new(&mut fbb);
-            batch_builder.push_length(rows);
+            batch_builder.push_length(batch.num_rows() as i32);
             batch_builder.push_nodes(nodes_vec);
             batch_builder.push_segments(segments_vec);
-            if self.compress {
+            if compress {
                 batch_builder.push_compression(1 /* Zstd */);
             }
             batch_builder.finish()
@@ -247,7 +196,7 @@ impl<W: Write> Writer<W> {
 
         let mut message_builder = FbMessageBuilder::new(&mut fbb);
         message_builder.push_version(1);
-        message_builder.push_header_type(2); // 2 = Record Batch
+        message_builder.push_header_type(MessageType::RecordBatch as u8);
         message_builder.push_header(union_header);
         message_builder.push_body_length(body_bytes.len() as i64);
         let root = message_builder.finish();
@@ -255,21 +204,23 @@ impl<W: Write> Writer<W> {
         fbb.finish(root, None);
         let meta_fb = fbb.finished_data();
 
-        // Assemble and write the final IPC packet to the stream
-        self.write_continuation(meta_fb.len())?;
-        self.writer.write_all(meta_fb)?;
+        Ok((Buffer::from(meta_fb.to_vec()), Buffer::from(body_bytes)))
+    }
+
+    fn write_buf(&mut self, meta_buf: Buffer, body_buf: Buffer) -> Result<()> {
+        self.write_continuation(meta_buf.len())?;
+        self.writer.write_all(meta_buf.as_slice())?;
 
         // Metadata alignment padding to 8-byte boundary before body
-        let written_bytes = 8 + meta_fb.len();
+        let written_bytes = 8 + meta_buf.len();
         self.write_padding(Self::align(written_bytes) - written_bytes)?;
 
         // Write the contiguous raw body bytes
-        self.writer.write_all(&body_bytes)?;
+        self.writer.write_all(body_buf.as_slice())?;
         Ok(())
     }
-
     /// Writes a schema to an IPC message, returning metadata written
-    fn write_schema(&mut self, schema: &Schema) -> Result<usize> {
+    pub fn write_schema(&mut self, schema: &Schema) -> Result<usize> {
         let mut fbb = FlatBufferBuilder::new();
 
         let schema_offset = schema_to_fb_offset(&mut fbb, schema);
@@ -277,7 +228,7 @@ impl<W: Write> Writer<W> {
 
         let mut message_builder = FbMessageBuilder::new(&mut fbb);
         message_builder.push_version(1);
-        message_builder.push_header_type(1); // 1 = Schema
+        message_builder.push_header_type(MessageType::Schema as u8);
         message_builder.push_header(union_header);
         message_builder.push_body_length(0);
         let root = message_builder.finish();
@@ -332,8 +283,26 @@ pub fn read_bounded<R: Read>(reader: &mut R, len: usize) -> Result<Buffer> {
     Ok(buf)
 }
 
+// see Writer.encode_batch() to understand the encoding logic
+fn segments_per_field(data_type: &DataType) -> usize {
+    match data_type {
+        DataType::Utf8 => 3, // validity + offset + actual values
+        _ => 2,              // validity + values
+    }
+}
+
+fn compute_field_segment_indexes(schema: &Schema) -> Vec<usize> {
+    let mut indexes = Vec::with_capacity(schema.fields().len());
+    let mut idx = 0;
+    for field in schema.fields() {
+        indexes.push(idx);
+        idx += segments_per_field(&field.data_type);
+    }
+    indexes
+}
+
 /// Read [`FbMessage`] from a reader while re-using a buffer for metadata
-struct MessageReader<R: Read> {
+pub struct MessageReader<R: Read> {
     reader: R,
     buf: Vec<u8>,
 }
@@ -405,40 +374,41 @@ impl<R: Read> MessageReader<R> {
         Ok(Some(meta_len))
     }
 }
-pub struct RecordBatchDecoder<'a> {
+struct RecordBatchDecoder<'a> {
     pub buf: &'a Buffer,
-    pub _fb_batch: FbRecordBatch<'a>,
     pub schema: SchemaRef,
-    _nodes: VectorIter<'a, ForwardsUOffset<FbMetaNode<'a>>>,
-    segments: VectorIter<'a, ForwardsUOffset<FbMetaSegment<'a>>>,
+    projection: Option<Vec<usize>>,
+    segments: Vector<'a, ForwardsUOffset<FbMetaSegment<'a>>>,
     is_compressed: bool,
     row_count: i32,
 }
 
 impl<'a> RecordBatchDecoder<'a> {
-    pub fn new(buf: &'a Buffer, fb_batch: FbRecordBatch<'a>, schema: SchemaRef) -> Self {
-        let segments = fb_batch.segments().unwrap().iter();
-        let nodes = fb_batch.nodes().unwrap().iter();
+    pub fn new(
+        buf: &'a Buffer,
+        fb_batch: FbRecordBatch<'a>,
+        schema: SchemaRef,
+        projection: Option<Vec<usize>>,
+    ) -> Self {
+        let segments = fb_batch.segments().unwrap();
         let is_compressed = fb_batch.compression() != 0;
         let row_count = fb_batch.length();
         Self {
             buf,
-            _fb_batch: fb_batch,
             schema,
-            _nodes: nodes,
+            projection,
             segments,
             is_compressed,
             row_count,
         }
     }
 
-    /// Pulls and decompresses (if Zstd active) the next raw memory buffer segment
-    fn next_buffer(&mut self) -> Result<Option<Buffer>> {
-        let segment = self
-            .segments
-            .next()
-            .ok_or_else(|| anyhow!("Malformed IPC stream: missing expected segment buffer"))?;
+    fn decompress_segment(&self, idx: usize) -> Result<Option<Buffer>> {
+        if idx >= self.segments.len() {
+            return Err(anyhow!("Segment index {idx} out of bounds"));
+        }
 
+        let segment = self.segments.get(idx);
         let length = segment.length() as usize;
         if length == 0 {
             return Ok(None);
@@ -465,32 +435,33 @@ impl<'a> RecordBatchDecoder<'a> {
         }
     }
 
-    pub fn create_array(&mut self, field: &Field) -> Result<ArrayRef> {
-        let validity_buf = self.next_buffer()?;
+    pub fn decode_field(&self, idx: usize, segment_idx: usize) -> Result<ArrayRef> {
+        let field = &self.schema.fields()[idx];
+        let validity_buf = self.decompress_segment(segment_idx)?;
         let nulls = validity_buf
             .map(|v_buf| NullBuffer::new(BooleanBuffer::new(v_buf, 0, self.row_count as usize)));
 
         match field.data_type {
             DataType::Boolean => {
-                let val_buf = self.next_buffer()?.ok_or_else(|| {
+                let val_buf = self.decompress_segment(segment_idx + 1)?.ok_or_else(|| {
                     anyhow!("Malformed IPC: missing values buffer for BooleanArray")
                 })?;
                 let boolean_buf = BooleanBuffer::new(val_buf, 0, self.row_count as usize);
                 Ok(Arc::new(BooleanArray::new(boolean_buf, nulls)))
             }
             DataType::Utf8 => {
-                let offset_buf = self.next_buffer()?.ok_or_else(|| {
+                let offset_buf = self.decompress_segment(segment_idx + 1)?.ok_or_else(|| {
                     anyhow!("Malformed IPC: missing offsets buffer for StringArray")
                 })?;
                 let data_buf = self
-                    .next_buffer()?
+                    .decompress_segment(segment_idx + 2)?
                     .ok_or_else(|| anyhow!("Malformed IPC: missing data buffer for StringArray"))?;
                 Ok(Arc::new(StringArray::new(offset_buf, data_buf, nulls)))
             }
             // Primitive numerical types
             DataType::Int8 => {
                 let val_buf = self
-                    .next_buffer()?
+                    .decompress_segment(segment_idx + 1)?
                     .ok_or_else(|| anyhow!("Missing values buffer"))?;
                 Ok(Arc::new(PrimitiveArray::<i8>::new(
                     field.data_type,
@@ -500,7 +471,7 @@ impl<'a> RecordBatchDecoder<'a> {
             }
             DataType::Int16 => {
                 let val_buf = self
-                    .next_buffer()?
+                    .decompress_segment(segment_idx + 1)?
                     .ok_or_else(|| anyhow!("Missing values buffer"))?;
                 Ok(Arc::new(PrimitiveArray::<i16>::new(
                     field.data_type,
@@ -510,7 +481,7 @@ impl<'a> RecordBatchDecoder<'a> {
             }
             DataType::Int32 => {
                 let val_buf = self
-                    .next_buffer()?
+                    .decompress_segment(segment_idx + 1)?
                     .ok_or_else(|| anyhow!("Missing values buffer"))?;
                 Ok(Arc::new(PrimitiveArray::<i32>::new(
                     field.data_type,
@@ -520,7 +491,7 @@ impl<'a> RecordBatchDecoder<'a> {
             }
             DataType::Int64 => {
                 let val_buf = self
-                    .next_buffer()?
+                    .decompress_segment(segment_idx + 1)?
                     .ok_or_else(|| anyhow!("Missing values buffer"))?;
                 Ok(Arc::new(PrimitiveArray::<i64>::new(
                     field.data_type,
@@ -530,7 +501,7 @@ impl<'a> RecordBatchDecoder<'a> {
             }
             DataType::Float32 => {
                 let val_buf = self
-                    .next_buffer()?
+                    .decompress_segment(segment_idx + 1)?
                     .ok_or_else(|| anyhow!("Missing values buffer"))?;
                 Ok(Arc::new(PrimitiveArray::<f32>::new(
                     field.data_type,
@@ -540,7 +511,7 @@ impl<'a> RecordBatchDecoder<'a> {
             }
             DataType::Float64 => {
                 let val_buf = self
-                    .next_buffer()?
+                    .decompress_segment(segment_idx + 1)?
                     .ok_or_else(|| anyhow!("Missing values buffer"))?;
                 Ok(Arc::new(PrimitiveArray::<f64>::new(
                     field.data_type,
@@ -552,19 +523,37 @@ impl<'a> RecordBatchDecoder<'a> {
     }
 
     pub fn try_decode(&mut self) -> Result<RecordBatch> {
-        let schema = Arc::clone(&self.schema);
-        let mut columns = Vec::with_capacity(schema.fields.iter().count());
-        for field in schema.fields.iter() {
-            columns.push(self.create_array(field)?);
-        }
+        let field_segment_indexes = compute_field_segment_indexes(&self.schema);
+        match &self.projection {
+            Some(projected_indexes) => {
+                let mut columns = Vec::with_capacity(projected_indexes.len());
+                let mut projected_fields = Vec::with_capacity(projected_indexes.len());
 
-        RecordBatch::try_new(schema, columns)
+                for &field_idx in projected_indexes {
+                    columns.push(self.decode_field(field_idx, field_segment_indexes[field_idx])?);
+                    projected_fields.push(self.schema.fields()[field_idx].clone());
+                }
+
+                let projected_schema = Arc::new(Schema::new(projected_fields));
+                RecordBatch::try_new(projected_schema, columns)
+            }
+            None => {
+                let schema = Arc::clone(&self.schema);
+                let mut columns = Vec::with_capacity(schema.fields.iter().count());
+                for (idx, _) in schema.fields().iter().enumerate() {
+                    columns.push(self.decode_field(idx, field_segment_indexes[idx])?);
+                }
+
+                RecordBatch::try_new(schema, columns)
+            }
+        }
     }
 }
 
 pub struct Reader<R: Read> {
     reader: MessageReader<R>,
     schema: SchemaRef,
+    projection: Option<Vec<usize>>,
     /// finished=true indicates we already reached to the end of a stream
     finished: bool,
 }
@@ -576,6 +565,12 @@ impl<R: Read> Reader<R> {
         &self.schema
     }
 
+    pub fn with_projection(mut self, projection: Vec<usize>) -> Self {
+        self.projection = Some(projection);
+        self
+    }
+
+    /// Creates a Reader for a stream that starts with a Schema message
     pub fn try_new(reader: R) -> Result<Self> {
         let mut msg_reader = MessageReader::new(reader);
         let message = msg_reader.try_next()?;
@@ -583,13 +578,6 @@ impl<R: Read> Reader<R> {
         let Some((message, _)) = message else {
             return Err(anyhow!("Expected schema message, found empty stream."));
         };
-
-        if message.header_type() != /* Schema */ 1 {
-            return Err(anyhow!(
-                "Expected a schema as the first message in the stream, got: {:?}",
-                message.header_type()
-            ));
-        }
 
         // For schema message, the schema is written in the header block
         let fb_schema = message
@@ -602,6 +590,18 @@ impl<R: Read> Reader<R> {
             reader: msg_reader,
             schema: Arc::new(schema),
             finished: false,
+            projection: None,
+        })
+    }
+
+    /// Creates a Reader for a stream that contains only RecordBatch messages, using a known Schema
+    pub fn try_new_with_schema(reader: R, schema: SchemaRef) -> Result<Self> {
+        let msg_reader = MessageReader::new(reader);
+        Ok(Self {
+            reader: msg_reader,
+            schema,
+            finished: false,
+            projection: None,
         })
     }
 
@@ -627,11 +627,17 @@ impl<R: Read> Reader<R> {
                         .header_as_fb_record_batch()
                         .ok_or_else(|| anyhow!("Unable to read IPC message as record batch"))?;
 
-                    let mut decoder =
-                        RecordBatchDecoder::new(&body, batch_header, self.schema.clone());
+                    let mut decoder = RecordBatchDecoder::new(
+                        &body,
+                        batch_header,
+                        self.schema.clone(),
+                        self.projection.clone(),
+                    );
                     let batch = decoder.try_decode()?;
                     return Ok(Some(batch));
                 }
+                /* Meta Node only, no actual record batch data */
+                3 => return Ok(None),
                 e => return Err(anyhow!("corrupted: unrecognise header type: {e}")),
             };
         }
@@ -646,18 +652,16 @@ impl<R: Read> Iterator for Reader<R> {
     }
 }
 
+pub unsafe fn root_as_message(buf: &[u8]) -> Result<FbMessage<'_>, flatbuffers::InvalidFlatbuffer> {
+    flatbuffers::root::<FbMessage>(buf)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::arrow::array::PrimitiveArray;
     use crate::arrow::{Array, DataType, Field, Schema};
     use std::sync::Arc;
-
-    pub unsafe fn root_as_message(
-        buf: &[u8],
-    ) -> Result<crate::arrow::ipc::FbMessage<'_>, flatbuffers::InvalidFlatbuffer> {
-        flatbuffers::root::<crate::arrow::ipc::FbMessage>(buf)
-    }
 
     #[test]
     fn test_record_batch_writer_roundtrip() {
@@ -677,6 +681,7 @@ mod tests {
         let mut buffer = Vec::new();
         {
             let mut writer = Writer::new(&mut buffer);
+            writer.write_schema(batch.schema()).unwrap();
             writer.write(&batch).unwrap();
         }
 
@@ -797,6 +802,7 @@ mod tests {
         let mut stream_buffer = Vec::new();
         {
             let mut writer = Writer::new(&mut stream_buffer);
+            writer.write_schema(&schema).unwrap();
             writer.write(&original_batch).unwrap();
         }
 
@@ -878,6 +884,7 @@ mod tests {
         let mut stream_buffer = Vec::new();
         {
             let mut writer = Writer::new(&mut stream_buffer);
+            writer.write_schema(&schema).unwrap();
             writer.write(&batch1).unwrap();
             writer.write(&batch2).unwrap();
         }
@@ -953,18 +960,9 @@ mod tests {
         }
 
         // 4. Decode the FlatBuffer headers and verify statistics!
-        // Skip schema block and read the record batch message
-        let mut record_batch_msg_offset = 0;
-        for i in 0..(buffer.len() - 4) {
-            if &buffer[i..(i + 4)] == &[0xFF, 0xFF, 0xFF, 0xFF] && i > 0 {
-                // This is the second message block (The RecordBatch message!)
-                record_batch_msg_offset = i;
-                break;
-            }
-        }
-        assert!(record_batch_msg_offset > 0);
-
-        let fb_msg_slice = &buffer[record_batch_msg_offset + 8..]; // skip continuation + len
+        assert_eq!(&buffer[..4], &[0xFF, 0xFF, 0xFF, 0xFF]);
+        let meta_len = i32::from_le_bytes(buffer[4..8].try_into().unwrap()) as usize;
+        let fb_msg_slice = &buffer[8..8 + meta_len]; // skip continuation + len
         let fb_msg = unsafe { root_as_message(fb_msg_slice).unwrap() };
         let fb_batch = fb_msg.header_as_fb_record_batch().unwrap();
         let fb_nodes = fb_batch.nodes().unwrap();
@@ -974,22 +972,261 @@ mod tests {
         // --- Column 0 (id: Int32) ---
         let node_id = fb_nodes.get(0);
         assert_eq!(node_id.length(), 4);
-        assert_eq!(node_id.min_val(), -5); // Minimum is -5
-        assert_eq!(node_id.max_val(), 30); // Maximum is 30
+        let stat_id = ColumnStat::decode(node_id.stats_byte().bytes()).unwrap();
+        assert_eq!(stat_id, ColumnStat::Int64 { min: -5, max: 30 });
 
         // --- Column 1 (amount: Float64) ---
         let node_amount = fb_nodes.get(1);
         assert_eq!(node_amount.length(), 4);
-        // Transmute back to f64 to verify floating point precision preservation!
-        let min_f = f64::from_bits(node_amount.min_val() as u64);
-        let max_f = f64::from_bits(node_amount.max_val() as u64);
-        assert_eq!(min_f, -20.25);
-        assert_eq!(max_f, 450.0);
+        let stat_amount = ColumnStat::decode(node_amount.stats_byte().bytes()).unwrap();
+        assert_eq!(
+            stat_amount,
+            ColumnStat::Float64 {
+                min: -20.25,
+                max: 450.0
+            }
+        );
 
         // --- Column 2 (flag: Boolean) ---
         let node_flag = fb_nodes.get(2);
         assert_eq!(node_flag.length(), 4);
-        assert_eq!(node_flag.min_val(), 0); // Boolean defaults/falls back to 0
-        assert_eq!(node_flag.max_val(), 0);
+        let stat_flag = ColumnStat::decode(node_flag.stats_byte().bytes()).unwrap();
+        assert_eq!(
+            stat_flag,
+            ColumnStat::Bool {
+                has_true: true,
+                has_false: true
+            }
+        );
+    }
+
+    #[test]
+    fn test_writer_write_meta_only_roundtrip() {
+        let mut buffer = Vec::new();
+        let mut writer = Writer::new(&mut buffer);
+
+        let nodes = vec![
+            (100, 0, ColumnStat::Int64 { min: 10, max: 50 }),
+            (
+                100,
+                5,
+                ColumnStat::Utf8 {
+                    min: "alpha".to_string(),
+                    max: "omega".to_string(),
+                },
+            ),
+        ];
+
+        writer.write_meta_node(nodes, 100).unwrap();
+        assert!(buffer.len() > 8);
+
+        // Verify MessageReader can decode the MetaOnly message
+        let mut msg_reader = MessageReader::new(&buffer[..]);
+        let (msg, _body) = msg_reader.try_next().unwrap().unwrap();
+        assert_eq!(msg.header_type(), MessageType::MetaOnly as u8);
+
+        let fb_batch = msg.header_as_fb_record_batch().unwrap();
+        assert_eq!(fb_batch.length(), 100);
+
+        let fb_nodes = fb_batch.nodes().unwrap();
+        assert_eq!(fb_nodes.len(), 2);
+
+        let stat0 = ColumnStat::decode(fb_nodes.get(0).stats_byte().bytes()).unwrap();
+        assert_eq!(stat0, ColumnStat::Int64 { min: 10, max: 50 });
+
+        let stat1 = ColumnStat::decode(fb_nodes.get(1).stats_byte().bytes()).unwrap();
+        assert_eq!(
+            stat1,
+            ColumnStat::Utf8 {
+                min: "alpha".to_string(),
+                max: "omegb".to_string()
+            }
+        );
+    }
+
+    #[test]
+    fn test_record_batch_selective_decompression_projection() {
+        let schema = Arc::new(Schema::new(vec![
+            Field {
+                name: "id".to_string(),
+                data_type: DataType::Int32,
+                nullable: false,
+            },
+            Field {
+                name: "name".to_string(),
+                data_type: DataType::Utf8,
+                nullable: false,
+            },
+            Field {
+                name: "score".to_string(),
+                data_type: DataType::Float64,
+                nullable: false,
+            },
+            Field {
+                name: "active".to_string(),
+                data_type: DataType::Boolean,
+                nullable: false,
+            },
+        ]));
+
+        let id_col: ArrayRef = Arc::new(PrimitiveArray::from(vec![101i32, 102, 103]));
+        let name_col: ArrayRef = Arc::new(StringArray::from(vec!["Alice", "Bob", "Charlie"]));
+        let score_col: ArrayRef = Arc::new(PrimitiveArray::from(vec![95.5f64, 88.0, 99.25]));
+        let active_col: ArrayRef = Arc::new(BooleanArray::from(vec![true, false, true]));
+
+        let batch = RecordBatch::try_new(
+            schema.clone(),
+            vec![id_col, name_col, score_col, active_col],
+        )
+        .unwrap();
+
+        // Serialize into compressed buffer
+        let mut buffer = Vec::new();
+        {
+            let mut writer = Writer::new(&mut buffer);
+            writer.write(&batch).unwrap();
+        }
+
+        // 1. Project only [name, active] (Indices 1 and 3)
+        // Selective decompression must decompress only segments for columns 1 and 3,
+        // completely skipping column 0 (Int32) and column 2 (Float64)!
+        let mut reader = Reader::try_new_with_schema(&buffer[..], schema.clone())
+            .unwrap()
+            .with_projection(vec![1, 3]);
+
+        let projected_batch = reader.try_next().unwrap().unwrap();
+        assert_eq!(projected_batch.num_columns(), 2);
+        assert_eq!(projected_batch.num_rows(), 3);
+        assert_eq!(projected_batch.schema().fields().len(), 2);
+        assert_eq!(projected_batch.schema().fields()[0].name, "name");
+        assert_eq!(projected_batch.schema().fields()[1].name, "active");
+
+        let out_name = projected_batch
+            .column(0)
+            .as_any()
+            .downcast_ref::<StringArray>()
+            .unwrap();
+        assert_eq!(out_name.value(0), "Alice");
+        assert_eq!(out_name.value(1), "Bob");
+        assert_eq!(out_name.value(2), "Charlie");
+
+        let out_active = projected_batch
+            .column(1)
+            .as_any()
+            .downcast_ref::<BooleanArray>()
+            .unwrap();
+        assert_eq!(out_active.value(0), true);
+        assert_eq!(out_active.value(1), false);
+        assert_eq!(out_active.value(2), true);
+    }
+
+    #[test]
+    fn test_record_batch_projection_single_last_column() {
+        let schema = Arc::new(Schema::new(vec![
+            Field {
+                name: "id".to_string(),
+                data_type: DataType::Int32,
+                nullable: false,
+            },
+            Field {
+                name: "name".to_string(),
+                data_type: DataType::Utf8,
+                nullable: false,
+            },
+            Field {
+                name: "score".to_string(),
+                data_type: DataType::Float64,
+                nullable: false,
+            },
+        ]));
+
+        let id_col: ArrayRef = Arc::new(PrimitiveArray::from(vec![1i32, 2]));
+        let name_col: ArrayRef = Arc::new(StringArray::from(vec!["X", "Y"]));
+        let score_col: ArrayRef = Arc::new(PrimitiveArray::from(vec![123.456f64, 789.012]));
+
+        let batch =
+            RecordBatch::try_new(schema.clone(), vec![id_col, name_col, score_col]).unwrap();
+
+        let mut buffer = Vec::new();
+        {
+            let mut writer = Writer::new(&mut buffer);
+            writer.write(&batch).unwrap();
+        }
+
+        // Project ONLY the last column (index 2: score)
+        let mut reader = Reader::try_new_with_schema(&buffer[..], schema.clone())
+            .unwrap()
+            .with_projection(vec![2]);
+
+        let projected_batch = reader.try_next().unwrap().unwrap();
+        assert_eq!(projected_batch.num_columns(), 1);
+        assert_eq!(projected_batch.schema().fields()[0].name, "score");
+
+        let out_score = projected_batch
+            .column(0)
+            .as_any()
+            .downcast_ref::<PrimitiveArray<f64>>()
+            .unwrap();
+        assert_eq!(out_score.value(0), 123.456);
+        assert_eq!(out_score.value(1), 789.012);
+    }
+
+    #[test]
+    fn test_record_batch_projection_out_of_order() {
+        let schema = Arc::new(Schema::new(vec![
+            Field {
+                name: "col_a".to_string(),
+                data_type: DataType::Int32,
+                nullable: false,
+            },
+            Field {
+                name: "col_b".to_string(),
+                data_type: DataType::Utf8,
+                nullable: false,
+            },
+            Field {
+                name: "col_c".to_string(),
+                data_type: DataType::Int64,
+                nullable: false,
+            },
+        ]));
+
+        let a: ArrayRef = Arc::new(PrimitiveArray::from(vec![10i32, 20]));
+        let b: ArrayRef = Arc::new(StringArray::from(vec!["first", "second"]));
+        let c: ArrayRef = Arc::new(PrimitiveArray::from(vec![1000i64, 2000]));
+
+        let batch = RecordBatch::try_new(schema.clone(), vec![a, b, c]).unwrap();
+
+        let mut buffer = Vec::new();
+        {
+            let mut writer = Writer::new(&mut buffer);
+            writer.write(&batch).unwrap();
+        }
+
+        // Project in reverse order [col_c (2), col_a (0)]
+        let mut reader = Reader::try_new_with_schema(&buffer[..], schema.clone())
+            .unwrap()
+            .with_projection(vec![2, 0]);
+
+        let projected_batch = reader.try_next().unwrap().unwrap();
+        assert_eq!(projected_batch.num_columns(), 2);
+        assert_eq!(projected_batch.schema().fields()[0].name, "col_c");
+        assert_eq!(projected_batch.schema().fields()[1].name, "col_a");
+
+        let out_c = projected_batch
+            .column(0)
+            .as_any()
+            .downcast_ref::<PrimitiveArray<i64>>()
+            .unwrap();
+        assert_eq!(out_c.value(0), 1000);
+        assert_eq!(out_c.value(1), 2000);
+
+        let out_a = projected_batch
+            .column(1)
+            .as_any()
+            .downcast_ref::<PrimitiveArray<i32>>()
+            .unwrap();
+        assert_eq!(out_a.value(0), 10);
+        assert_eq!(out_a.value(1), 20);
     }
 }

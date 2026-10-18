@@ -1,10 +1,9 @@
 use std::{
-    io,
     sync::{Arc, Mutex, mpsc},
     thread,
 };
 
-use anyhow::{Result, anyhow, bail};
+use anyhow::{Result, anyhow};
 use tokio::{
     runtime::LocalRuntime,
     sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel},
@@ -23,10 +22,7 @@ use crate::execution::{
     scan::ScanSource,
 };
 use crate::{
-    arrow::{
-        Buffer, RecordBatch, SchemaRef,
-        ipc::{self, record_batch::RecordBatchDecoder},
-    },
+    arrow::RecordBatch,
     execution::{
         hash_join::operators::{PhysicalBuildSink, PhysicalProbeOperator},
         pipeline::PipelineID,
@@ -147,15 +143,20 @@ impl Worker {
                         is_done = true;
                     }
                     DispatchResult::Wait => {
-                        // pipeline is blocked on active dependencies
+                        // Pipeline is blocked on active dependencies or awaiting morsels
+                        self.dispatcher.work_notify.notified().await;
                     }
-                    DispatchResult::Finished => break,
+                    DispatchResult::Finished => {
+                        // Job completed, stay alive and await subsequent queries
+                        self.dispatcher.work_notify.notified().await;
+                    }
                 }
 
                 if !is_done {
                     task::yield_now().await;
                 }
             }
+            #[allow(unreachable_code)]
             Ok::<(), anyhow::Error>(())
         })?;
 
@@ -195,37 +196,6 @@ impl Worker {
         Ok(())
     }
 
-    /// Local-Core Decompression & Decoding (CPU-bound execution path)
-    fn decompress_and_decode(
-        compressed_data: Buffer,
-        metadata_bytes: Buffer,
-        schema: SchemaRef,
-    ) -> Result<RecordBatch> {
-        let fb_message = flatbuffers::root::<ipc::FbMessage>(metadata_bytes.as_slice())
-            .map_err(|e| anyhow!("Failed to parse FlatBuffer header: {:?}", e))?;
-        let fb_batch = fb_message
-            .header_as_fb_record_batch()
-            .ok_or_else(|| anyhow!("Invalid FlatBuffer: expected RecordBatch header"))?;
-
-        let compressed_slice = compressed_data.as_slice();
-        if compressed_slice.len() < 8 {
-            bail!("Invalid compressed page block: body too short");
-        }
-
-        let uncompressed_len = i64::from_le_bytes(compressed_slice[0..8].try_into().unwrap());
-        let decompressed_buf = if uncompressed_len == -1 {
-            Buffer::from(compressed_slice[8..].to_vec())
-        } else {
-            let mut decoder = zstd::Decoder::new(&compressed_slice[8..])?;
-            let mut output = vec![0u8; uncompressed_len as usize];
-            io::Read::read_exact(&mut decoder, &mut output)?;
-            Buffer::from(output)
-        };
-
-        let mut batch_decoder = RecordBatchDecoder::new(&decompressed_buf, fb_batch, schema);
-        batch_decoder.try_decode()
-    }
-
     fn execute_vectorized_quantum(&self, pipeline: &Pipeline, message: ScanMessage) -> Result<()> {
         let mut sink_ctx = SinkContext {
             core_id: self.core_id.id,
@@ -237,9 +207,6 @@ impl Worker {
         };
         let mut batch = match message {
             ScanMessage::Batch(b) => b,
-            ScanMessage::CompressedPage { data, meta } => {
-                Self::decompress_and_decode(data, meta, pipeline.schema.clone())?
-            }
         };
 
         let mut is_passed = true;
@@ -393,9 +360,12 @@ impl Scheduler {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::arrow::{ArrayRef, DataType, Field, RecordBatch, Schema, array::PrimitiveArray};
+    use crate::arrow::{
+        Array, ArrayRef, DataType, Field, RecordBatch, Schema, array::PrimitiveArray,
+    };
     use crate::execution::pipeline::{CombineResult, PhysicalSink, SinkContext, SinkResult};
     use std::sync::Mutex;
+    use std::time::Duration;
 
     struct MockSink {
         accumulated: Arc<Mutex<Vec<i32>>>,
@@ -515,19 +485,46 @@ mod tests {
         }
     }
 
-    struct FinalMaterializingSink {
-        output_batch: Mutex<Option<RecordBatch>>,
+    struct AccumulatingRootSink {
+        rows: Mutex<Vec<i32>>,
     }
 
-    impl PhysicalSink for FinalMaterializingSink {
-        fn sink(&self, _ctx: &mut SinkContext, _input: RecordBatch) -> Result<SinkResult> {
-            Ok(SinkResult::Finished)
+    impl PhysicalSink for AccumulatingRootSink {
+        fn sink(&self, _ctx: &mut SinkContext, input: RecordBatch) -> Result<SinkResult> {
+            if input.num_rows() > 0 {
+                let col = input
+                    .column(0)
+                    .as_any()
+                    .downcast_ref::<PrimitiveArray<i32>>()
+                    .unwrap();
+                let mut guard = self.rows.lock().unwrap();
+                for val in col.iter().flatten() {
+                    guard.push(val);
+                }
+            }
+            Ok(SinkResult::NeedMoreInput)
         }
+
         fn combine(&self) -> Result<CombineResult> {
-            let mut guard = self.output_batch.lock().unwrap();
-            let batch = guard.take().unwrap();
+            // Small delay to simulate realistic combine work; immediately exposes any
+            // premature pipeline cleanup or premature AllDone signals!
+            std::thread::sleep(Duration::from_millis(2));
+            let mut guard = self.rows.lock().unwrap();
+            let mut vals = std::mem::take(&mut *guard);
+            if vals.is_empty() {
+                return Ok(CombineResult::Empty);
+            }
+            vals.sort();
+            let schema = Arc::new(Schema::new(vec![Field {
+                name: "id".to_string(),
+                data_type: DataType::Int32,
+                nullable: false,
+            }]));
+            let arr: ArrayRef = Arc::new(PrimitiveArray::from(vals));
+            let batch = RecordBatch::try_new(schema, vec![arr])?;
             Ok(CombineResult::Materialised(batch))
         }
+
         fn as_any(&self) -> &dyn std::any::Any {
             self
         }
@@ -542,16 +539,14 @@ mod tests {
             data_type: DataType::Int32,
             nullable: false,
         }]));
-        let id_col: ArrayRef = Arc::new(PrimitiveArray::from(vec![42i32]));
-        let expected_batch = RecordBatch::try_new(schema.clone(), vec![id_col]).unwrap();
 
         let pipeline = Pipeline {
             id: 200,
             downstream_id: None, // ROOT PIPELINE!
             source: None,
             operators: vec![],
-            sink: Box::new(FinalMaterializingSink {
-                output_batch: Mutex::new(Some(expected_batch)),
+            sink: Box::new(AccumulatingRootSink {
+                rows: Mutex::new(Vec::new()),
             }),
             dependencies: vec![],
             partitions: 1,
@@ -564,22 +559,22 @@ mod tests {
             .register(200, vec![], Arc::new(pipeline), tx)
             .unwrap();
 
-        // Push a single morsel to trigger execution
-        let morsel = Morsel {
-            start_row: 0,
-            num_rows: 1,
-            numa_node: 0,
-        };
-        scheduler
-            .dispatcher
-            .push_scan_message(
-                200,
-                0,
-                morsel,
-                ScanMessage::Batch(RecordBatch::new_empty(schema)),
-            )
-            .unwrap();
-        scheduler.dispatcher.finish_pushing(200, 1).unwrap();
+        // Push 4 concurrent morsels across different NUMA nodes to actively test multi-core completion race!
+        let morsel_vals = vec![10i32, 20, 30, 40];
+        for (i, val) in morsel_vals.into_iter().enumerate() {
+            let m = Morsel {
+                start_row: i * 10,
+                num_rows: 1,
+                numa_node: i % scheduler.numa_nodes,
+            };
+            let col: ArrayRef = Arc::new(PrimitiveArray::from(vec![val]));
+            let b = RecordBatch::try_new(schema.clone(), vec![col]).unwrap();
+            scheduler
+                .dispatcher
+                .push_scan_message(200, m.numa_node, m, ScanMessage::Batch(b))
+                .unwrap();
+        }
+        scheduler.dispatcher.finish_pushing(200, 4).unwrap();
 
         // Wait for background worker threads to automatically consume and finish the job!
         while let Ok(event) = rx.recv() {
@@ -597,6 +592,74 @@ mod tests {
             .as_any()
             .downcast_ref::<PrimitiveArray<i32>>()
             .unwrap();
-        assert_eq!(out_id.value(0), 42);
+        assert_eq!(out_id.len(), 4);
+        assert_eq!(out_id.value(0), 10);
+        assert_eq!(out_id.value(1), 20);
+        assert_eq!(out_id.value(2), 30);
+        assert_eq!(out_id.value(3), 40);
+    }
+
+    #[test]
+    fn test_scheduler_sequential_jobs_on_same_instance() {
+        let scheduler = Scheduler::new();
+
+        let schema = Arc::new(Schema::new(vec![Field {
+            name: "id".to_string(),
+            data_type: DataType::Int32,
+            nullable: false,
+        }]));
+
+        // Execute 3 consecutive jobs on the exact same Scheduler instance!
+        // If background worker threads ever terminate upon DispatchResult::Finished,
+        // job 2 or job 3 will immediately deadlock!
+        for job_id in 1..=3 {
+            let pid = 300 + job_id;
+            let pipeline = Pipeline {
+                id: pid,
+                downstream_id: None,
+                source: None,
+                operators: vec![],
+                sink: Box::new(AccumulatingRootSink {
+                    rows: Mutex::new(Vec::new()),
+                }),
+                dependencies: vec![],
+                partitions: 1,
+                schema: schema.clone(),
+            };
+
+            let (tx, rx) = std::sync::mpsc::channel();
+            scheduler
+                .dispatcher
+                .register(pid, vec![], Arc::new(pipeline), tx)
+                .unwrap();
+
+            let m = Morsel {
+                start_row: 0,
+                num_rows: 1,
+                numa_node: 0,
+            };
+            let col: ArrayRef = Arc::new(PrimitiveArray::from(vec![job_id as i32 * 100]));
+            let b = RecordBatch::try_new(schema.clone(), vec![col]).unwrap();
+            scheduler
+                .dispatcher
+                .push_scan_message(pid, 0, m, ScanMessage::Batch(b))
+                .unwrap();
+            scheduler.dispatcher.finish_pushing(pid, 1).unwrap();
+
+            while let Ok(event) = rx.recv() {
+                if let PipelineEvent::AllDone = event {
+                    break;
+                }
+            }
+
+            let results = scheduler.dispatcher.take_final_results();
+            assert_eq!(results.len(), 1);
+            let out_id = results[0]
+                .column(0)
+                .as_any()
+                .downcast_ref::<PrimitiveArray<i32>>()
+                .unwrap();
+            assert_eq!(out_id.value(0), job_id as i32 * 100);
+        }
     }
 }

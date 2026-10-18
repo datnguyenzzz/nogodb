@@ -12,10 +12,6 @@ use crate::{
 pub enum ScanMessage {
     /// Used for in-memory temporary tables, CTEs, or simply mock testing
     Batch(RecordBatch),
-    CompressedPage {
-        data: Vec<u8>,
-        projection: Option<Vec<usize>>,
-    },
 }
 
 pub enum SinkResult {

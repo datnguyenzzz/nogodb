@@ -11,9 +11,10 @@ use std::{
 };
 
 use anyhow::Result;
+use tokio::sync::Notify;
 
 use crate::{
-    arrow::RecordBatch,
+    arrow::{RecordBatch, object::ColumnStat},
     execution::{
         Morsel,
         pipeline::{Pipeline, PipelineEvent, PipelineID, ScanMessage},
@@ -66,8 +67,8 @@ pub struct DispatcherState {
 pub struct Dispatcher {
     pub numa_nodes: usize,
     pub state: Mutex<DispatcherState>,
-    /// Thread-safe map of active join key boundaries: join_id -> col_id - (min, max)
-    pub join_bounds: Mutex<HashMap<usize, HashMap<usize, (i64, i64)>>>,
+    pub join_bounds: Mutex<HashMap<usize, HashMap<usize, ColumnStat>>>,
+    pub work_notify: Arc<Notify>,
 }
 
 impl Dispatcher {
@@ -84,20 +85,21 @@ impl Dispatcher {
                 pending_sources: HashMap::new(),
             }),
             join_bounds: Mutex::new(HashMap::new()),
+            work_notify: Arc::new(Notify::new()),
         }
     }
 
-    pub fn get_join_bounds(&self, join_id: usize, col_idx: usize) -> Option<(i64, i64)> {
+    pub fn get_join_bounds(&self, join_id: usize, col_idx: usize) -> Option<ColumnStat> {
         let guard = self.join_bounds.lock().unwrap();
-        guard.get(&join_id)?.get(&col_idx).copied()
+        guard.get(&join_id)?.get(&col_idx).cloned()
     }
 
-    pub fn publish_join_bounds(&self, join_id: usize, col_idx: usize, min_val: i64, max_val: i64) {
+    pub fn publish_join_bounds(&self, join_id: usize, col_idx: usize, stat: ColumnStat) {
         let mut guard = self.join_bounds.lock().unwrap();
         guard
             .entry(join_id)
             .or_insert_with(HashMap::new)
-            .insert(col_idx, (min_val, max_val));
+            .insert(col_idx, stat);
     }
 
     /// Pushes a single pre-fetched [ScanMessage] (and its [Morsel]) dynamically
@@ -112,7 +114,7 @@ impl Dispatcher {
     ) -> Result<()> {
         while self.is_numa_queue_full(pipeline_id, numa_node) {
             // backpressure while the worker queue is full
-            // Can we do better than just wait for arbitrary time ?
+            // TODO: Can we do better than just wait for arbitrary time ?
             thread::sleep(Duration::from_micros(50));
         }
 
@@ -120,6 +122,7 @@ impl Dispatcher {
         if let Some(queue) = state.work_queues.get_mut(&pipeline_id) {
             queue.numa_queues[numa_node % self.numa_nodes].push_back((morsel, message));
         }
+        self.work_notify.notify_waiters();
         Ok(())
     }
 
@@ -198,6 +201,7 @@ impl Dispatcher {
             },
         );
         state.completion_tx = Some(completion_tx);
+        self.work_notify.notify_waiters();
 
         Ok(())
     }
@@ -260,55 +264,7 @@ impl Dispatcher {
             }
         }
 
-        // If no morsels are left to claim, but some cores are still processing active tasks,
-        // we must wait for them to finish before we can advance the DAG
-        let has_active_tasks = runnable_pipeline_ids.iter().any(|id| {
-            state
-                .work_queues
-                .get(id)
-                .unwrap()
-                .active_tasks
-                .load(Ordering::SeqCst)
-                > 0
-        });
-
-        if has_active_tasks {
-            Ok(DispatchResult::Wait)
-        } else {
-            let mut completed_targets = Vec::with_capacity(runnable_pipeline_ids.len());
-            for id in runnable_pipeline_ids {
-                let queue = state.work_queues.get(&id).unwrap();
-                if let Some(total) = queue.total_morsels {
-                    let completed = queue.completed_morsels.load(Ordering::SeqCst);
-                    if completed == total {
-                        completed_targets.push(id);
-                    }
-                }
-            }
-
-            if completed_targets.is_empty() {
-                Ok(DispatchResult::Wait)
-            } else {
-                for id in completed_targets {
-                    state.dependencies.remove(&id);
-                    state.work_queues.remove(&id);
-                    state.pipelines.remove(&id);
-                    state.completed_pipelines.insert(id);
-                    if let Some(event_tx) = &state.completion_tx {
-                        let _ = event_tx.send(PipelineEvent::PipelineFinished(id));
-                    }
-                }
-
-                if state.dependencies.is_empty() {
-                    if let Some(tx) = state.completion_tx.take() {
-                        let _ = tx.send(PipelineEvent::AllDone);
-                    }
-                    Ok(DispatchResult::Finished)
-                } else {
-                    Ok(DispatchResult::Wait)
-                }
-            }
-        }
+        Ok(DispatchResult::Wait)
     }
 
     /// Checks if this was the last active task of a pipeline, decrementing the active counter.
@@ -345,6 +301,7 @@ impl Dispatcher {
                 let _ = tx.send(PipelineEvent::AllDone);
             }
         }
+        self.work_notify.notify_waiters();
         Ok(())
     }
 

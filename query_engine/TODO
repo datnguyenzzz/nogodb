@@ -1,0 +1,38 @@
+[] The INSERT operator in query_engine
+  - Interactive/small INSERT (row count known to be small, or arriving
+    outside a bulk-load context): skip the chunk accumulator entirely —
+    encode whatever rows arrived into one `RecordBatch`, `append_chunk`
+    immediately, then call `flush(table_name)` right after. Small,
+    frequent segments from this path are an accepted cost.
+  - But Batch/bulk INSERT: use the accumulator, accumulate vectors 
+    (e.g. via RecordBatch concatenation) until a size/row threshold 
+    is hit, no forced flush per chunk
+[] The Update + Delete operator in query_engine
+- DELETE(predicate): resolve the predicate to a set of keys first — an
+    ART lookup (`lookup_eq`/`lookup_range`, section 2.5) when the
+    predicate is on `index_key_column`, otherwise a full scan-and-filter
+    using the normal read path (Part 1, section 3). Only the KEYS need to
+    be known, not the rows' other column values. For each matched key,
+    append a chunk containing one row: the key column's value plus a
+    reserved boolean column `__tombstone = true`. All other columns in
+    that row are left null — they carry no meaning for a tombstone row.
+    `__tombstone` must be a normal column in the table's schema, added
+    once at table-creation time, defaulting `false` for every ordinary
+    insert — not a special per-chunk flag. This keeps the table's schema
+    fixed for the whole table (required — `StorageIterator::schema()`
+    returns one fixed set of bytes for the whole iterator lifetime).
+
+  - UPDATE(predicate, set_values): this is the one mutation that needs a
+    read before the write, because `SET col = x` only names the columns
+    being changed — every other column's current value must be carried
+    forward into the new row, since `append_chunk` always writes complete
+    rows. Resolve the predicate to matching `RowRef`s the same way as
+    DELETE (ART lookup or scan-and-filter), then for each match: fetch its
+    current full row values via `read_current_chunk_data` on the `RowRef`'s
+    chunk (decode, project to just that row), apply `set_values` on top of
+    the decoded row, and append a normal INSERT row carrying the same key
+    plus the merged column values. No explicit delete needed — a newer row
+    for the same key already shadows the older one under the resolution
+    rule below. This read-modify-write is entirely a query-engine-side
+    operation built from this engine's existing read primitives — nothing
+    new is needed from the storage engine to support it.

@@ -1,0 +1,16 @@
+query_engine/src/execution/plan_builder/mod.rs
+  h_42387b1c6b634c 36
+query_engine/src/execution/plan_builder/builder.rs
+  h_42387b1c6b634c 4,117-118,140-158,411
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "89f12b81381ff885b8a343e7966ae8e42e45fb13",
+  "prompts": {},
+  "humans": {
+    "h_42387b1c6b634c": {
+      "author": "datnguyenzzz <thanh.nguyen@deliveryhero.com>"
+    }
+  }
+}

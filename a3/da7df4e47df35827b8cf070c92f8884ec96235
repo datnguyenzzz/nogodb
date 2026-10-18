@@ -1,0 +1,26 @@
+query_engine/src/execution/scheduler.rs
+  h_42387b1c6b634c 6,148,488-489,492-494,496,498-505,507,509-513,516,562-566,595-652
+query_engine/src/storage/mod.rs
+  h_42387b1c6b634c 9-10,12-45,55-70,72,74-88,96-98,101-126,131,141,147,149-151,154,156-160,163,166-169
+query_engine/TODO
+  h_42387b1c6b634c 1-38
+query_engine/src/client.rs
+  h_42387b1c6b634c 24-25,31,40-73,75,77,83-85,91-143
+query_engine/src/execution/dispatcher.rs
+  h_42387b1c6b634c 14,17,70-71,88,92,94,97,102,117,125,204,267,304
+query_engine/src/execution/write_coordinator.rs
+  h_42387b1c6b634c 1-338
+query_engine/src/execution/scan.rs
+  h_42387b1c6b634c 1,4,7,47,54,61,66,68,73-75,79-85,93-98,101-104,192-199
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "a3da7df4e47df35827b8cf070c92f8884ec96235",
+  "prompts": {},
+  "humans": {
+    "h_42387b1c6b634c": {
+      "author": "datnguyenzzz <thanh.nguyen@deliveryhero.com>"
+    }
+  }
+}

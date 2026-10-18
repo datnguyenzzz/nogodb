@@ -33,7 +33,7 @@ pub struct PhysicalScanNode {
     pub table_name: String,
     pub schema: SchemaRef,
     pub pruners: Vec<DynamicJoinPruner>,
-    pub projections: Option<Vec<String>>,
+    pub projections: Option<Vec<usize>>,
 }
 
 impl PhysicalPlanNode for PhysicalScanNode {
@@ -243,6 +243,132 @@ impl PhysicalPlanNode for PhysicalLimitNode {
             downstream_id,
         );
 
+        Ok(())
+    }
+}
+
+/// Physical Node for literal VALUES clause
+pub struct PhysicalValuesNode {
+    pub batch: crate::arrow::RecordBatch,
+    pub schema: SchemaRef,
+}
+
+impl PhysicalPlanNode for PhysicalValuesNode {
+    fn schema(&self) -> SchemaRef {
+        self.schema.clone()
+    }
+
+    fn build(&self, builder: &mut PlanBuilder, downstream_id: Option<PipelineID>) -> Result<()> {
+        let pid = downstream_id.unwrap_or_else(|| builder.next_id());
+        let batch = self.batch.clone();
+        let morsel = crate::execution::Morsel {
+            start_row: 0,
+            num_rows: batch.num_rows(),
+            numa_node: 0,
+        };
+        builder.dispatcher.push_scan_message(
+            pid,
+            0,
+            morsel,
+            crate::execution::pipeline::ScanMessage::Batch(batch),
+        )?;
+        builder.dispatcher.finish_pushing(pid, 1)?;
+        Ok(())
+    }
+}
+
+/// Physical Node for INSERT operations
+pub struct PhysicalInsertNode {
+    pub table_name: String,
+    pub schema: SchemaRef,
+    pub input: Box<dyn PhysicalPlanNode>,
+    pub coordinator: Arc<crate::execution::write_coordinator::WriteCoordinator>,
+}
+
+impl PhysicalPlanNode for PhysicalInsertNode {
+    fn schema(&self) -> SchemaRef {
+        self.schema.clone()
+    }
+
+    fn build(&self, builder: &mut PlanBuilder, downstream_id: Option<PipelineID>) -> Result<()> {
+        let insert_pid = builder.next_id();
+        let sink = crate::execution::write_coordinator::PhysicalInsertSink::new(
+            self.table_name.clone(),
+            self.coordinator.clone(),
+        );
+
+        builder.emit_pipeline(
+            Some(insert_pid),
+            Box::new(sink),
+            self.schema.clone(),
+            downstream_id,
+        );
+
+        self.input.build(builder, Some(insert_pid))?;
+        Ok(())
+    }
+}
+
+/// Physical Node for UPDATE operations
+pub struct PhysicalUpdateNode {
+    pub table_name: String,
+    pub schema: SchemaRef,
+    pub input: Box<dyn PhysicalPlanNode>,
+    pub coordinator: Arc<crate::execution::write_coordinator::WriteCoordinator>,
+}
+
+impl PhysicalPlanNode for PhysicalUpdateNode {
+    fn schema(&self) -> SchemaRef {
+        self.schema.clone()
+    }
+
+    fn build(&self, builder: &mut PlanBuilder, downstream_id: Option<PipelineID>) -> Result<()> {
+        let update_pid = builder.next_id();
+        let sink = crate::execution::write_coordinator::PhysicalUpdateSink::new(
+            self.table_name.clone(),
+            self.coordinator.clone(),
+        );
+
+        builder.emit_pipeline(
+            Some(update_pid),
+            Box::new(sink),
+            self.schema.clone(),
+            downstream_id,
+        );
+
+        self.input.build(builder, Some(update_pid))?;
+        Ok(())
+    }
+}
+
+/// Physical Node for DELETE operations
+pub struct PhysicalDeleteNode {
+    pub table_name: String,
+    pub schema: SchemaRef,
+    pub input: Box<dyn PhysicalPlanNode>,
+    pub coordinator: Arc<crate::execution::write_coordinator::WriteCoordinator>,
+}
+
+impl PhysicalPlanNode for PhysicalDeleteNode {
+    fn schema(&self) -> SchemaRef {
+        self.schema.clone()
+    }
+
+    fn build(&self, builder: &mut PlanBuilder, downstream_id: Option<PipelineID>) -> Result<()> {
+        let delete_pid = builder.next_id();
+        let sink = crate::execution::write_coordinator::PhysicalDeleteSink::new(
+            self.table_name.clone(),
+            self.coordinator.clone(),
+        );
+
+        builder.emit_pipeline(
+            Some(delete_pid),
+            Box::new(sink),
+            self.schema.clone(),
+            downstream_id,
+        );
+
+        self.input.build(builder, Some(delete_pid))?;
         Ok(())
     }
 }

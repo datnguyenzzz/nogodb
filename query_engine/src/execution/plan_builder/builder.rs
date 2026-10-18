@@ -1,6 +1,7 @@
 use std::{mem, sync::Arc};
 
 use anyhow::{Result, anyhow, bail};
+use futures::executor::block_on;
 
 use crate::{
     arrow::SchemaRef,
@@ -9,12 +10,14 @@ use crate::{
         dispatcher::Dispatcher,
         pipeline::{PhysicalOperator, PhysicalSink, Pipeline, PipelineID},
         plan_builder::{
-            PhysicalFilterNode, PhysicalHashJoinNode, PhysicalLimitNode, PhysicalPlanNode,
-            PhysicalScanNode, PhysicalSortNode,
+            PhysicalDeleteNode, PhysicalFilterNode, PhysicalHashJoinNode, PhysicalInsertNode,
+            PhysicalLimitNode, PhysicalPlanNode, PhysicalScanNode, PhysicalSortNode,
+            PhysicalUpdateNode, PhysicalValuesNode,
         },
         scan::ScanSource,
         scheduler::MailBoxSender,
         sort::SortColumn,
+        write_coordinator::{WriteCoordinator, values_to_record_batch},
     },
     planner::{LogicalExpr, LogicalPlan},
     storage::DataStorage,
@@ -111,7 +114,8 @@ impl PhysicalPlanGenerator {
         match plan {
             LogicalPlan::Scan { table_name, .. } => {
                 if let Some(storage) = &self.storage {
-                    storage.get_page_count(table_name).unwrap_or(1)
+                    let fut = storage.get_chunk_count(table_name);
+                    block_on(fut).unwrap_or(1)
                 } else {
                     1
                 }
@@ -133,12 +137,25 @@ impl PhysicalPlanGenerator {
                 schema,
                 projections,
                 pruner,
-            } => Ok(Box::new(PhysicalScanNode {
-                table_name: table_name.clone(),
-                schema: schema.clone(),
-                pruners: pruner.clone().unwrap_or_default(),
-                projections: projections.clone(),
-            })),
+            } => {
+                let proj_indices = projections.as_ref().map(|names| {
+                    names
+                        .iter()
+                        .filter_map(|name| {
+                            schema.fields().iter().position(|f| {
+                                f.name == *name || f.name.ends_with(&format!(".{}", name))
+                            })
+                        })
+                        .collect()
+                });
+
+                Ok(Box::new(PhysicalScanNode {
+                    table_name: table_name.clone(),
+                    schema: schema.clone(),
+                    pruners: pruner.clone().unwrap_or_default(),
+                    projections: proj_indices,
+                }))
+            }
             LogicalPlan::Filter { predicate, input } => {
                 let physical_input = self.create_plan(input)?;
                 let physical_pred = self.compile_expr(predicate, &physical_input.schema())?;
@@ -225,6 +242,76 @@ impl PhysicalPlanGenerator {
                     limit: None,
                     input: physical_input,
                     schema,
+                }))
+            }
+            LogicalPlan::Values { schema, values } => {
+                let batch = values_to_record_batch(schema.clone(), values)?;
+                Ok(Box::new(PhysicalValuesNode {
+                    batch,
+                    schema: schema.clone(),
+                }))
+            }
+            LogicalPlan::Insert {
+                table_name,
+                columns: _,
+                input,
+            } => {
+                let physical_input = self.create_plan(input)?;
+                let storage = self
+                    .storage
+                    .clone()
+                    .ok_or_else(|| anyhow!("Storage required for INSERT"))?;
+                let coordinator = Arc::new(WriteCoordinator::new(storage));
+                Ok(Box::new(PhysicalInsertNode {
+                    table_name: table_name.clone(),
+                    schema: physical_input.schema(),
+                    input: physical_input,
+                    coordinator,
+                }))
+            }
+            LogicalPlan::Update {
+                table_name,
+                assignments: _,
+                selection: _,
+            } => {
+                let storage = self
+                    .storage
+                    .clone()
+                    .ok_or_else(|| anyhow!("Storage required for UPDATE"))?;
+                let coordinator = Arc::new(WriteCoordinator::new(storage));
+                let physical_scan = Box::new(PhysicalScanNode {
+                    table_name: table_name.clone(),
+                    schema: Arc::new(crate::arrow::Schema::new(Vec::<crate::arrow::Field>::new())),
+                    pruners: vec![],
+                    projections: None,
+                });
+                Ok(Box::new(PhysicalUpdateNode {
+                    table_name: table_name.clone(),
+                    schema: physical_scan.schema(),
+                    input: physical_scan,
+                    coordinator,
+                }))
+            }
+            LogicalPlan::Delete {
+                table_name,
+                selection: _,
+            } => {
+                let storage = self
+                    .storage
+                    .clone()
+                    .ok_or_else(|| anyhow!("Storage required for DELETE"))?;
+                let coordinator = Arc::new(WriteCoordinator::new(storage));
+                let physical_scan = Box::new(PhysicalScanNode {
+                    table_name: table_name.clone(),
+                    schema: Arc::new(crate::arrow::Schema::new(Vec::<crate::arrow::Field>::new())),
+                    pruners: vec![],
+                    projections: None,
+                });
+                Ok(Box::new(PhysicalDeleteNode {
+                    table_name: table_name.clone(),
+                    schema: physical_scan.schema(),
+                    input: physical_scan,
+                    coordinator,
                 }))
             }
             _ => bail!("Logical plan node not supported yet: {:?}", logical_plan),
@@ -319,10 +406,9 @@ impl PhysicalPlanGenerator {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::arrow::{Buffer, DataType, Field, Schema};
+    use crate::arrow::{DataType, Field, Schema};
     use crate::planner::JoinType;
-    use crate::storage::{MockDataStorage, PageMetaData, StoragePage};
-    use std::collections::HashMap;
+    use crate::storage::MockDataStorage;
 
     fn make_test_schema(col: &str) -> SchemaRef {
         Arc::new(Schema::new(vec![Field {
@@ -338,32 +424,12 @@ mod tests {
 
         // Table "large": 10 pages
         for _ in 0..10 {
-            storage.add_page(
-                "large",
-                StoragePage {
-                    metadata: PageMetaData {
-                        num_rows: 100,
-                        column_stats: HashMap::new(),
-                        header: Buffer::from(vec![1]),
-                    },
-                    data: Buffer::from(vec![1]),
-                },
-            );
+            storage.add_page("large", vec![1]);
         }
 
         // Table "small": 2 pages
         for _ in 0..2 {
-            storage.add_page(
-                "small",
-                StoragePage {
-                    metadata: PageMetaData {
-                        num_rows: 100,
-                        column_stats: HashMap::new(),
-                        header: Buffer::from(vec![2]),
-                    },
-                    data: Buffer::from(vec![2]),
-                },
-            );
+            storage.add_page("small", vec![2]);
         }
 
         let large_schema = make_test_schema("l_id");
@@ -525,46 +591,16 @@ mod tests {
 
         // 1. Populate storage with 3 tables of different sizes:
         // Table "users": 1 page (smallest)
-        storage.add_page(
-            "users",
-            StoragePage {
-                metadata: PageMetaData {
-                    num_rows: 50,
-                    column_stats: HashMap::new(),
-                    header: Buffer::from(vec![1]),
-                },
-                data: Buffer::from(vec![1]),
-            },
-        );
+        storage.add_page("users", vec![1]);
 
         // Table "orders": 5 pages (medium)
         for _ in 0..5 {
-            storage.add_page(
-                "orders",
-                StoragePage {
-                    metadata: PageMetaData {
-                        num_rows: 100,
-                        column_stats: HashMap::new(),
-                        header: Buffer::from(vec![2]),
-                    },
-                    data: Buffer::from(vec![2]),
-                },
-            );
+            storage.add_page("orders", vec![2]);
         }
 
         // Table "lineitem": 20 pages (largest)
         for _ in 0..20 {
-            storage.add_page(
-                "lineitem",
-                StoragePage {
-                    metadata: PageMetaData {
-                        num_rows: 200,
-                        column_stats: HashMap::new(),
-                        header: Buffer::from(vec![3]),
-                    },
-                    data: Buffer::from(vec![3]),
-                },
-            );
+            storage.add_page("lineitem", vec![3]);
         }
 
         // Schemas for the 3 tables:

@@ -1,0 +1,9 @@
+[package]
+name = "storage_engine"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow = "1.0.104"
+async-trait = "0.1.92"
+rs-arrow = {path = "../lib/rs-arrow"}

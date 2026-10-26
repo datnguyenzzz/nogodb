@@ -1,0 +1,1 @@
+A lightweight, embedded storage engine for NogoDB that serves as 1 of backends for the `query_engine` cli. It is designed as a library rather than a standalone server

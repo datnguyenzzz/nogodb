@@ -20,15 +20,15 @@ pub struct Client {
 
 impl Client {
     pub fn new(db: Arc<Database>) -> Self {
-        let catalog = db.catalog_provider.clone();
+        let catalog = db.engine.catalog.clone();
         let total_cores = db.scheduler.numa_nodes * db.scheduler.cores_per_node;
-        let storage = db.storage.clone();
+        let engine = db.engine.clone();
         Self {
             db,
             parser: Parser::default(),
             planner: Planner::new(catalog),
             optimiser: Optimiser::default(),
-            physical_generator: PhysicalPlanGenerator::new(storage, total_cores),
+            physical_generator: PhysicalPlanGenerator::new(engine.storage.clone(), total_cores),
         }
     }
 
@@ -45,7 +45,7 @@ impl Client {
                     input,
                 } => {
                     let coordinator = crate::execution::write_coordinator::WriteCoordinator::new(
-                        self.db.storage.clone(),
+                        self.db.engine.storage.clone(),
                     );
 
                     if let crate::planner::LogicalPlan::Values { schema, values } = *input {
@@ -58,7 +58,7 @@ impl Client {
                         let optimised_plan = self.optimiser.optimise(*input)?;
                         let physical_node = self.physical_generator.create_plan(&optimised_plan)?;
                         let mut builder = PlanBuilder::new(
-                            self.db.storage.clone(),
+                            self.db.engine.storage.clone(),
                             self.db.scheduler.dispatcher.clone(),
                             self.db.scheduler.mailboxes.clone(),
                             self.db.scheduler.cores_per_node,
@@ -74,7 +74,7 @@ impl Client {
                     let optimised_plan = self.optimiser.optimise(plan)?;
                     let physical_node = self.physical_generator.create_plan(&optimised_plan)?;
                     let mut builder = PlanBuilder::new(
-                        self.db.storage.clone(),
+                        self.db.engine.storage.clone(),
                         self.db.scheduler.dispatcher.clone(),
                         self.db.scheduler.mailboxes.clone(),
                         self.db.scheduler.cores_per_node,
@@ -93,10 +93,9 @@ impl Client {
 mod tests {
     use super::*;
     use crate::arrow::DataType;
+    use crate::db::StorageEngine;
     use crate::execution::scheduler::Scheduler;
-    use crate::planner::planner::tests::MockCatalog;
-    use crate::storage::catalog::CatalogProvider;
-    use crate::storage::embedded::tests::MockDataStorage;
+    use crate::storage::embed::tests::{MockCatalog, MockDataStorage};
     use crate::storage::{ChunkMetaData, ColumnStat, DataStorage};
 
     #[tokio::test]
@@ -107,13 +106,15 @@ mod tests {
             "users",
             vec![("id", DataType::Int32), ("name", DataType::Utf8)],
         );
-        let catalog_provider = Arc::new(CatalogProvider::new(catalog));
         let scheduler = Arc::new(Scheduler::new());
+        let engine = Arc::new(StorageEngine {
+            catalog,
+            storage: storage.clone(),
+        });
 
         let db = Arc::new(Database {
             scheduler,
-            catalog_provider,
-            storage: storage.clone(),
+            engine: engine.clone(),
         });
 
         let mut client = Client::new(db);

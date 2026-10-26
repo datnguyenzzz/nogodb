@@ -7,8 +7,6 @@ use anyhow::Result;
 use clap::Parser;
 use query_engine::{Client, db::Database};
 
-const SERVER_ADDRESS: &str = "localhost:50051";
-
 #[derive(Parser, Debug)]
 #[command(name = "nogodb cli", version, about)]
 pub struct Args {
@@ -41,7 +39,7 @@ impl Args {
 async fn main() {
     env_logger::init();
     let args = Args::parse();
-    let db: Database = Database::new(SERVER_ADDRESS.to_string());
+    let db: Database = Database::new();
     let mut client = Client::new(Arc::new(db));
     let _ = args.run(&mut client).await;
 }

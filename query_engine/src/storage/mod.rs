@@ -1,14 +1,20 @@
-pub mod catalog;
-pub mod embedded;
+pub mod embed;
 pub mod external;
 
-use std::sync::Arc;
+pub use embed::{WrappedCatalog, WrappedStorage, WrappedStorageIterator};
 
 use anyhow::Result;
 use async_trait::async_trait;
+use rs_arrow::DataType;
 
+use crate::arrow::ipc::record_batch;
 pub use crate::arrow::object::ColumnStat;
-use crate::{arrow::ipc::record_batch, storage::catalog::TableMetadata};
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TableMetadata {
+    pub name: String,
+    pub columns: Vec<(String, DataType)>,
+}
 
 #[derive(Clone)]
 pub struct ChunkMetaData {
@@ -87,11 +93,4 @@ pub trait DataStorage: Send + Sync {
 
     /// Returns the total number of storage chunks in the table
     async fn get_chunk_count(&self, table_name: &str) -> Result<usize>;
-}
-
-// TODO: Make use of this struct, instead of using CatalogProvider separatedly
-
-pub struct StorageEngine {
-    pub catalog: Arc<dyn CatalogStorage>,
-    pub storage: Arc<dyn DataStorage>,
 }

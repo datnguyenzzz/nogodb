@@ -286,7 +286,7 @@ mod tests {
     use crate::arrow::object::ColumnStat;
     use crate::arrow::{Field, Schema, array::PrimitiveArray};
     use crate::storage::ChunkMetaData;
-    use crate::storage::embedded::tests::MockDataStorage;
+    use crate::storage::embed::tests::MockDataStorage;
 
     #[tokio::test]
     async fn test_write_coordinator_handle_insert_populates_stats() {

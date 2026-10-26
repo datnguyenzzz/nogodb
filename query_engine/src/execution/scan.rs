@@ -121,7 +121,7 @@ mod tests {
     use super::*;
     use crate::arrow::ipc::record_batch::Writer;
     use crate::arrow::{DataType, Field, RecordBatch, Schema, array::PrimitiveArray};
-    use crate::storage::embedded::tests::MockDataStorage;
+    use crate::storage::embed::tests::MockDataStorage;
 
     #[test]
     fn test_scan_source_basic_execution() {

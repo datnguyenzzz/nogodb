@@ -13,11 +13,11 @@ use crate::{
             query::{Join, JoinConstraint, JoinOperator, Query, Select, SelectItem, TableFactor},
         },
     },
-    storage::catalog::CatalogProvider,
+    storage::CatalogStorage,
 };
 
 pub struct Planner {
-    catalog: Arc<CatalogProvider>,
+    catalog: Arc<dyn CatalogStorage>,
 }
 
 #[derive(Debug)]
@@ -57,7 +57,7 @@ fn has_aggregation(expr: &LogicalExpr) -> bool {
 }
 
 impl Planner {
-    pub fn new(catalog: Arc<CatalogProvider>) -> Self {
+    pub fn new(catalog: Arc<dyn CatalogStorage>) -> Self {
         Planner { catalog }
     }
 
@@ -381,7 +381,7 @@ impl Planner {
 
         let table_meta = self
             .catalog
-            .get_table_metadata(&table_name)
+            .fetch_table_meta(&table_name)
             .await
             .map_err(|e| PlannerError::CatalogError(e.to_string()))?;
 
@@ -584,7 +584,7 @@ impl Planner {
 
         let table_meta = self
             .catalog
-            .get_table_metadata(&table_name)
+            .fetch_table_meta(&table_name)
             .await
             .map_err(|e| PlannerError::CatalogError(e.to_string()))?;
 
@@ -629,7 +629,7 @@ impl Planner {
 
         let table_meta = self
             .catalog
-            .get_table_metadata(&table_name)
+            .fetch_table_meta(&table_name)
             .await
             .map_err(|e| PlannerError::CatalogError(e.to_string()))?;
 
@@ -679,7 +679,7 @@ impl Planner {
 
         let table_meta = self
             .catalog
-            .get_table_metadata(&table_name)
+            .fetch_table_meta(&table_name)
             .await
             .map_err(|e| PlannerError::CatalogError(e.to_string()))?;
 
@@ -708,63 +708,7 @@ impl Planner {
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
-    use crate::arrow::DataType;
-    use crate::storage::CatalogStorage;
-    use crate::storage::catalog::TableMetadata;
-    use anyhow::Result;
-    use std::collections::HashMap;
-    use std::sync::Mutex;
-
-    pub struct MockCatalog {
-        tables: Mutex<HashMap<String, TableMetadata>>,
-    }
-
-    impl MockCatalog {
-        pub fn new() -> Self {
-            Self {
-                tables: Mutex::new(HashMap::new()),
-            }
-        }
-
-        pub fn add_table(&self, table_name: &str, columns: Vec<(&str, DataType)>) {
-            let cols = columns
-                .into_iter()
-                .map(|(n, dt)| (n.to_string(), dt))
-                .collect();
-            let meta = TableMetadata {
-                name: table_name.to_string(),
-                columns: cols,
-            };
-            self.tables
-                .lock()
-                .unwrap()
-                .insert(table_name.to_string(), meta);
-        }
-    }
-
-    #[async_trait::async_trait]
-    impl CatalogStorage for MockCatalog {
-        async fn fetch_table_meta(&self, table_name: &str) -> Result<TableMetadata> {
-            self.tables
-                .lock()
-                .unwrap()
-                .get(table_name)
-                .cloned()
-                .ok_or_else(|| anyhow::anyhow!("Table '{}' not found", table_name))
-        }
-
-        async fn register_table_meta(
-            &self,
-            _table_name: &str,
-            _metadata: TableMetadata,
-        ) -> Result<()> {
-            Ok(())
-        }
-
-        async fn drop_table_meta(&self, _table_name: &str) -> Result<()> {
-            Ok(())
-        }
-    }
+    use crate::{arrow::DataType, storage::embed::tests::MockCatalog};
 
     #[tokio::test]
     async fn test_plan_select_filter_projection_limit() {
@@ -778,8 +722,7 @@ pub(crate) mod tests {
             ],
         );
 
-        let provider = Arc::new(CatalogProvider::new(catalog));
-        let planner = Planner::new(provider);
+        let planner = Planner::new(catalog);
 
         let sql = "SELECT id, name FROM users WHERE active = true;";
         let mut parser = crate::sql_parser::Parser::default();
@@ -834,8 +777,7 @@ pub(crate) mod tests {
             ],
         );
 
-        let provider = Arc::new(CatalogProvider::new(catalog));
-        let planner = Planner::new(provider);
+        let planner = Planner::new(catalog);
 
         let sql =
             "SELECT users.name, orders.amount FROM users JOIN orders ON users.id = orders.user_id;";
@@ -891,8 +833,7 @@ pub(crate) mod tests {
             vec![("age", DataType::Int32), ("salary", DataType::Float64)],
         );
 
-        let provider = Arc::new(CatalogProvider::new(catalog));
-        let planner = Planner::new(provider);
+        let planner = Planner::new(catalog);
 
         let sql = "SELECT age FROM users GROUP BY age;";
         let mut parser = crate::sql_parser::Parser::default();
@@ -934,8 +875,7 @@ pub(crate) mod tests {
             ],
         );
 
-        let provider = Arc::new(CatalogProvider::new(catalog));
-        let planner = Planner::new(provider);
+        let planner = Planner::new(catalog);
 
         // Uses "SELECT *" combined with a WHERE filter!
         let sql = "SELECT * FROM users WHERE active = true;";
@@ -989,8 +929,7 @@ pub(crate) mod tests {
             vec![("id", DataType::Int32), ("name", DataType::Utf8)],
         );
 
-        let provider = Arc::new(CatalogProvider::new(catalog));
-        let planner = Planner::new(provider);
+        let planner = Planner::new(catalog);
 
         // Parse query with ORDER BY!
         let sql = "SELECT id, name FROM users ORDER BY id DESC;";
@@ -1027,8 +966,7 @@ pub(crate) mod tests {
             vec![("id", DataType::Int32), ("name", DataType::Utf8)],
         );
 
-        let provider = Arc::new(CatalogProvider::new(catalog));
-        let planner = Planner::new(provider);
+        let planner = Planner::new(catalog);
 
         // Parse query with LIMIT and OFFSET!
         let sql = "SELECT id, name FROM users LIMIT 10 OFFSET 5;";
@@ -1063,8 +1001,7 @@ pub(crate) mod tests {
             vec![("id", DataType::Int32), ("name", DataType::Utf8)],
         );
 
-        let provider = Arc::new(CatalogProvider::new(catalog));
-        let planner = Planner::new(provider);
+        let planner = Planner::new(catalog);
 
         // Parse INSERT statement!
         let sql = "INSERT INTO users (id, name) VALUES (42, 'Charlie');";
@@ -1112,8 +1049,7 @@ pub(crate) mod tests {
             vec![("id", DataType::Int32), ("name", DataType::Utf8)],
         );
 
-        let provider = Arc::new(CatalogProvider::new(catalog));
-        let planner = Planner::new(provider);
+        let planner = Planner::new(catalog);
 
         // 1. Test Type Mismatch: try to insert string ('Charlie') into id column (Int32)
         let sql_mismatch_type = "INSERT INTO users (id, name) VALUES ('Charlie', 42);";
@@ -1151,8 +1087,7 @@ pub(crate) mod tests {
             ],
         );
 
-        let provider = Arc::new(CatalogProvider::new(catalog));
-        let planner = Planner::new(provider);
+        let planner = Planner::new(catalog);
 
         // Parse query using un-prefixed bare names
         let sql = "SELECT id, name FROM users WHERE active = true;";

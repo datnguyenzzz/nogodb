@@ -1,8 +1,10 @@
 use anyhow::Result;
 use async_trait::async_trait;
 
-use rs_arrow::DataType;
+pub use catalog::Catalog;
+pub use data::Data;
 pub use rs_arrow as arrow;
+use rs_arrow::DataType;
 pub mod backend;
 pub mod catalog;
 pub mod data;

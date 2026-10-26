@@ -5,7 +5,13 @@ use std::{
 
 use anyhow::Result;
 
-use crate::{catalog::TableMetadata, storage::CatalogStorage};
+use crate::{arrow::DataType, storage::CatalogStorage};
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TableMetadata {
+    pub name: String,
+    pub columns: Vec<(String, DataType)>,
+}
 
 pub struct CatalogProvider {
     pub client: Arc<dyn CatalogStorage>,
@@ -35,4 +41,6 @@ impl CatalogProvider {
 
         Ok(meta)
     }
+
+    // update table metadata + evict cache
 }

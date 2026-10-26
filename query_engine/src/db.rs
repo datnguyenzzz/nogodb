@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::{catalog::provider::CatalogProvider, execution::scheduler::Scheduler};
+use crate::{execution::scheduler::Scheduler, storage::catalog::CatalogProvider};
 
 pub struct Database {
     pub scheduler: Arc<Scheduler>,

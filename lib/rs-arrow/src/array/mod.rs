@@ -8,7 +8,7 @@ pub use boolean_array::BooleanArray;
 pub use primitive_array::PrimitiveArray;
 pub use string_array::StringArray;
 
-use crate::arrow::{ArrayRef, DataType};
+use crate::{ArrayRef, DataType};
 
 /// Trait implemented by native Rust primitive types that can be stored in `PrimitiveArray`
 pub trait NativeType: Send + Sync + Copy + 'static {
@@ -41,31 +41,31 @@ macro_rules! define_native_types {
 macro_rules! dispatch_native_type {
     ($data_type:expr, $type_var:ident, $body:block) => {
         match $data_type {
-            $crate::arrow::DataType::Int8 => {
+            $crate::DataType::Int8 => {
                 type $type_var = i8;
                 $body
             }
-            $crate::arrow::DataType::Int16 => {
+            $crate::DataType::Int16 => {
                 type $type_var = i16;
                 $body
             }
-            $crate::arrow::DataType::Int32 => {
+            $crate::DataType::Int32 => {
                 type $type_var = i32;
                 $body
             }
-            $crate::arrow::DataType::Int64 => {
+            $crate::DataType::Int64 => {
                 type $type_var = i64;
                 $body
             }
-            $crate::arrow::DataType::Float32 => {
+            $crate::DataType::Float32 => {
                 type $type_var = f32;
                 $body
             }
-            $crate::arrow::DataType::Float64 => {
+            $crate::DataType::Float64 => {
                 type $type_var = f64;
                 $body
             }
-            $crate::arrow::DataType::Boolean => {
+            $crate::DataType::Boolean => {
                 type $type_var = bool;
                 $body
             }

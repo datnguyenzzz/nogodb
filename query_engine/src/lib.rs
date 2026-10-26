@@ -1,5 +1,4 @@
-pub mod arrow;
-pub mod catalog;
+pub use rs_arrow as arrow;
 pub mod client;
 pub mod db;
 pub mod execution;

@@ -3,10 +3,8 @@ use std::{cmp, sync::Arc};
 use anyhow::{Result, anyhow, bail};
 
 use crate::{
-    arrow::{
         Array, ArrayRef, DataType, RecordBatch, SchemaRef,
         array::{BooleanArray, NativeType, PrimitiveArray, StringArray},
-    },
     dispatch_native_type,
 };
 
@@ -310,7 +308,7 @@ pub fn concat_batches<'a>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::arrow::{DataType, Field, Schema, array::StringArray};
+    use crate::{DataType, Field, Schema, array::StringArray};
 
     #[test]
     fn test_filter_single_array() {

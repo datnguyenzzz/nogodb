@@ -1,4 +1,4 @@
-use crate::arrow::array::{BooleanArray, NativeType, PrimitiveArray, StringArray};
+use crate::array::{BooleanArray, NativeType, PrimitiveArray, StringArray};
 
 pub fn min<T: NativeType + Ord>(array: &PrimitiveArray<T>) -> Option<T> {
     array.iter().flatten().min()

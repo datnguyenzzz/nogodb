@@ -18,13 +18,12 @@ clap = { version = "4.6.1", features = ["derive"] }
 core_affinity = "0.8.3"
 crc = "3.4.0"
 env_logger = "0.11.11"
-flatbuffers = "25.12.19"
 futures = "0.3.34"
 log = "0.4.33"
 paste = "1.0.15"
 tokio = { version = "1.53.1", features = ["full"]}
-zstd = "0.13.3"
-serde = { version = "1.0", features = ["derive"] }
+storage_engine = { path = "../storage_engine" }
+rs-arrow = {path = "../lib/rs-arrow"}
 
 [dev-dependencies]
 tempfile = "3.10.1"

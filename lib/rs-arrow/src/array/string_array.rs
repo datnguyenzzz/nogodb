@@ -4,7 +4,7 @@ use std::{ptr, sync::Arc};
 
 use anyhow::Result;
 
-use crate::arrow::{
+use crate::{
     Array, ArrayRef, BooleanBuffer, Buffer, DataType, NullBuffer, array::PrimitiveArray,
 };
 

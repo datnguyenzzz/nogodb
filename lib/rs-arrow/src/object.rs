@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::arrow::{
+use crate::{
     Array, DataType,
     aggregation::{self, max_str, min_str},
     array::{BooleanArray, PrimitiveArray, StringArray},

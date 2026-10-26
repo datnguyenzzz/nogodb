@@ -8,7 +8,7 @@ use flatbuffers::{
     TableUnfinishedWIPOffset, UnionWIPOffset, VOffsetT, Vector, Verifiable, Verifier, WIPOffset,
 };
 
-use crate::arrow::{DataType, Field, Fields, ipc::record_batch::MessageType};
+use crate::{DataType, Field, Fields, ipc::record_batch::MessageType};
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default, Debug)]
 pub struct Precision(pub i16);

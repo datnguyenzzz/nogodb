@@ -2,7 +2,7 @@ use std::cmp::Ordering;
 
 use anyhow::{Result, anyhow};
 
-use crate::arrow::{
+use crate::{
     Array, DataType, NullBuffer, Scalar,
     array::{BooleanArray, PrimitiveArray, StringArray},
 };

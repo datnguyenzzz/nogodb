@@ -2,7 +2,6 @@ use std::{fmt::Display, sync::Arc};
 
 use crate::{
     arrow::{DataType, Field, Schema},
-    catalog::provider::CatalogProvider,
     planner::{
         JoinType, LogicalColumnDef, LogicalExpr, LogicalPlan,
         ast::{
@@ -14,6 +13,7 @@ use crate::{
             query::{Join, JoinConstraint, JoinOperator, Query, Select, SelectItem, TableFactor},
         },
     },
+    storage::catalog::CatalogProvider,
 };
 
 pub struct Planner {
@@ -709,8 +709,8 @@ impl Planner {
 pub(crate) mod tests {
     use super::*;
     use crate::arrow::DataType;
-    use crate::catalog::TableMetadata;
     use crate::storage::CatalogStorage;
+    use crate::storage::catalog::TableMetadata;
     use anyhow::Result;
     use std::collections::HashMap;
     use std::sync::Mutex;

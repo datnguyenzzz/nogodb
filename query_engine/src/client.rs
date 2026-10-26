@@ -93,10 +93,11 @@ impl Client {
 mod tests {
     use super::*;
     use crate::arrow::DataType;
-    use crate::catalog::provider::CatalogProvider;
     use crate::execution::scheduler::Scheduler;
     use crate::planner::planner::tests::MockCatalog;
-    use crate::storage::{ChunkMetaData, ColumnStat, DataStorage, MockDataStorage};
+    use crate::storage::catalog::CatalogProvider;
+    use crate::storage::embedded::tests::MockDataStorage;
+    use crate::storage::{ChunkMetaData, ColumnStat, DataStorage};
 
     #[tokio::test]
     async fn test_client_execute_insert_statement() {

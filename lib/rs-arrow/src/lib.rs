@@ -8,7 +8,7 @@ use std::{mem, ops::Deref, slice, sync::Arc};
 
 use anyhow::{Result, anyhow};
 
-use crate::arrow::array::new_empty_array;
+use crate::array::new_empty_array;
 
 // Arrow Data type \\
 
@@ -758,7 +758,7 @@ mod tests {
 
     #[test]
     fn test_record_batch_creation_validation_slicing() {
-        use crate::arrow::array::PrimitiveArray;
+        use crate::array::PrimitiveArray;
 
         // 1. Define schema: [id: Int32, val: Float64]
         let schema = Arc::new(Schema::new(vec![
@@ -865,7 +865,7 @@ mod tests {
 
     #[test]
     fn test_record_batch_projection_zero_copy() {
-        use crate::arrow::array::PrimitiveArray;
+        use crate::array::PrimitiveArray;
 
         let schema = Arc::new(Schema::new(vec![
             Field {

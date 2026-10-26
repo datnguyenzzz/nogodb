@@ -408,7 +408,7 @@ mod tests {
     use super::*;
     use crate::arrow::{DataType, Field, Schema};
     use crate::planner::JoinType;
-    use crate::storage::MockDataStorage;
+    use crate::storage::embedded::tests::MockDataStorage;
 
     fn make_test_schema(col: &str) -> SchemaRef {
         Arc::new(Schema::new(vec![Field {

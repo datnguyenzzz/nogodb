@@ -1,3 +1,4 @@
+[] Implement Session in query_engine
 [] The INSERT operator in query_engine
   - Interactive/small INSERT (row count known to be small, or arriving
     outside a bulk-load context): skip the chunk accumulator entirely —

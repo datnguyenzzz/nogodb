@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use anyhow::Result;
 
-use crate::arrow::{Array, BooleanBuffer, Buffer, DataType, NullBuffer, array::PrimitiveArray};
+use crate::{Array, ArrayRef, BooleanBuffer, Buffer, DataType, NullBuffer, array::PrimitiveArray};
 
 #[derive(Clone)]
 pub struct BooleanArray {
@@ -24,7 +24,7 @@ impl Array for BooleanArray {
         self.nulls.as_ref()
     }
 
-    fn slice(&self, offset: usize, length: usize) -> crate::arrow::ArrayRef {
+    fn slice(&self, offset: usize, length: usize) -> ArrayRef {
         Arc::new(Self {
             values: self.values.slice(offset, length),
             nulls: self.nulls.as_ref().map(|n| n.slice(offset, length)),

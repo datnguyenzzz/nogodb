@@ -4,7 +4,7 @@ use std::{iter, marker, mem, ptr, sync::Arc};
 
 use anyhow::Result;
 
-use crate::arrow::{Array, BooleanBuffer, Buffer, DataType, NullBuffer, array::NativeType};
+use crate::{Array, ArrayRef, BooleanBuffer, Buffer, DataType, NullBuffer, array::NativeType};
 
 /// An array of primitive values. A primitive value array represents an array of values
 /// each having the same physical slot width typically measured in bytes
@@ -30,7 +30,7 @@ impl<T: NativeType> Array for PrimitiveArray<T> {
         self.nulls.as_ref()
     }
 
-    fn slice(&self, offset: usize, length: usize) -> crate::arrow::ArrayRef {
+    fn slice(&self, offset: usize, length: usize) -> ArrayRef {
         let size = mem::size_of::<T>();
         let offset_bytes = offset.checked_mul(size).expect("offset overflow");
         let length_bytes = length.checked_mul(size).expect("length overflow");

@@ -1,6 +1,6 @@
 use flatbuffers::{FlatBufferBuilder, InvalidFlatbuffer, WIPOffset, root};
 
-use crate::arrow::{
+use crate::{
     Field, Schema,
     ipc::{FbField, FbFieldBuilder, FbSchema, FbSchemaBuilder, build_ipc_data_type},
 };
@@ -65,7 +65,7 @@ pub fn fb_to_schema(fb_schema: FbSchema) -> Schema {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::arrow::DataType;
+    use crate::DataType;
 
     #[test]
     fn test_schema_serialization_roundtrip() {

@@ -6,7 +6,7 @@ use std::{
 use anyhow::{Result, anyhow};
 use flatbuffers::{FlatBufferBuilder, ForwardsUOffset, Vector, WIPOffset, root};
 
-use crate::arrow::{
+use crate::{
     ArrayRef, BooleanBuffer, Buffer, DataType, NullBuffer, RecordBatch, Schema, SchemaRef,
     array::{BooleanArray, PrimitiveArray, StringArray},
     ipc::{
@@ -659,8 +659,8 @@ pub unsafe fn root_as_message(buf: &[u8]) -> Result<FbMessage<'_>, flatbuffers::
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::arrow::array::PrimitiveArray;
-    use crate::arrow::{Array, DataType, Field, Schema};
+    use crate::array::PrimitiveArray;
+    use crate::{Array, DataType, Field, Schema};
     use std::sync::Arc;
 
     #[test]
@@ -673,7 +673,7 @@ mod tests {
         }]));
 
         // 2. Build column id = [1000, 2000, 3000, 4000] (4 * i32 = 16 bytes)
-        let id_column: crate::arrow::ArrayRef =
+        let id_column: ArrayRef =
             Arc::new(PrimitiveArray::from(vec![1000i32, 2000, 3000, 4000]));
         let batch = RecordBatch::try_new(schema, vec![id_column]).unwrap();
 
@@ -714,7 +714,7 @@ mod tests {
 
         // Extract the inner FbRecordBatch table!
         let header_table = fb_msg.header().unwrap();
-        let fb_batch = crate::arrow::ipc::FbRecordBatch::from_table(header_table);
+        let fb_batch = FbRecordBatch::from_table(header_table);
         assert_eq!(fb_batch.length(), 4);
         assert_eq!(fb_batch.compression(), 1); // 1 = Zstd
 
@@ -767,7 +767,7 @@ mod tests {
 
     #[test]
     fn test_record_batch_writer_reader_roundtrip() {
-        use crate::arrow::array::{BooleanArray, StringArray};
+        use crate::array::{BooleanArray, StringArray};
 
         // 1. Define Diverse Schema: [id: Int32, name: Utf8, active: Boolean]
         let schema = Arc::new(Schema::new(vec![
@@ -855,7 +855,7 @@ mod tests {
 
     #[test]
     fn test_record_batch_reader_iterator() {
-        use crate::arrow::array::StringArray;
+        use crate::array::StringArray;
 
         // 1. Define Schema: [id: Int32, label: Utf8]
         let schema = Arc::new(Schema::new(vec![
@@ -923,7 +923,7 @@ mod tests {
 
     #[test]
     fn test_record_batch_statistics_serialization() {
-        use crate::arrow::array::BooleanArray;
+        use crate::array::BooleanArray;
 
         // 1. Define Schema: [id: Int32, amount: Float64, flag: Boolean]
         let schema = Arc::new(Schema::new(vec![

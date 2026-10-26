@@ -1,21 +1,39 @@
-name: Test Query Engine
+name: Test Rust Packages
 
 on:
   push:
     branches: [ master, main ]
     paths:
       - 'query_engine/**'
+      - 'storage_engine/**'
+      - 'lib/rs-arrow/**'
+      - '.github/workflows/test-query-engine.yml'
   pull_request:
     branches: [ master, main ]
     paths:
       - 'query_engine/**'
+      - 'storage_engine/**'
+      - 'lib/rs-arrow/**'
+      - '.github/workflows/test-query-engine.yml'
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  CARGO_TERM_COLOR: always
 
 jobs:
   test:
     runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        package:
+          - name: rs-arrow
+            path: lib/rs-arrow
+          - name: storage_engine
+            path: storage_engine
+          - name: query_engine
+            path: query_engine
 
     steps:
     - uses: actions/checkout@v4
@@ -27,18 +45,23 @@ jobs:
       uses: actions/cache@v4
       with:
         path: |
-          query_engine/target
+          ${{ matrix.package.path }}/target
           ~/.cargo/registry
           ~/.cargo/git
-        key: ${{ runner.os }}-cargo-${{ hashFiles('query_engine/Cargo.lock') }}
+        key: ${{ runner.os }}-cargo-${{ matrix.package.name }}-${{ hashFiles(format('{0}/Cargo.lock', matrix.package.path), format('{0}/Cargo.toml', matrix.package.path)) }}
         restore-keys: |
+          ${{ runner.os }}-cargo-${{ matrix.package.name }}-
           ${{ runner.os }}-cargo-
 
-    - name: Run cargo test
-      working-directory: query_engine
-      run: |
-        cargo test --all-targets -- --nocapture
+    - name: Run cargo check (${{ matrix.package.name }})
+      working-directory: ${{ matrix.package.path }}
+      run: cargo check --all-targets
 
-    - name: Build release binary
+    - name: Run cargo test (${{ matrix.package.name }})
+      working-directory: ${{ matrix.package.path }}
+      run: cargo test --all-targets -- --nocapture
+
+    - name: Build release binary (nogodb_cli)
+      if: matrix.package.name == 'query_engine'
       working-directory: query_engine
       run: cargo build --release --bin nogodb_cli

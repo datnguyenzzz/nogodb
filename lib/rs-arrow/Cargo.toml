@@ -1,0 +1,11 @@
+[package]
+name = "rs-arrow"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow = "1.0.104"
+flatbuffers = "25.12.19"
+paste = "1.0.15"
+serde = { version = "1.0.229", features = ["derive"] }
+zstd = "0.14.3"

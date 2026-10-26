@@ -1,0 +1,18 @@
+storage_engine/README
+  h_42387b1c6b634c 1
+storage_engine/Cargo.toml
+  h_42387b1c6b634c 1-9
+storage_engine/src/lib.rs
+  h_42387b1c6b634c 1-60
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "1f2190506a33b93b0f87ad2a0a11dd52daa47483",
+  "prompts": {},
+  "humans": {
+    "h_42387b1c6b634c": {
+      "author": "datnguyenzzz <thanh.nguyen@deliveryhero.com>"
+    }
+  }
+}

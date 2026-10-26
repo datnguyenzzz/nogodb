@@ -1,3 +1,5 @@
+use serde::{Deserialize, Serialize};
+
 use crate::arrow::{
     Array, DataType,
     aggregation::{self, max_str, min_str},
@@ -6,7 +8,7 @@ use crate::arrow::{
 
 pub const MAX_STAT_STRING_BYTES: usize = 32;
 
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 pub enum ColumnStat {
     Int64 { min: i64, max: i64 },
     Float64 { min: f64, max: f64 },

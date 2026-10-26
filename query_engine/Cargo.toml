@@ -24,6 +24,7 @@ log = "0.4.33"
 paste = "1.0.15"
 tokio = { version = "1.53.1", features = ["full"]}
 zstd = "0.13.3"
+serde = { version = "1.0", features = ["derive"] }
 
 [dev-dependencies]
 tempfile = "3.10.1"

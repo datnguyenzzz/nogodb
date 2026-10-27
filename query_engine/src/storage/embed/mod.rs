@@ -40,8 +40,12 @@ impl WrappedStorage {
 
 #[async_trait]
 impl DataStorage for WrappedStorage {
-    async fn new_iterator(&self, table_name: &str) -> Result<Box<dyn StorageIterator>> {
-        let it = self.storage.new_iterator(table_name).await?;
+    async fn new_iterator(
+        &self,
+        table_name: &str,
+        projection: &[usize],
+    ) -> Result<Box<dyn StorageIterator>> {
+        let it = self.storage.new_iterator(table_name, projection).await?;
         Ok(Box::new(WrappedStorageIterator { inner: it }))
     }
 
@@ -171,7 +175,11 @@ pub(crate) mod tests {
             Ok(())
         }
 
-        async fn new_iterator(&self, table_name: &str) -> Result<Box<dyn StorageIterator>> {
+        async fn new_iterator(
+            &self,
+            table_name: &str,
+            _projection: &[usize],
+        ) -> Result<Box<dyn StorageIterator>> {
             let guard = self.tables.lock().unwrap();
             let chunks = guard.get(table_name).cloned().unwrap_or_default();
             Ok(Box::new(MockStorageIterator {
@@ -277,6 +285,7 @@ pub(crate) mod tests {
         async fn new_iterator(
             &self,
             _table_name: &str,
+            _projection: &[usize],
         ) -> Result<Box<dyn storage_engine::StorageIterator>> {
             let chunks = self.chunks.lock().unwrap().clone();
             Ok(Box::new(MockEmbeddedStorageIterator { chunks, cursor: 0 }))
@@ -342,7 +351,7 @@ pub(crate) mod tests {
         wrapped_storage.flush("test").await.unwrap();
         assert_eq!(wrapped_storage.get_chunk_count("test").await.unwrap(), 1);
 
-        let mut it = wrapped_storage.new_iterator("test").await.unwrap();
+        let mut it = wrapped_storage.new_iterator("test", &[0, 0]).await.unwrap();
         let meta = it.next_chunk_meta().await.unwrap();
         assert_eq!(meta, Some(vec![1, 2, 3]));
         let data = it.read_current_chunk_data().await.unwrap();

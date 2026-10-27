@@ -42,8 +42,8 @@ impl ScanSource {
     }
 
     pub fn execute(&self, pid: PipelineID, dispatcher: Arc<Dispatcher>) -> Result<()> {
-        let iterator_fut = self.storage.new_iterator(&self.table_name);
-        let pipeline = dispatcher.get_pipeline(pid);
+        let projection = self.projections.as_deref().unwrap_or_default();
+        let iterator_fut = self.storage.new_iterator(&self.table_name, projection);
         let mut iterator = block_on(iterator_fut)?;
         let mut pushed_morsels = 0;
         let mut global_row_offset = 0;
@@ -77,13 +77,11 @@ impl ScanSource {
             }
 
             let data = block_on(iterator.read_current_chunk_data())?;
-            let mut reader =
-                Reader::try_new_with_schema(&data[..], pipeline.schema.clone()).unwrap();
-            if let Some(proj) = self.projections.clone() {
-                reader = reader.with_projection(proj);
+            let mut reader = Reader::try_new_with_schema(&data[..], self.schema.clone())?;
+            if !projection.is_empty() {
+                reader = reader.with_projection(projection);
             }
-            let batches: Result<Vec<RecordBatch>> = reader.collect();
-            let batches = batches.unwrap();
+            let batches: Vec<RecordBatch> = reader.collect::<Result<_, _>>()?;
 
             for batch in batches {
                 let mut offset: usize = 0;
@@ -320,5 +318,122 @@ mod tests {
         assert_eq!(m2.num_rows, 904);
         let ScanMessage::Batch(b2) = msg2;
         assert_eq!(b2.num_rows(), 904);
+    }
+
+    #[test]
+    fn test_scan_source_with_projection() {
+        let storage = Arc::new(MockDataStorage::new());
+
+        let schema = Arc::new(Schema::new(vec![
+            Field {
+                name: "id".to_string(),
+                data_type: DataType::Int32,
+                nullable: false,
+            },
+            Field {
+                name: "age".to_string(),
+                data_type: DataType::Int32,
+                nullable: false,
+            },
+            Field {
+                name: "score".to_string(),
+                data_type: DataType::Float64,
+                nullable: false,
+            },
+        ]));
+
+        let id_col = Arc::new(PrimitiveArray::from(vec![1i32, 2]));
+        let age_col = Arc::new(PrimitiveArray::from(vec![25i32, 30]));
+        let score_col = Arc::new(PrimitiveArray::from(vec![99.5f64, 88.0]));
+        let batch = RecordBatch::try_new(schema.clone(), vec![id_col, age_col, score_col]).unwrap();
+
+        let mut page = Vec::new();
+        let mut writer = Writer::new(&mut page);
+        writer.write(&batch).unwrap();
+        storage.add_page("students", page);
+
+        // Project only [score (index 2)]
+        let scan_source = ScanSource {
+            table_name: "students".to_string(),
+            schema: schema.clone(),
+            storage,
+            pruners: vec![],
+            projections: Some(vec![2]),
+        };
+
+        let projected_schema = Arc::new(Schema::new(vec![Field {
+            name: "score".to_string(),
+            data_type: DataType::Float64,
+            nullable: false,
+        }]));
+
+        let dispatcher = Arc::new(Dispatcher::new(1));
+        let (tx, _rx) = std::sync::mpsc::channel();
+        let pipeline = Arc::new(crate::execution::pipeline::Pipeline {
+            id: 20,
+            source: None,
+            downstream_id: None,
+            operators: vec![],
+            sink: Box::new(crate::execution::limit::PhysicalLimitSink::new(0, 100)),
+            dependencies: vec![],
+            partitions: 1,
+            schema: projected_schema,
+        });
+
+        dispatcher.register(20, vec![], pipeline, tx).unwrap();
+
+        // Execute scan!
+        scan_source.execute(20, dispatcher.clone()).unwrap();
+
+        let state = dispatcher.state.lock().unwrap();
+        let queue = state.work_queues.get(&20).unwrap();
+        assert_eq!(queue.total_morsels, Some(1));
+
+        let (_, msg) = &queue.numa_queues[0][0];
+        let ScanMessage::Batch(b) = msg;
+        assert_eq!(b.num_columns(), 1);
+        assert_eq!(b.schema().fields()[0].name, "score");
+        let score_vals = b
+            .column(0)
+            .as_any()
+            .downcast_ref::<PrimitiveArray<f64>>()
+            .unwrap();
+        assert_eq!(score_vals.value(0), 99.5);
+        assert_eq!(score_vals.value(1), 88.0);
+    }
+
+    #[test]
+    fn test_physical_scan_node_projected_schema() {
+        use crate::execution::plan_builder::{PhysicalPlanNode, PhysicalScanNode};
+
+        let schema = Arc::new(Schema::new(vec![
+            Field {
+                name: "id".to_string(),
+                data_type: DataType::Int32,
+                nullable: false,
+            },
+            Field {
+                name: "name".to_string(),
+                data_type: DataType::Utf8,
+                nullable: false,
+            },
+            Field {
+                name: "active".to_string(),
+                data_type: DataType::Boolean,
+                nullable: false,
+            },
+        ]));
+
+        let node = PhysicalScanNode {
+            table_name: "users".to_string(),
+            schema: schema.clone(),
+            pruners: vec![],
+            projections: Some(vec![1, 2]),
+        };
+
+        let node_schema = node.schema();
+        assert_eq!(node_schema.fields().len(), 2);
+        assert_eq!(node_schema.fields()[0].name, "name");
+        assert_eq!(node_schema.fields()[1].name, "active");
     }
 }

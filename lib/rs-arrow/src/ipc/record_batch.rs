@@ -374,21 +374,21 @@ impl<R: Read> MessageReader<R> {
         Ok(Some(meta_len))
     }
 }
-struct RecordBatchDecoder<'a> {
+struct RecordBatchDecoder<'a, 'b> {
     pub buf: &'a Buffer,
     pub schema: SchemaRef,
-    projection: Option<Vec<usize>>,
+    projection: &'b[usize],
     segments: Vector<'a, ForwardsUOffset<FbMetaSegment<'a>>>,
     is_compressed: bool,
     row_count: i32,
 }
 
-impl<'a> RecordBatchDecoder<'a> {
+impl<'a, 'b> RecordBatchDecoder<'a, 'b> {
     pub fn new(
         buf: &'a Buffer,
         fb_batch: FbRecordBatch<'a>,
         schema: SchemaRef,
-        projection: Option<Vec<usize>>,
+        projection: &'b[usize],
     ) -> Self {
         let segments = fb_batch.segments().unwrap();
         let is_compressed = fb_batch.compression() != 0;
@@ -524,12 +524,19 @@ impl<'a> RecordBatchDecoder<'a> {
 
     pub fn try_decode(&mut self) -> Result<RecordBatch> {
         let field_segment_indexes = compute_field_segment_indexes(&self.schema);
-        match &self.projection {
-            Some(projected_indexes) => {
-                let mut columns = Vec::with_capacity(projected_indexes.len());
-                let mut projected_fields = Vec::with_capacity(projected_indexes.len());
+        match self.projection.is_empty() {
+            false => {
+                let mut columns = Vec::with_capacity(self.projection.len());
+                let mut projected_fields = Vec::with_capacity(self.projection.len());
 
-                for &field_idx in projected_indexes {
+                for &field_idx in self.projection {
+                    if field_idx >= self.schema.fields().len() {
+                        return Err(anyhow!(
+                            "Projection index {} out of bounds for schema with {} fields",
+                            field_idx,
+                            self.schema.fields().len()
+                        ));
+                    }
                     columns.push(self.decode_field(field_idx, field_segment_indexes[field_idx])?);
                     projected_fields.push(self.schema.fields()[field_idx].clone());
                 }
@@ -537,7 +544,7 @@ impl<'a> RecordBatchDecoder<'a> {
                 let projected_schema = Arc::new(Schema::new(projected_fields));
                 RecordBatch::try_new(projected_schema, columns)
             }
-            None => {
+            true => {
                 let schema = Arc::clone(&self.schema);
                 let mut columns = Vec::with_capacity(schema.fields.iter().count());
                 for (idx, _) in schema.fields().iter().enumerate() {
@@ -550,23 +557,23 @@ impl<'a> RecordBatchDecoder<'a> {
     }
 }
 
-pub struct Reader<R: Read> {
+pub struct Reader<'a, R: Read> {
     reader: MessageReader<R>,
     schema: SchemaRef,
-    projection: Option<Vec<usize>>,
+    projection: &'a[usize],
     /// finished=true indicates we already reached to the end of a stream
     finished: bool,
 }
 
-impl<R: Read> Reader<R> {
+impl<'a, R: Read> Reader<'a, R> {
     /// Returns the schema of this stream
     #[inline]
     pub fn schema(&self) -> &SchemaRef {
         &self.schema
     }
 
-    pub fn with_projection(mut self, projection: Vec<usize>) -> Self {
-        self.projection = Some(projection);
+    pub fn with_projection(mut self, projection: &'a[usize]) -> Self {
+        self.projection = projection;
         self
     }
 
@@ -590,7 +597,7 @@ impl<R: Read> Reader<R> {
             reader: msg_reader,
             schema: Arc::new(schema),
             finished: false,
-            projection: None,
+            projection: &[],
         })
     }
 
@@ -601,7 +608,7 @@ impl<R: Read> Reader<R> {
             reader: msg_reader,
             schema,
             finished: false,
-            projection: None,
+            projection: &[],
         })
     }
 
@@ -631,7 +638,7 @@ impl<R: Read> Reader<R> {
                         &body,
                         batch_header,
                         self.schema.clone(),
-                        self.projection.clone(),
+                        self.projection,
                     );
                     let batch = decoder.try_decode()?;
                     return Ok(Some(batch));
@@ -644,7 +651,7 @@ impl<R: Read> Reader<R> {
     }
 }
 
-impl<R: Read> Iterator for Reader<R> {
+impl<R: Read> Iterator for Reader<'_, R> {
     type Item = Result<RecordBatch>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -1092,7 +1099,7 @@ mod tests {
         // completely skipping column 0 (Int32) and column 2 (Float64)!
         let mut reader = Reader::try_new_with_schema(&buffer[..], schema.clone())
             .unwrap()
-            .with_projection(vec![1, 3]);
+            .with_projection(&[1, 3]);
 
         let projected_batch = reader.try_next().unwrap().unwrap();
         assert_eq!(projected_batch.num_columns(), 2);
@@ -1156,7 +1163,7 @@ mod tests {
         // Project ONLY the last column (index 2: score)
         let mut reader = Reader::try_new_with_schema(&buffer[..], schema.clone())
             .unwrap()
-            .with_projection(vec![2]);
+            .with_projection(&[2]);
 
         let projected_batch = reader.try_next().unwrap().unwrap();
         assert_eq!(projected_batch.num_columns(), 1);
@@ -1206,7 +1213,7 @@ mod tests {
         // Project in reverse order [col_c (2), col_a (0)]
         let mut reader = Reader::try_new_with_schema(&buffer[..], schema.clone())
             .unwrap()
-            .with_projection(vec![2, 0]);
+            .with_projection(&[2, 0]);
 
         let projected_batch = reader.try_next().unwrap().unwrap();
         assert_eq!(projected_batch.num_columns(), 2);
@@ -1228,5 +1235,38 @@ mod tests {
             .unwrap();
         assert_eq!(out_a.value(0), 10);
         assert_eq!(out_a.value(1), 20);
+    }
+
+    #[test]
+    fn test_record_batch_projection_out_of_bounds() {
+        let schema = Arc::new(Schema::new(vec![
+            Field {
+                name: "id".to_string(),
+                data_type: DataType::Int32,
+                nullable: false,
+            },
+        ]));
+
+        let batch = RecordBatch::try_new(
+            schema.clone(),
+            vec![Arc::new(PrimitiveArray::from(vec![1i32]))],
+        ).unwrap();
+
+        let mut buffer = Vec::new();
+        {
+            let mut writer = Writer::new(&mut buffer);
+            writer.write(&batch).unwrap();
+        }
+
+        // Project out-of-bounds column index 5
+        let mut reader = Reader::try_new_with_schema(&buffer[..], schema.clone())
+            .unwrap()
+            .with_projection(&[5]);
+
+        let res = reader.try_next();
+        match res {
+            Err(e) => assert!(e.to_string().contains("out of bounds")),
+            Ok(_) => panic!("Expected error for out-of-bounds projection"),
+        }
     }
 }

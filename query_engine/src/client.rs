@@ -125,7 +125,7 @@ mod tests {
 
         // Verify that the row was written into storage via WriteCoordinator::handle_insert!
         assert_eq!(storage.get_chunk_count("users").await.unwrap(), 1);
-        let mut it = storage.new_iterator("users").await.unwrap();
+        let mut it = storage.new_iterator("users", &[]).await.unwrap();
         let meta_bytes = it.next_chunk_meta().await.unwrap().unwrap();
         let meta = ChunkMetaData::try_new(meta_bytes).unwrap();
         assert_eq!(meta.num_rows, 1);

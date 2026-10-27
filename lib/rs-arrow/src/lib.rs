@@ -434,6 +434,10 @@ impl Schema {
     }
 
     pub fn project(&self, indexes: &[usize]) -> Result<Self> {
+        if indexes.is_empty() {
+            return Ok(self.clone());
+        }
+
         let new_fields = indexes
             .iter()
             .map(|i| {

@@ -45,8 +45,13 @@ pub trait StorageIterator: Send + Sync {
 #[async_trait]
 pub trait DataStorage: Send + Sync {
     /// This method always returns the complete chunk the query engine
-    /// need to do all column pruning itself
-    async fn new_iterator(&self, table_name: &str) -> Result<Box<dyn StorageIterator>>;
+    /// need to do all column pruning itself.
+    /// len(projection) == 0 means client want to request all columns
+    async fn new_iterator(
+        &self,
+        table_name: &str,
+        projection: &[usize],
+    ) -> Result<Box<dyn StorageIterator>>;
 
     /// Forces whatever is currently buffered for `table_name` to seal
     /// into a durable, catalog-visible segment, regardless of whether

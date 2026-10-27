@@ -7,7 +7,11 @@ pub struct Data {}
 
 #[async_trait]
 impl DataStorage for Data {
-    async fn new_iterator(&self, _table_name: &str) -> Result<Box<dyn StorageIterator>> {
+    async fn new_iterator(
+        &self,
+        _table_name: &str,
+        _projection: &[usize],
+    ) -> Result<Box<dyn StorageIterator>> {
         todo!()
     }
 

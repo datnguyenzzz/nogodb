@@ -50,7 +50,10 @@ impl PhysicalPlanNode for PhysicalScanNode {
     }
 
     fn schema(&self) -> SchemaRef {
-        self.schema.clone()
+        match &self.projections {
+            Some(projection) => Arc::new(self.schema.project(&projection).unwrap()),
+            None => self.schema.clone(),
+        }
     }
 }
 

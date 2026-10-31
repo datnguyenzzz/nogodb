@@ -1,1 +1,33 @@
 A lightweight, embedded storage engine for NogoDB that serves as 1 of backends for the `query_engine` cli. It is designed as a library rather than a standalone server
+
+Data layout:
+
+```
+    <data_dir>/<table>/CURRENT                  (tiny pointer file)
+    <data_dir>/<table>/.lock                     (advisory lock, manifest swap)
+    <data_dir>/<table>/manifest-000001.bin       (versioned manifest)
+    <data_dir>/<table>/manifest-000002.bin
+    <data_dir>/<table>/segments/seg-<uuid>.dat   (sealed segment file)
+    <data_dir>/<table>/segments/seg-<uuid>.art   (ART sidecar)
+```
+
+One sealed segment file = many chunks + one footer:
+
+```
+        [chunk_0 bytes][chunk_1 bytes]...[chunk_N-1 bytes]
+        [FOOTER: chunk_count, [(offset,len,num_rows,meta_only_bytes)...], crc32]
+```
+
+Each `chunk_i` is stored EXACTLY as received from `append_chunk` —
+whatever the caller's `query_engine::arrow::ipc::record_batch::Writer::
+write(&batch)` produced (continuation marker + flatbuffer metadata +
+padding + zstd-compressed body), byte-for-byte, no re-framing by this
+engine. This engine doesn't parse that structure at write time beyond
+the one metadata-derivation step (section 4.3); it stores the blob and
+records its `(offset, len)` in the footer for direct seeking later.
+
+`meta_only_bytes` in the footer is a SEPARATE, smaller blob — the
+`MessageType::MetaOnly` encoding of the same chunk's (num_rows,
+null_count, ColumnStat) triples, produced once at seal time via
+`query_engine::arrow::ipc::record_batch::Writer::write_meta_node`
+(section 4.3) — not a slice of the RecordBatch chunk's own bytes.

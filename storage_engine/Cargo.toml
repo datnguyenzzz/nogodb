@@ -4,6 +4,12 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-anyhow = "1.0.104"
 async-trait = "0.1.92"
+fd-lock = "4.0.4"
 rs-arrow = {path = "../lib/rs-arrow"}
+thiserror = "2.0.21"
+uuid = { version = "1.29.0", features = ["v4"] }
+
+[dev-dependencies]
+tempfile = "3.10"
+tokio = { version = "1.53.1", features = ["full"] }

@@ -16,15 +16,18 @@ pub struct WrappedStorageIterator {
 #[async_trait]
 impl StorageIterator for WrappedStorageIterator {
     async fn next_chunk_meta(&mut self) -> Result<Option<Vec<u8>>> {
-        self.inner.next_chunk_meta().await
+        let res = self.inner.next_chunk_meta().await?;
+        return Ok(res);
     }
 
     fn skip_current_chunk(&mut self) -> Result<()> {
-        self.inner.skip_current_chunk()
+        let res = self.inner.skip_current_chunk()?;
+        return Ok(res);
     }
 
     async fn read_current_chunk_data(&mut self) -> Result<Vec<u8>> {
-        self.inner.read_current_chunk_data().await
+        let res = self.inner.read_current_chunk_data().await?;
+        return Ok(res);
     }
 }
 
@@ -50,15 +53,18 @@ impl DataStorage for WrappedStorage {
     }
 
     async fn flush(&self, table_name: &str) -> Result<()> {
-        self.storage.flush(table_name).await
+        let res = self.storage.flush(table_name).await?;
+        return Ok(res);
     }
 
     async fn append_chunk(&self, table_name: &str, chunk: Vec<u8>) -> Result<()> {
-        self.storage.append_chunk(table_name, chunk).await
+        let res = self.storage.append_chunk(table_name, chunk).await?;
+        return Ok(res);
     }
 
     async fn get_chunk_count(&self, table_name: &str) -> Result<usize> {
-        self.storage.get_chunk_count(table_name).await
+        let res = self.storage.get_chunk_count(table_name).await?;
+        return Ok(res);
     }
 }
 
@@ -98,13 +104,16 @@ impl CatalogStorage for WrappedCatalog {
     }
 
     async fn register_table_meta(&self, table_name: &str, metadata: TableMetadata) -> Result<()> {
-        self.catalog
+        let res = self
+            .catalog
             .register_table_meta(table_name, metadata.into())
-            .await
+            .await?;
+        return Ok(res);
     }
 
     async fn drop_table_meta(&self, table_name: &str) -> Result<()> {
-        self.catalog.drop_table_meta(table_name).await
+        let res = self.catalog.drop_table_meta(table_name).await?;
+        return Ok(res);
     }
 }
 
@@ -260,7 +269,9 @@ pub(crate) mod tests {
 
     #[async_trait]
     impl storage_engine::StorageIterator for MockEmbeddedStorageIterator {
-        async fn next_chunk_meta(&mut self) -> Result<Option<Vec<u8>>> {
+        async fn next_chunk_meta(
+            &mut self,
+        ) -> Result<Option<Vec<u8>>, storage_engine::StorageError> {
             if self.cursor < self.chunks.len() {
                 Ok(Some(vec![1, 2, 3]))
             } else {
@@ -268,12 +279,14 @@ pub(crate) mod tests {
             }
         }
 
-        fn skip_current_chunk(&mut self) -> Result<()> {
+        fn skip_current_chunk(&mut self) -> Result<(), storage_engine::StorageError> {
             self.cursor += 1;
             Ok(())
         }
 
-        async fn read_current_chunk_data(&mut self) -> Result<Vec<u8>> {
+        async fn read_current_chunk_data(
+            &mut self,
+        ) -> Result<Vec<u8>, storage_engine::StorageError> {
             let data = self.chunks[self.cursor].clone();
             self.cursor += 1;
             Ok(data)
@@ -286,21 +299,29 @@ pub(crate) mod tests {
             &self,
             _table_name: &str,
             _projection: &[usize],
-        ) -> Result<Box<dyn storage_engine::StorageIterator>> {
+        ) -> Result<Box<dyn storage_engine::StorageIterator>, storage_engine::StorageError>
+        {
             let chunks = self.chunks.lock().unwrap().clone();
             Ok(Box::new(MockEmbeddedStorageIterator { chunks, cursor: 0 }))
         }
 
-        async fn flush(&self, _table_name: &str) -> Result<()> {
+        async fn flush(&self, _table_name: &str) -> Result<(), storage_engine::StorageError> {
             Ok(())
         }
 
-        async fn append_chunk(&self, _table_name: &str, chunk: Vec<u8>) -> Result<()> {
+        async fn append_chunk(
+            &self,
+            _table_name: &str,
+            chunk: Vec<u8>,
+        ) -> Result<(), storage_engine::StorageError> {
             self.chunks.lock().unwrap().push(chunk);
             Ok(())
         }
 
-        async fn get_chunk_count(&self, _table_name: &str) -> Result<usize> {
+        async fn get_chunk_count(
+            &self,
+            _table_name: &str,
+        ) -> Result<usize, storage_engine::StorageError> {
             Ok(self.chunks.lock().unwrap().len())
         }
     }
@@ -314,24 +335,27 @@ pub(crate) mod tests {
         async fn fetch_table_meta(
             &self,
             _table_name: &str,
-        ) -> Result<storage_engine::TableMetadata> {
+        ) -> Result<storage_engine::TableMetadata, storage_engine::StorageError> {
             self.meta
                 .lock()
                 .unwrap()
                 .clone()
-                .ok_or_else(|| anyhow::anyhow!("Not found"))
+                .ok_or_else(|| storage_engine::StorageError::Unknown)
         }
 
         async fn register_table_meta(
             &self,
             _table_name: &str,
             metadata: storage_engine::TableMetadata,
-        ) -> Result<()> {
+        ) -> Result<(), storage_engine::StorageError> {
             *self.meta.lock().unwrap() = Some(metadata);
             Ok(())
         }
 
-        async fn drop_table_meta(&self, _table_name: &str) -> Result<()> {
+        async fn drop_table_meta(
+            &self,
+            _table_name: &str,
+        ) -> Result<(), storage_engine::StorageError> {
             *self.meta.lock().unwrap() = None;
             Ok(())
         }

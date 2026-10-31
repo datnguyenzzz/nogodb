@@ -1,0 +1,28 @@
+storage_engine/src/lib.rs
+  h_42387b1c6b634c 1-2,25,29-31,40,43,47,60,65,69,72,74-102
+storage_engine/src/catalog/mod.rs
+  h_42387b1c6b634c 1,8,11,14
+storage_engine/README
+  h_42387b1c6b634c 2-32
+storage_engine/Cargo.toml
+  h_42387b1c6b634c 10-11
+query_engine/TODO
+  h_42387b1c6b634c 1
+query_engine/src/storage/embed/mod.rs
+  h_42387b1c6b634c 19-20,24-25,29-30,56-57,61-62,66-67,107,110,115,356
+storage_engine/src/backend.rs
+  h_42387b1c6b634c 1-324
+storage_engine/src/data/mod.rs
+  h_42387b1c6b634c 3,13,17,21,25
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "d69a6be1f75f518bc9c458622dce6b59f8b40771",
+  "prompts": {},
+  "humans": {
+    "h_42387b1c6b634c": {
+      "author": "datnguyenzzz <thanh.nguyen@deliveryhero.com>"
+    }
+  }
+}
